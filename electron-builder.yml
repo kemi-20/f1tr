@@ -1,9 +1,8 @@
 appId: com.f1tr.app
 productName: F1 Race Engineer
 copyright: MIT
-# Never let electron-builder publish itself — CI controls release publishing via `gh`,
-# so we upload exactly the two installer exes (no win-unpacked dump, blockmap, latest.yml).
-publish: never
+# Publishing is controlled by the CI `--publish never` flag, not here, so the Release
+# carries exactly the two installer exes (no win-unpacked/blockmap/latest.yml).
 directories:
   buildResources: build
   output: release/${version}
