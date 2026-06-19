@@ -162,10 +162,25 @@ export class StateAggregator {
       pl.onTrack = (pld.m_driverStatus ?? 1) === 1
     }
 
-    // gap-to-player for each rival (cumulative deltas from player's position in the order)
+    // gap-to-player: correct sign + correct pairing.
+    //  - a car AHEAD of the player: the player is behind it. The player's deltaToCarInFrontS
+    //    chain leads up to it, but the simplest correct per-car value: the gap is positive
+    //    (ahead), and equals that car's deltaToCarBehindS (gap of the car directly behind it,
+    //    which walks toward the player) — but to avoid cumulative walks, use the direct:
+    //    ahead car gap = +|its deltaToCarBehindS| (the trailing car's gap to it).
+    //  - a car BEHIND the player: gap is negative, = -(its deltaToCarInFrontS) magnitude.
+    // The sign convention (state.ts): + = ahead by that much.
     const playerPos = this.state.player.position
     for (const r of Object.values(this.state.rivals)) {
-      r.gapToPlayerS = r.deltaToCarInFrontS == null ? null : r.position <= playerPos ? r.deltaToCarInFrontS : -r.deltaToCarInFrontS
+      if (r.position === playerPos) {
+        r.gapToPlayerS = 0
+      } else if (r.position < playerPos) {
+        // ahead of player: positive gap (how far ahead). Use deltaToCarBehindS (car behind's gap to it).
+        r.gapToPlayerS = r.deltaToCarBehindS != null ? Math.abs(r.deltaToCarBehindS) : null
+      } else {
+        // behind player: negative gap. Use its deltaToCarInFrontS (gap to the car ahead).
+        r.gapToPlayerS = r.deltaToCarInFrontS != null ? -Math.abs(r.deltaToCarInFrontS) : null
+      }
       r.relationToPlayer =
         r.position < playerPos ? 'ahead' : r.position > playerPos ? 'behind' : 'same'
     }
@@ -238,7 +253,7 @@ export class StateAggregator {
     pl.powerUnit.mguh = 1 - clamp01(normPctTo01(d.m_engineMGUHWear))
     pl.powerUnit.es = 1 - clamp01(normPctTo01(d.m_engineESWear))
     pl.powerUnit.ce = 1 - clamp01(normPctTo01(d.m_engineCEWear))
-    pl.powerUnit.gearbox = 1 - clamp01(normPctTo01(d.m_gearBoxDamage ?? d.m_engineDamage))
+    pl.powerUnit.gearbox = 1 - clamp01(normPctTo01(d.m_gearBoxDamage))
     pl.powerUnit.exhaust = pl.powerUnit.engine
     // wing damage is uint8 0..100 — divide by 100, NOT clamp01 (which would max any value > 1).
     pl.damage.frontLeftWing = clamp01(normPctTo01(d.m_frontLeftWingDamage))

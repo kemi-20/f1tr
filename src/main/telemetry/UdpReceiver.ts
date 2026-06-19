@@ -109,11 +109,14 @@ export class UdpReceiver {
 
   stop(): void {
     if (!this.running || !this.socket) return
+    const sock = this.socket
     try {
-      this.socket.close()
+      sock.removeAllListeners()
+      sock.close()
     } catch (e) {
       logger.warn('UDP close error:', e)
     }
+    this.socket = null
     this.running = false
   }
 }

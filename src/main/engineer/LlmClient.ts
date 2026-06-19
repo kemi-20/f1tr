@@ -119,11 +119,14 @@ export class LlmClient implements EngineerBackend {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       )) as any
 
-      // watchdog: don't let a stalled stream hang the single-slot queue for minutes
+      // watchdog: don't let a stalled stream hang the single-slot queue for minutes.
+      // Capture the controller locally so a new generate() starting before the timeout
+      // doesn't abort the wrong stream.
+      const controller = this.abort
       const watchdog = setTimeout(
         () => {
           logger.warn('LLM stream watchdog (30s) — aborting')
-          this.abort?.abort()
+          controller?.abort()
         },
         30_000
       )

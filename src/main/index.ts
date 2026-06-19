@@ -46,6 +46,12 @@ function createWindow(): void {
     Sender.setWindow(mainWindow)
   })
 
+  // detach sender + null ref on close so a late emit doesn't hit a destroyed webContents
+  mainWindow.on('closed', () => {
+    Sender.setWindow(null)
+    mainWindow = null
+  })
+
   // replay the latest of each channel once the renderer is ready, so events emitted
   // before React mounted are not permanently lost (paint/health/advice/status).
   mainWindow.webContents.once('did-finish-load', () => {

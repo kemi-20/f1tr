@@ -5,6 +5,7 @@
  */
 export class SseParser {
   private buffer = ''
+  private decoder = new TextDecoder()
 
   /** Feed raw bytes; invoke onData(base64Chunk) for each audio chunk, onDone() at [DONE]. */
   feed(
@@ -12,7 +13,8 @@ export class SseParser {
     onData: (base64Pcm16: string) => void,
     onDone: () => void
   ): void {
-    this.buffer += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk, { stream: true })
+    // Reuse one TextDecoder so multi-byte UTF-8 split across chunks is handled correctly.
+    this.buffer += typeof chunk === 'string' ? chunk : this.decoder.decode(chunk, { stream: true })
     let nl: number
     while ((nl = this.buffer.indexOf('\n')) !== -1) {
       const line = this.buffer.slice(0, nl).trim()

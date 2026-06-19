@@ -17,6 +17,9 @@ class WebAudioEngineImpl {
   private muted = false
   private volume = 1
   private started = false
+  /** id of the utterance currently allowed to play; chunks from any other id are dropped
+   *  (e.g. after a preempt the old synthesis's late chunks must not keep sounding). */
+  private activeUtteranceId: string | null = null
 
   /** Must be called from a user gesture (AudioContext autoplay policy). */
   ensure(): void {
@@ -36,8 +39,10 @@ class WebAudioEngineImpl {
     return out
   }
 
-  onChunk({ base64Pcm16 }: AudioChunk): void {
+  onChunk({ utteranceId, base64Pcm16 }: AudioChunk): void {
     if (!this.ctx || !this.master || this.muted) return
+    // drop chunks that belong to a superseded utterance (preempted/cancelled)
+    if (this.activeUtteranceId !== null && utteranceId !== this.activeUtteranceId) return
     const bytes = this.base64ToBytes(base64Pcm16)
     const n = (bytes.length / 2) | 0
     const buf = this.ctx.createBuffer(1, n, 24000)
@@ -58,14 +63,16 @@ class WebAudioEngineImpl {
   }
 
   /** Higher-priority message cut-in: fade out current, stop, restore gain. */
-  preempt(_start: AudioStart): void {
+  preempt(start: AudioStart): void {
     if (!this.ctx || !this.master) return
+    // the new utterance is now the active one; any late chunks from the old one are dropped
+    this.activeUtteranceId = start.utteranceId
     const now = this.ctx.currentTime
     const g = this.master.gain
     g.cancelScheduledValues(now)
     g.setValueAtTime(Math.max(g.value, 0.0001), now)
     g.linearRampToValueAtTime(0.0001, now + 0.08) // 80ms fade
-    window.setTimeout(() => {
+    setTimeout(() => {
       this.active.forEach((s) => {
         try {
           s.stop()
@@ -89,6 +96,11 @@ class WebAudioEngineImpl {
   setMuted(m: boolean): void {
     this.muted = m
     if (this.master) this.master.gain.value = m ? 0 : this.volume
+  }
+
+  /** Mark which utterance's chunks may play; chunks from any other id are dropped. */
+  setActiveUtterance(id: string): void {
+    this.activeUtteranceId = id
   }
 
   pause(): void {
@@ -119,7 +131,12 @@ export function wireAudioIpc(): void {
   api.on('audio:start', (p) => {
     const start = p as AudioStart
     WebAudioEngine.ensure()
-    if (start.priority === 'preempt') WebAudioEngine.preempt(start)
+    if (start.priority === 'preempt') {
+      WebAudioEngine.preempt(start)
+    } else {
+      // a normal start: this utterance is now the active one (supersedes any prior)
+      WebAudioEngine.setActiveUtterance(start.utteranceId)
+    }
   })
   api.on('audio:chunk', (p) => WebAudioEngine.onChunk(p as AudioChunk))
   api.on('audio:end', () => {
