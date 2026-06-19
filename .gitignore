@@ -39,3 +39,5 @@ CLAUDE-FABLE-5.md
 
 # agent-only reference doc (NOT for public repo)
 README_for_agent.md
+# screenshot test output
+tests/shots/
