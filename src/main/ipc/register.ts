@@ -22,6 +22,7 @@ export function registerIpc(): void {
       const eng = getEngineer()
       eng?.setLanguage(cfg.language.mode)
       eng?.setVoice(cfg.language.voice, cfg.language.direction)
+      eng?.setEngineerStyle(cfg.language.engineerStyle)
     }
     return cfg
   })

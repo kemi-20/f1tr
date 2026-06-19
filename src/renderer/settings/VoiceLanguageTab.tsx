@@ -1,5 +1,5 @@
 import { useConfigStore } from '../store'
-import { LANGUAGE_PROFILE, type LanguageMode } from '@shared/index'
+import { LANGUAGE_PROFILE, ENGINEER_STYLES, type LanguageMode } from '@shared/index'
 import { Field } from './SettingsModal'
 
 const MODES: { id: LanguageMode; label: string; desc: string }[] = [
@@ -62,6 +62,28 @@ export function VoiceLanguageTab(): React.ReactElement {
                 }`}
               >
                 {v.name}
+              </button>
+            )
+          })}
+        </div>
+      </Field>
+
+      <Field label="工程师风格" hint="模仿真实 F1 工程师的无线电风格（Bono/GP/法拉利等）">
+        <div className="grid grid-cols-2 gap-2">
+          {ENGINEER_STYLES.map((s) => {
+            const active = language.engineerStyle === s.id
+            return (
+              <button
+                key={s.id}
+                onClick={() => void patch({ language: { engineerStyle: s.id } })}
+                className={`rounded-lg border p-3 text-left transition ${
+                  active
+                    ? 'border-accent-carbon/60 bg-accent-carbon/10'
+                    : 'border-white/[0.06] bg-white/[0.02] hover:border-white/20'
+                }`}
+              >
+                <div className={`text-sm font-bold ${active ? 'text-accent-carbon' : 'text-white/80'}`}>{s.name}</div>
+                <div className="mt-0.5 text-[10px] leading-snug text-white/40">{s.description}</div>
               </button>
             )
           })}

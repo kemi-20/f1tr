@@ -98,6 +98,7 @@ app.whenReady().then(() => {
   })
   engineer.setLanguage(cfg.language.mode)
   engineer.setVoice(cfg.language.voice, cfg.language.direction)
+  engineer.setEngineerStyle(cfg.language.engineerStyle)
 
   telemetry = new TelemetryService(cfg.telemetry.port, cfg.triggers, (firing) => {
     // fire on the main event loop — serialize through the engineer's queue

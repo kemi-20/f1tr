@@ -33,6 +33,7 @@ export interface AppConfig {
     mode: LanguageMode
     voice: string
     direction: string
+    engineerStyle: string // which real engineer's style to imitate
   }
   telemetry: {
     port: number
@@ -63,7 +64,7 @@ export interface AppConfig {
 export const DEFAULT_CONFIG: AppConfig = {
   llm: { baseURL: '', apiKeyOverride: '', model: '', temperature: 0.6, maxTokens: 80, hasSecret: false },
   tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false },
-  language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气' },
+  language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气', engineerStyle: 'default' },
   telemetry: {
     port: 20777,
     host: '127.0.0.1',

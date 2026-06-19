@@ -17,6 +17,7 @@ import { logger } from '../logging/Logger'
  */
 export class ConversationMemory {
   private mode: LanguageMode = 'zh'
+  private engineerStyle: string = 'default'
   private primeText = ''
   private primeSessionUID = ''
   private primeBuilder = new SessionPrimeBuilder()
@@ -32,6 +33,11 @@ export class ConversationMemory {
       this.mode = mode
       logger.info(`engineer language mode -> ${mode}`)
     }
+  }
+
+  setEngineerStyle(style: string): void {
+    this.engineerStyle = style
+    logger.info(`engineer style -> ${style}`)
   }
 
   /**
@@ -66,7 +72,7 @@ export class ConversationMemory {
   build(digestText: string): ChatCompletionMessageParam[] {
     const msgs: ChatCompletionMessageParam[] = []
     // layer 1 + 2 combined into a single stable system message (max cache benefit)
-    const sys = [systemPrompt(this.mode), this.primeText ? `\n\n${this.primeText}` : ''].join('')
+    const sys = [systemPrompt(this.mode, this.engineerStyle), this.primeText ? `\n\n${this.primeText}` : ''].join('')
     msgs.push({ role: 'system', content: sys })
 
     // layer 3a: recent turns as alternating user/assistant pairs (proper chat format)

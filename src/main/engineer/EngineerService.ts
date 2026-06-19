@@ -3,6 +3,7 @@ import { Sender } from '../ipc/sender'
 import { DigestBuilder } from './DigestBuilder'
 import { StubAdvice } from './StubAdvice'
 import { ConversationMemory } from './ConversationMemory'
+import { getEngineerStyle } from '@shared/personas/engineer-styles'
 import type { TriggerFiring } from '@shared/types/triggers'
 import type { RaceState } from '@shared/types/state'
 import type { LanguageMode } from '@shared/constants/voices'
@@ -35,6 +36,13 @@ export class EngineerService {
   setLanguage(mode: LanguageMode): void {
     this.language = mode
     this.memory.setLanguage(mode)
+  }
+
+  setEngineerStyle(style: string): void {
+    this.memory.setEngineerStyle(style)
+    // update TTS direction to match the engineer style's voice direction
+    const es = getEngineerStyle(style)
+    this.direction = es.ttsDirection
   }
 
   setVoice(voice: string, direction: string): void {

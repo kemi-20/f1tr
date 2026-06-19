@@ -14,5 +14,6 @@ export * from './types/digest'
 export * from './constants/voices'
 export * from './constants/packets'
 export * from './constants/tracks'
+export * from './personas/engineer-styles'
 
 export * from './util/format'
