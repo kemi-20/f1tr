@@ -22,7 +22,8 @@ export class DigestBuilder {
       session: {
         track: s.trackName || `track#${s.trackId}`,
         type: s.sessionTypeLabel,
-        lap: s.totalLaps ? `${s.currentLap}/${s.totalLaps}` : `${s.currentLap}`,
+        // practice has no lap limit — don't show "Lap X" (AI misreads as "last lap")
+        lap: s.totalLaps ? `${s.currentLap}/${s.totalLaps}` : '',
         timeLeft: s.sessionTimeLeftS != null ? this.fmtClock(s.sessionTimeLeftS) : undefined,
         sc
       },
@@ -64,8 +65,11 @@ export class DigestBuilder {
   /** Render the digest to the compact text block actually sent to the LLM. */
   toText(d: Digest): string {
     const lines: string[] = []
+    // practice sessions (lap=''): don't show Lap — AI would misread as "last lap"
+    const lapPart = d.session.lap ? `Lap ${d.session.lap}` : ''
     lines.push(
-      `RACE: ${d.session.track} • ${d.session.type} • Lap ${d.session.lap}` +
+      `RACE: ${d.session.track} • ${d.session.type}` +
+        (lapPart ? ` • ${lapPart}` : '') +
         (d.session.timeLeft ? ` • ${d.session.timeLeft} left` : '') +
         ` • SC: ${d.session.sc.toUpperCase()}`
     )

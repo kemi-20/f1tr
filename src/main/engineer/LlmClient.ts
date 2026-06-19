@@ -151,8 +151,8 @@ export class LlmClient implements EngineerBackend {
       if (usage) {
         this.logUsage(usage)
       }
-      // record into rolling memory for conversational continuity
-      this.memory.pushAdvice(text || '(no response)')
+      // record into rolling memory as a user+assistant pair (proper chat alternation)
+      this.memory.pushTurn(turn, text || '(no response)')
       return text
     } catch (err) {
       if (this.isAbort(err)) {

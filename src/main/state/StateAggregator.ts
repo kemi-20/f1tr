@@ -227,7 +227,8 @@ export class StateAggregator {
     pl.fuelRemainingKg = st.m_fuelInTank ?? pl.fuelRemainingKg
     pl.fuelMix = (st.m_fuelMix ?? 1) as 0 | 1 | 2 | 3
     pl.drsAllowed = (st.m_drsAllowed ?? 0) !== 0
-    pl.tyres.compound = mapCompound(st.m_actualTyreCompound ?? -1)
+    pl.tyres.rawCompoundId = typeof st.m_actualTyreCompound === 'number' ? st.m_actualTyreCompound : -1
+    pl.tyres.compound = mapCompound(pl.tyres.rawCompoundId)
     pl.tyres.ageLaps = st.m_tyresAgeLaps ?? pl.tyres.ageLaps
     // ERS store energy is in joules, capacity ~4e6 J
     pl.ersPercent = clamp01((st.m_ersStoreEnergy ?? 0) / 4_000_000)

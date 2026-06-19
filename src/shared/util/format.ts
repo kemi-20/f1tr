@@ -25,6 +25,7 @@ export function fmtPct(x: number | null | undefined, digits = 0): string {
   return `${(x * 100).toFixed(digits)}%`
 }
 
+/** Short label for the compound category (S/M/H/I/W). */
 export function compoundLabel(c: string | undefined): string {
   switch (c) {
     case 'soft':
@@ -42,23 +43,51 @@ export function compoundLabel(c: string | undefined): string {
   }
 }
 
+/** C-compound name from the raw actualTyreCompound id. Returns '' for non-dry compounds. */
+export function compoundCName(rawId: number | undefined): string {
+  switch (rawId) {
+    case 16:
+      return 'C5'
+    case 17:
+      return 'C4'
+    case 18:
+      return 'C3'
+    case 19:
+      return 'C2'
+    case 20:
+      return 'C1'
+    case 21:
+      return 'C0'
+    case 22:
+      return 'C6'
+    default:
+      return '' // inter/wet/unknown have no C-name
+  }
+}
+
 /** Map tyre surface temp (C) to a 0..1 heat scale for color. */
 export function tempScale(c: number | null | undefined): number {
   if (c == null || !isFinite(c)) return 0.5
-  // ideal window ~85-100C; cold<80, hot>110
   const lo = 70
   const hi = 120
   return Math.max(0, Math.min(1, (c - lo) / (hi - lo)))
 }
 
-/** Ideal surface-temp window (°C) per dry/wet compound. Source: F1 25 game/tyre model. */
+/**
+ * Ideal surface-temp window (°C).
+ *
+ * Per F1 25 / Pirelli model: dry compounds all share a ~85-105°C window
+ * (confirmed by ChatGPT research + simracingsetup.com). The window does NOT
+ * change per soft/medium/hard colour — it's the same for all dry tyres.
+ * Intermediates and wets have their own lower windows.
+ */
 export const TYRE_TEMP_WINDOW: Record<string, [number, number]> = {
-  soft: [90, 100],
-  medium: [85, 100],
-  hard: [90, 105],
+  soft: [85, 105],
+  medium: [85, 105],
+  hard: [85, 105],
   inter: [70, 85],
   wet: [60, 80],
-  unknown: [85, 100]
+  unknown: [85, 105]
 }
 
 export function tyreTempWindow(compound: string | undefined): [number, number] {

@@ -1,5 +1,5 @@
 import { useRaceStore } from '../../store'
-import { tyreTempWindow, tempStatus, type Corners } from '@shared/index'
+import { compoundCName, tempStatus, type Corners } from '@shared/index'
 
 const LAYOUT: { key: keyof Corners; label: string }[] = [
   { key: 'fl', label: 'FL · 左前' },
@@ -16,62 +16,50 @@ const COMPOUND_COLOR: Record<string, string> = {
   wet: '#3B82F6',
   unknown: '#666'
 }
-const COMPOUND_SHORT: Record<string, string> = {
-  soft: 'S',
-  medium: 'M',
-  hard: 'H',
-  inter: 'I',
-  wet: 'W',
-  unknown: '?'
-}
 
-function TyreCard({ corner, label, compound }: { corner: keyof Corners; label: string; compound: string }): React.ReactElement {
+function TyreCard({ corner, label, compound, rawId }: { corner: keyof Corners; label: string; compound: string; rawId: number }): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const tyre = race?.player.tyres
   const wear = tyre ? tyre.wear[corner] : 0
   const surf = tyre ? tyre.surfaceTempC[corner] : 0
   const innerT = tyre ? tyre.innerTempC[corner] : 0
   const brakeT = tyre ? tyre.brakeTempC[corner] : 0
-  const blister = tyre ? tyre.blisters[corner] : 0
   const cColor = COMPOUND_COLOR[compound] ?? '#666'
-  const cShort = COMPOUND_SHORT[compound] ?? '?'
-  const [loT, hiT] = tyreTempWindow(compound)
+  const cName = compoundCName(rawId)
   const { status, color } = tempStatus(surf, compound)
-
   const wearPct = Math.round(wear)
-  const R = 22
-  const circ = 2 * Math.PI * R
-  const dash = (wearPct / 100) * circ
+  // wear bar: 100% = full green (good), 0% = empty (worn out). bar shrinks as tyre wears.
+  const wearColor = wear > 70 ? '#FF3B3B' : wear > 40 ? '#FFB020' : '#2DD4BF'
 
   return (
-    <div className="glass-flat flex flex-col items-center gap-0.5 p-1.5">
-      <div className="flex w-full items-center justify-between">
+    <div className="glass-flat p-2">
+      <div className="flex items-center justify-between">
         <span className="label text-[8px]">{label}</span>
-        {/* compound chip merged into the top-right corner — replaces the separate color dot */}
-        <span
-          className="flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold text-ink-950"
-          style={{ background: cColor, boxShadow: `0 0 6px ${cColor}` }}
-          title={compound}
-        >
-          {cShort}
-        </span>
-      </div>
-      <div className="relative h-[52px] w-[52px]">
-        <svg viewBox="0 0 52 52" className="h-full w-full -rotate-90">
-          <circle cx="26" cy="26" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4" />
-          <circle
-            cx="26" cy="26" r={R}
-            fill="none" stroke={color} strokeWidth="4" strokeLinecap="round"
-            strokeDasharray={`${dash} ${circ}`}
-            style={{ transition: 'stroke-dasharray 0.3s ease, stroke 0.3s ease' }}
+        <div className="flex items-center gap-1">
+          <span
+            className="h-3 w-3 rounded-full"
+            style={{ background: cColor, boxShadow: `0 0 5px ${cColor}` }}
+            title={compound}
           />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="num-display text-base font-bold text-white">{wearPct}</span>
-          <span className="text-[7px] text-white/40">wear</span>
+          {cName && <span className="text-[8px] font-bold text-white/60">{cName}</span>}
         </div>
       </div>
-      <div className="flex w-full flex-col gap-0 text-[8px] leading-tight">
+
+      {/* wear bar: full = 100% (fresh), empty = 0% (worn out) */}
+      <div className="mt-1">
+        <div className="flex justify-between text-[7px] text-white/30">
+          <span>wear</span><span className="num-mono">{wearPct}%</span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.05]">
+          <div
+            className="h-full rounded-full transition-[width] duration-300"
+            style={{ width: `${wearPct}%`, background: wearColor }}
+          />
+        </div>
+      </div>
+
+      {/* temps */}
+      <div className="mt-1 flex flex-col gap-0 text-[8px] leading-tight">
         <div className="flex justify-between">
           <span className="text-white/30">表温</span>
           <span className="num-mono" style={{ color }}>{Math.round(surf)}°</span>
@@ -86,11 +74,8 @@ function TyreCard({ corner, label, compound }: { corner: keyof Corners; label: s
         </div>
       </div>
       <div className="text-[7px] text-white/25">
-        {status === 'cold' ? '过冷' : status === 'hot' ? '过热' : '理想'} {loT}–{hiT}°
+        {status === 'cold' ? '过冷' : status === 'hot' ? '过热' : '正常'} · 窗口 85–105°
       </div>
-      {blister > 5 && (
-        <span className="text-[7px] text-accent-ember" title="blisters">◆{Math.round(blister)}</span>
-      )}
     </div>
   )
 }
@@ -98,16 +83,17 @@ function TyreCard({ corner, label, compound }: { corner: keyof Corners; label: s
 export function TyreGrid(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const compound = race?.player.tyres.compound ?? 'unknown'
+  const rawId = race?.player.tyres.rawCompoundId ?? -1
 
   return (
     <div className="glass p-3">
       <div className="mb-1.5 flex items-center justify-between">
         <span className="label">Tyres</span>
-        <span className="text-[8px] text-white/30">wear · 温度 · {compound}</span>
+        <span className="text-[8px] text-white/30">{compound}</span>
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         {LAYOUT.map((c) => (
-          <TyreCard key={c.key} corner={c.key} label={c.label} compound={compound} />
+          <TyreCard key={c.key} corner={c.key} label={c.label} compound={compound} rawId={rawId} />
         ))}
       </div>
     </div>

@@ -17,6 +17,7 @@ export interface Corners {
 
 export interface TyreState {
   compound: TyreCompound
+  rawCompoundId: number // raw m_actualTyreCompound value (16=C5, 17=C4, etc.) for C-name display
   ageLaps: number
   wear: Corners // 0..100 from CarDamage m_tyresWear
   blisters: Corners // 0..100, F1 25 m_tyreBlisters

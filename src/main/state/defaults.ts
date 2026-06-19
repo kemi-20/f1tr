@@ -62,6 +62,7 @@ export function emptyRaceState(format: PacketFormat = 2025): RaceState {
       penaltiesS: 0,
       tyres: {
         compound: 'unknown',
+        rawCompoundId: -1,
         ageLaps: 0,
         wear: { rl: 0, rr: 0, fl: 0, fr: 0 },
         blisters: { rl: 0, rr: 0, fl: 0, fr: 0 },

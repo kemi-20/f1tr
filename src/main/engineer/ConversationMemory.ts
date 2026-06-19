@@ -10,7 +10,7 @@ import { logger } from '../logging/Logger'
  *
  *   layer 1: stable system persona          (cached)
  *   layer 2: session prime baseline text    (cached, rebuilt on session change)
- *   layer 3: recent assistant advice (rolling) + current digest (fresh)
+ *   layer 3: recent user/assistant turns (rolling) + current digest (fresh)
  *
  * Layers 1+2 are kept at the FRONT and unchanged between calls so the provider's
  * prompt-cache hits. Only the rolling tail (layer 3) varies.
@@ -20,7 +20,8 @@ export class ConversationMemory {
   private primeText = ''
   private primeSessionUID = ''
   private primeBuilder = new SessionPrimeBuilder()
-  private recentAdvice: string[] = []
+  // store as user+assistant PAIRS so the conversation alternates correctly
+  private recentTurns: { user: string; assistant: string }[] = []
 
   constructor(
     private readonly maxTurns = 6
@@ -50,11 +51,11 @@ export class ConversationMemory {
     return this.primeText
   }
 
-  /** Record a completed assistant message into the rolling window. */
-  pushAdvice(text: string): void {
-    this.recentAdvice.push(text)
-    if (this.recentAdvice.length > this.maxTurns) {
-      this.recentAdvice = this.recentAdvice.slice(-this.maxTurns)
+  /** Record a completed user→assistant turn into the rolling window. */
+  pushTurn(userDigest: string, assistantReply: string): void {
+    this.recentTurns.push({ user: userDigest, assistant: assistantReply })
+    if (this.recentTurns.length > this.maxTurns) {
+      this.recentTurns = this.recentTurns.slice(-this.maxTurns)
     }
   }
 
@@ -68,9 +69,10 @@ export class ConversationMemory {
     const sys = [systemPrompt(this.mode), this.primeText ? `\n\n${this.primeText}` : ''].join('')
     msgs.push({ role: 'system', content: sys })
 
-    // layer 3a: recent advice as alternating turns gives conversational continuity
-    for (const a of this.recentAdvice) {
-      msgs.push({ role: 'assistant', content: a })
+    // layer 3a: recent turns as alternating user/assistant pairs (proper chat format)
+    for (const t of this.recentTurns) {
+      msgs.push({ role: 'user', content: t.user })
+      msgs.push({ role: 'assistant', content: t.assistant })
     }
 
     // layer 3b: fresh digest
@@ -81,6 +83,6 @@ export class ConversationMemory {
   reset(): void {
     this.primeText = ''
     this.primeSessionUID = ''
-    this.recentAdvice = []
+    this.recentTurns = []
   }
 }
