@@ -1,8 +1,16 @@
 import { useRaceStore } from '../../store'
 import { compoundLabel, tyreTempWindow, tempStatus, type Corners } from '@shared/index'
 
-const CORNERS: (keyof Corners)[] = ['rl', 'rr', 'fl', 'fr']
-const CORNER_LABEL: Record<keyof Corners, string> = { rl: 'RL', rr: 'RR', fl: 'FL', fr: 'FR' }
+/** Physical layout viewed top-down: front row on top, rear row at bottom.
+ *  FL · FR   (front)
+ *  RL · RR   (rear)
+ */
+const LAYOUT: { key: keyof Corners; label: string }[] = [
+  { key: 'fl', label: 'FL · 左前' },
+  { key: 'fr', label: 'FR · 右前' },
+  { key: 'rl', label: 'RL · 左后' },
+  { key: 'rr', label: 'RR · 右后' }
+]
 
 const COMPOUND_COLOR: Record<string, string> = {
   soft: '#FF3B3B',
@@ -13,7 +21,7 @@ const COMPOUND_COLOR: Record<string, string> = {
   unknown: '#666'
 }
 
-function TyreCard({ corner, compound }: { corner: keyof Corners; compound: string }): React.ReactElement {
+function TyreCard({ corner, compound, label }: { corner: keyof Corners; compound: string; label: string }): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const tyre = race?.player.tyres
   const wear = tyre ? tyre.wear[corner] : 0
@@ -31,7 +39,7 @@ function TyreCard({ corner, compound }: { corner: keyof Corners; compound: strin
   return (
     <div className="glass-flat flex flex-col items-center gap-1 p-2">
       <div className="flex w-full items-center justify-between">
-        <span className="label">{CORNER_LABEL[corner]}</span>
+        <span className="label">{label}</span>
         <span
           className="h-2 w-2 rounded-full"
           style={{ background: compoundColor, boxShadow: `0 0 6px ${compoundColor}` }}
@@ -86,9 +94,10 @@ export function TyreGrid(): React.ReactElement {
         <span className="label">Tyres</span>
         <span className="text-[9px] text-white/30">wear · surf temp · 窗口</span>
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {CORNERS.map((c) => (
-          <TyreCard key={c} corner={c} compound={compound} />
+      {/* two rows, physical layout: FL·FR on top, RL·RR at bottom */}
+      <div className="grid grid-cols-2 gap-2">
+        {LAYOUT.map((c) => (
+          <TyreCard key={c.key} corner={c.key} label={c.label} compound={compound} />
         ))}
       </div>
     </div>
