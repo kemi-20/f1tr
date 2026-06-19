@@ -1,18 +1,17 @@
 import type { LanguageMode } from '@shared/constants/voices'
-import { getEngineerStyle } from '@shared/personas/engineer-styles'
+import { getEngineerSkill } from './EngineerSkillLibrary'
 
 /**
  * Persona — the stable, per-language system prompt establishing the race-engineer role.
  * Layer 1 of the context; it never changes mid-session → prime prompt-cache material.
  *
- * `engineerStyle` selects which real-world F1 engineer's personality to emulate
- * (Bono / GP / Ferrari / default). The style's personaPrompt is appended after
- * the base instructions.
+ * `engineerStyle` selects one of the bundled markdown skills (gp / bono / bozzi).
+ * The full skill text is appended after the base instructions so the model can learn it.
  */
-export function systemPrompt(mode: LanguageMode, engineerStyle: string = 'default'): string {
-  const style = getEngineerStyle(engineerStyle)
+export function systemPrompt(mode: LanguageMode, engineerStyle: string = 'gp'): string {
+  const skill = getEngineerSkill(engineerStyle)
   const base = basePrompt(mode)
-  return base + '\n\n' + style.personaPrompt
+  return base + '\n\n' + skill.llmPrompt
 }
 
 function basePrompt(mode: LanguageMode): string {

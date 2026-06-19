@@ -17,7 +17,7 @@ import { logger } from '../logging/Logger'
  */
 export class ConversationMemory {
   private mode: LanguageMode = 'zh'
-  private engineerStyle: string = 'default'
+  private engineerStyle: string = 'gp'
   private primeText = ''
   private primeSessionUID = ''
   private primeBuilder = new SessionPrimeBuilder()

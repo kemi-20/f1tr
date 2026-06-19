@@ -68,7 +68,7 @@ export function VoiceLanguageTab(): React.ReactElement {
         </div>
       </Field>
 
-      <Field label="工程师风格" hint="模仿真实 F1 工程师的无线电风格（Bono/GP/法拉利等）">
+      <Field label="工程师风格" hint="选择 src/engineer_skills 中的 GP / Bono / Bozzi skill">
         <div className="grid grid-cols-2 gap-2">
           {ENGINEER_STYLES.map((s) => {
             const active = language.engineerStyle === s.id
@@ -90,7 +90,7 @@ export function VoiceLanguageTab(): React.ReactElement {
         </div>
       </Field>
 
-      <Field label="风格指令 (direction)" hint="传给 MiMo 的 user 消息，控制语气（不会被朗读）">
+      <Field label="基础风格指令 (direction)" hint="语言模式的兜底 TTS 指令；实际播报会优先使用所选 skill 的 #0 语音音色风格">
         <textarea
           value={language.direction}
           onChange={(e) => void patch({ language: { direction: e.target.value } })}

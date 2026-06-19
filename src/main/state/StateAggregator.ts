@@ -49,6 +49,7 @@ export class StateAggregator {
     s.sessionTimeLeftS = p.m_sessionTimeLeft ?? s.sessionTimeLeftS
     s.sessionDurationS = p.m_sessionDuration ?? s.sessionDurationS
     s.pitSpeedLimitKmh = p.m_pitSpeedLimit ?? s.pitSpeedLimitKmh
+    s.trackLengthM = p.m_trackLength ?? s.trackLengthM
     s.gameYear = h.m_gameYear
     s.packetFormat = (h.m_packetFormat === 2026 ? 2026 : 2025) as PacketFormat
     s.sessionUID = uid
@@ -112,9 +113,13 @@ export class StateAggregator {
       const d = arr[i]
       const r = this.ensureRival(i)
       r.carIndex = i
-      r.position = numOr(d.m_carPosition, r.position)
+      // position 0 = invalid in F1 spec
+      r.position = d.m_carPosition > 0 ? d.m_carPosition : r.position
       r.lap = numOr(d.m_currentLapNum, r.lap)
-      r.lapDistancePct = clamp01((d.m_lapDistance ?? 0) / Math.max(1, d.m_totalDistance ?? 1))
+      // lapDistancePct: use track length (metres) not total distance (cumulative).
+      // F1 25's m_lapDistance is distance into current lap; m_totalDistance is cumulative.
+      const trackLen = this.state.session.trackLengthM || d.m_totalDistance || 1
+      r.lapDistancePct = clamp01((d.m_lapDistance ?? 0) / Math.max(1, trackLen))
       // F1 25 (format 2024/2025) emits gap as TWO fields: m_deltaToCarInFrontMSPart + m_deltaToCarInFrontMinutesPart.
       // The combined m_deltaToCarInFrontInMS only exists in the 2023 branch. Combine both defensively.
       r.deltaToCarInFrontS = readGapS(d)
@@ -151,24 +156,28 @@ export class StateAggregator {
     const pld = arr[playerIdx]
     if (pld) {
       const pl = this.state.player
-      pl.position = numOr(pld.m_carPosition, pl.position)
+      pl.position = pld.m_carPosition > 0 ? pld.m_carPosition : pl.position
       pl.lap = numOr(pld.m_currentLapNum, pl.lap)
       this.state.session.currentLap = numOr(pld.m_currentLapNum, this.state.session.currentLap)
-      pl.lapDistancePct = clamp01((pld.m_lapDistance ?? 0) / Math.max(1, pld.m_totalDistance ?? 1))
+      const pldTrackLen = this.state.session.trackLengthM || pld.m_totalDistance || 1
+      pl.lapDistancePct = clamp01((pld.m_lapDistance ?? 0) / Math.max(1, pldTrackLen))
       pl.currentLapTimeS = msToS(pld.m_currentLapTimeInMs)
       pl.lastLapTimeS = msToS(pld.m_lastLapTimeInMs)
       pl.pitStatus = numOr(pld.m_pitStatus, pl.pitStatus)
       pl.pitTimerS = msToS(pld.m_pitStopTimerInMS)
       pl.pitStopCount = numOr(pld.m_numPitStops, pl.pitStopCount)
       pl.penaltiesS = numOr(pld.m_penalties, pl.penaltiesS)
-      pl.onTrack = (pld.m_driverStatus ?? 1) === 1
+      // driverStatus 1-4 are all "on track" (flying lap, in lap, out lap, on track)
+      pl.onTrack = (pld.m_driverStatus ?? 1) >= 1 && (pld.m_driverStatus ?? 1) <= 4
     }
 
     // gap-to-player via cumulative walk from the player's position in the sorted order.
-    // Sign: + = ahead (player needs to close that gap to reach them), - = behind.
+    // The player is NOT in rivals[] — so we find where they would sit and walk from there.
     const playerPos = this.state.player.position
-    const playerIdxInSorted = sorted.findIndex((r) => r.position === playerPos)
-    if (playerIdxInSorted >= 0) {
+    // find the insertion index: first car with position > playerPos means player sits before them
+    let playerIdxInSorted = sorted.findIndex((r) => r.position > playerPos)
+    if (playerIdxInSorted === -1) playerIdxInSorted = sorted.length // player is last
+    if (sorted.length > 0) {
       // walk UP (cars ahead): accumulate their deltaToCarInFrontS
       let cumAhead = 0
       for (let i = playerIdxInSorted - 1; i >= 0; i--) {
@@ -178,12 +187,11 @@ export class StateAggregator {
       }
       // walk DOWN (cars behind): accumulate their deltaToCarInFrontS (negative)
       let cumBehind = 0
-      for (let i = playerIdxInSorted + 1; i < sorted.length; i++) {
+      for (let i = playerIdxInSorted; i < sorted.length; i++) {
         const gap = sorted[i].deltaToCarInFrontS
         if (gap != null) cumBehind += gap
         sorted[i].gapToPlayerS = cumBehind > 0 ? -cumBehind : null
       }
-      sorted[playerIdxInSorted].gapToPlayerS = 0
     }
     for (const r of sorted) {
       r.relationToPlayer =
@@ -224,21 +232,27 @@ export class StateAggregator {
 
   onCarStatus(p: AnyParsedPacket): void {
     const h = p.m_header as PacketHeader
-    const idx = h.m_playerCarIndex
     const arr = (p.m_carStatusData ?? []) as AnyParsedPacket[]
-    const st = arr[idx]
-    if (!st) return
-    const pl = this.state.player
-    pl.fuelRemainingKg = st.m_fuelInTank ?? pl.fuelRemainingKg
-    pl.fuelMix = (st.m_fuelMix ?? 1) as 0 | 1 | 2 | 3
-    pl.drsAllowed = (st.m_drsAllowed ?? 0) !== 0
-    pl.tyres.rawCompoundId = typeof st.m_actualTyreCompound === 'number' ? st.m_actualTyreCompound : -1
-    pl.tyres.compound = mapCompound(pl.tyres.rawCompoundId)
-    pl.tyres.ageLaps = st.m_tyresAgeLaps ?? pl.tyres.ageLaps
-    // ERS store energy is in joules, capacity ~4e6 J
-    pl.ersPercent = clamp01((st.m_ersStoreEnergy ?? 0) / 4_000_000)
-    // NOTE: power-unit wear fields (m_engineICEWear etc.) live in CarDamage (packet 10),
-    // NOT CarStatus — they are read in onCarDamage below.
+    // update ALL cars' tyre compound (rivals + player)
+    for (let i = 0; i < arr.length; i++) {
+      const st = arr[i]
+      if (!st) continue
+      if (i === h.m_playerCarIndex) {
+        const pl = this.state.player
+        pl.fuelRemainingKg = st.m_fuelInTank ?? pl.fuelRemainingKg
+        pl.fuelMix = (st.m_fuelMix ?? 1) as 0 | 1 | 2 | 3
+        pl.drsAllowed = (st.m_drsAllowed ?? 0) !== 0
+        pl.tyres.rawCompoundId = typeof st.m_actualTyreCompound === 'number' ? st.m_actualTyreCompound : -1
+        pl.tyres.compound = mapCompound(pl.tyres.rawCompoundId, this.state.session.trackId)
+        pl.tyres.ageLaps = st.m_tyresAgeLaps ?? pl.tyres.ageLaps
+        // ERS store energy is in joules, capacity ~4e6 J
+        pl.ersPercent = clamp01((st.m_ersStoreEnergy ?? 0) / 4_000_000)
+      } else {
+        // update rival's tyre compound
+        const r = this.ensureRival(i)
+        r.tyreCompound = mapCompound(st.m_actualTyreCompound ?? -1, this.state.session.trackId)
+      }
+    }
   }
 
   onCarDamage(p: AnyParsedPacket): void {

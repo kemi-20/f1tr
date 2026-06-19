@@ -25,6 +25,7 @@ export class TriggerEngine {
   private defendActive = false
   private attackActive = false
   private rainImminentActive = false
+  private fuelLowActive = false
   private lastPosition = 0
   private lastLap = -1
   private flashbackUntilMs = 0
@@ -85,13 +86,17 @@ export class TriggerEngine {
   /** Called externally when a flashback is detected (frame id regressed). */
   noteFlashback(): void {
     this.flashbackUntilMs = Date.now() + 3000
-    // reset edge states so we don't double-fire on the resumed timeline
+    // reset all edge states so we don't double-fire on the resumed timeline
     this.tyreWearLevel = 0
     this.tyreHotActive = false
     this.tyreColdActive = false
     this.defendActive = false
     this.attackActive = false
-    logger.info('flashback detected — triggers suppressed for 3s')
+    this.rainImminentActive = false
+    this.fuelLowActive = false
+    this.lastPosition = 0
+    this.lastLap = -1
+    logger.info('flashback detected — triggers suppressed for 3s, states reset')
   }
 
   // ───────────────────────── threshold rules ─────────────────────────
@@ -195,14 +200,18 @@ export class TriggerEngine {
   private evalLowFuel(state: RaceState): void {
     const fuel = state.player.fuelRemainingKg
     if (fuel == null || fuel <= 0) return
-    if (fuel < this.config.lowFuelKg) {
+    // hysteresis: only fire on crossing below threshold, reset when above
+    if (!this.fuelLowActive && fuel < this.config.lowFuelKg) {
+      this.fuelLowActive = true
       this.tryFire(state, 'low_fuel', 'high', 'low_fuel', `Fuel low (${fuel.toFixed(1)}kg)`)
+    } else if (this.fuelLowActive && fuel > this.config.lowFuelKg + 2) {
+      this.fuelLowActive = false
     }
   }
 
   private evalRain(state: RaceState): void {
     const rainPct = state.weather.rainPercentage
-    if (!this.rainImminentActive && rainPct >= this.config.rainImminentPct && rainPct < 100) {
+    if (!this.rainImminentActive && rainPct >= this.config.rainImminentPct) {
       this.rainImminentActive = true
       this.tryFire(state, 'rain_imminent', 'high', 'rain_imminent', `Rain imminent (${Math.round(rainPct)}%)`)
     } else if (this.rainImminentActive && rainPct < this.config.rainImminentPct - 10) {

@@ -86,6 +86,9 @@ export class AudioPipeline {
   /** Cancel everything (Stop button). */
   cancelAll(): void {
     this.client?.cancel()
+    if (this.current) {
+      Sender.send('audio:end', { utteranceId: this.current.id })
+    }
     this.queue = []
     this.current = null
   }

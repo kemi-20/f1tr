@@ -33,11 +33,9 @@ export function RivalsPanel(): React.ReactElement {
   const rivals = race ? Object.values(race.rivals) : []
   const playerIdx = race?.player.carIndex ?? -1
 
-  // sort by position, show window around player
-  const sorted = [...rivals].sort((a, b) => a.position - b.position)
-  const playerPos = sorted.findIndex((r) => r.carIndex === playerIdx)
-  const start = Math.max(0, playerPos - 2)
-  const window = sorted.slice(start, start + 7)
+  const sorted = rivals
+    .filter((r) => r.position > 0)
+    .sort((a, b) => a.position - b.position || a.carIndex - b.carIndex)
 
   return (
     <div className="glass flex h-full flex-col p-4">
@@ -48,11 +46,13 @@ export function RivalsPanel(): React.ReactElement {
           <span>pits</span>
         </div>
       </div>
-      <div className="flex flex-col gap-0.5">
-        {window.length === 0 && <div className="py-4 text-center text-xs text-white/25">等待车手数据…</div>}
-        {window.map((r) => (
-          <Row key={r.carIndex} r={r} isPlayer={r.carIndex === playerIdx} />
-        ))}
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-0.5">
+          {sorted.length === 0 && <div className="py-4 text-center text-xs text-white/25">等待车手数据…</div>}
+          {sorted.map((r) => (
+            <Row key={r.carIndex} r={r} isPlayer={r.carIndex === playerIdx} />
+          ))}
+        </div>
       </div>
     </div>
   )

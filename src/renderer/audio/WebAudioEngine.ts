@@ -68,6 +68,8 @@ class WebAudioEngineImpl {
     // the new utterance is now the active one; any late chunks from the old one are dropped
     this.activeUtteranceId = start.utteranceId
     const now = this.ctx.currentTime
+    // immediately reset nextStart so new chunks don't schedule to the old timeline
+    this.nextStart = now
     const g = this.master.gain
     g.cancelScheduledValues(now)
     g.setValueAtTime(Math.max(g.value, 0.0001), now)
@@ -126,20 +128,22 @@ class WebAudioEngineImpl {
 
 export const WebAudioEngine = new WebAudioEngineImpl()
 
-/** Subscribe the engine to the audio IPC streams. Call once at app boot. */
-export function wireAudioIpc(): void {
-  api.on('audio:start', (p) => {
+/** Subscribe the engine to the audio IPC streams. Call once at app boot.
+ *  Returns an unsubscribe function for React useEffect cleanup. */
+export function wireAudioIpc(): () => void {
+  const offs: (() => void)[] = []
+  offs.push(api.on('audio:start', (p) => {
     const start = p as AudioStart
     WebAudioEngine.ensure()
     if (start.priority === 'preempt') {
       WebAudioEngine.preempt(start)
     } else {
-      // a normal start: this utterance is now the active one (supersedes any prior)
       WebAudioEngine.setActiveUtterance(start.utteranceId)
     }
-  })
-  api.on('audio:chunk', (p) => WebAudioEngine.onChunk(p as AudioChunk))
-  api.on('audio:end', () => {
+  }))
+  offs.push(api.on('audio:chunk', (p) => WebAudioEngine.onChunk(p as AudioChunk)))
+  offs.push(api.on('audio:end', () => {
     /* per-utterance end; scheduling handles itself */
-  })
+  }))
+  return () => offs.forEach((off) => off())
 }

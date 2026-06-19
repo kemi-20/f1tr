@@ -14,7 +14,7 @@ export function IpcProvider({ children }: { children: React.ReactNode }): React.
 
   useEffect(() => {
     void loadConfig()
-    wireAudioIpc()
+    const offAudio = wireAudioIpc()
 
     const offs = [
       api.on('telemetry:snapshot', (p) => setSnapshot(p as never)),
@@ -43,7 +43,10 @@ export function IpcProvider({ children }: { children: React.ReactNode }): React.
         if ((status as string) === 'error') st.clearStream()
       })
     ]
-    return () => offs.forEach((off) => off())
+    return () => {
+      offAudio()
+      offs.forEach((off) => off())
+    }
   }, [loadConfig, setSnapshot])
 
   return <>{children}</>

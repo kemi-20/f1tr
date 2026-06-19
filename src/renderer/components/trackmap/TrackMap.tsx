@@ -1,71 +1,46 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRaceStore } from '../../store'
 import { getTrack, fmtGap, compoundLabel } from '@shared/index'
-import { loadTrackSvg } from './trackSvgLoader'
 
 /**
- * TrackMap — renders the real track SVG (with all transforms intact) via
- * innerHTML, then overlays car dots positioned via lapDistancePct.
- * Falls back to a progress-ring if the SVG isn't available.
+ * TrackMap — renders a normalized track path and places car dots along it.
+ * Full source SVGs are kept as assets, but the live panel only draws the track
+ * outline so embedded white backgrounds/labels never cover the cockpit UI.
  */
 export function TrackMap(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const trackId = race?.session.trackId ?? -1
   const track = getTrack(trackId)
   const positions = race?.trackPositions ?? []
-  const [svgContent, setSvgContent] = useState<string | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [trackPathEl, setTrackPathEl] = useState<SVGPathElement | null>(null)
+  const pathRef = useRef<SVGPathElement>(null)
+  const [pathLen, setPathLen] = useState(0)
 
-  // Load SVG when trackId changes
   useEffect(() => {
-    if (trackId < 0) return
-    void loadTrackSvg(trackId).then((svg) => {
-      setSvgContent(svg)
-    })
-  }, [trackId])
-
-  // After SVG is injected, find the main track path for getPointAtLength
-  useEffect(() => {
-    if (!svgContent || !containerRef.current) return
-    const svg = containerRef.current.querySelector('svg')
-    if (!svg) return
-    // Set viewBox to 0 0 100 100 and make it fill the container
-    svg.setAttribute('viewBox', '0 0 100 100')
-    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
-    svg.setAttribute('width', '100%')
-    svg.setAttribute('height', '100%')
-    // Find the longest <path> — that's the track outline
-    const paths = svg.querySelectorAll('path')
-    let longest: SVGPathElement | null = null
-    let maxLen = 0
-    paths.forEach((p) => {
-      let len = 0
-      try { len = p.getTotalLength() } catch { return }
-      if (len > maxLen) { maxLen = len; longest = p }
-    })
-    if (longest) {
-      setTrackPathEl(longest)
+    setPathLen(0)
+    if (!pathRef.current) return
+    try {
+      setPathLen(pathRef.current.getTotalLength())
+    } catch {
+      setPathLen(0)
     }
-  }, [svgContent])
+  }, [track?.path])
 
   const pointAt = useCallback((t: number): { x: number; y: number } | null => {
-    if (!trackPathEl) return null
+    if (!pathLen || !pathRef.current) return null
     try {
-      const len = trackPathEl.getTotalLength()
-      const p = trackPathEl.getPointAtLength(Math.max(0, Math.min(1, t)) * len)
-      // coords are in the SVG's local viewBox — need to check if they're 0-100
+      const p = pathRef.current.getPointAtLength(Math.max(0, Math.min(1, t)) * pathLen)
       return { x: p.x, y: p.y }
     } catch {
       return null
     }
-  }, [trackPathEl])
+  }, [pathLen])
 
   const rivals = race ? Object.values(race.rivals) : []
   const playerPos = race?.player.position ?? 0
   const sorted = [...rivals].sort((a, b) => a.position - b.position)
   const start = Math.max(0, sorted.findIndex((r) => r.position === playerPos) - 2)
   const raceWindow = sorted.slice(start, start + 6)
+  const hasTrackPath = Boolean(track && pathLen)
 
   return (
     <div className="glass relative flex h-full flex-col p-4">
@@ -77,11 +52,19 @@ export function TrackMap(): React.ReactElement {
       {/* track SVG + car dots overlay */}
       <div className="relative flex-1">
         <svg viewBox="0 0 100 100" className="h-full w-full" preserveAspectRatio="xMidYMid meet">
-          {/* Render the track SVG inside this viewBox via a nested svg or transform */}
-          {svgContent ? (
-            <g dangerouslySetInnerHTML={{ __html: extractSvgInner(svgContent) }} />
+          {track ? (
+            <>
+              <path ref={pathRef} d={track.path} fill="none" stroke="rgba(45,212,191,0.12)" strokeWidth="7" strokeLinejoin="round" strokeLinecap="round" />
+              <path d={track.path} fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+              {pointAt(0) && (
+                <line
+                  x1={pointAt(0)!.x - 3} y1={pointAt(0)!.y - 3}
+                  x2={pointAt(0)!.x + 3} y2={pointAt(0)!.y + 3}
+                  stroke="#FF6A00" strokeWidth="1.5"
+                />
+              )}
+            </>
           ) : (
-            // fallback ring
             <>
               <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(45,212,191,0.15)" strokeWidth="7" />
               <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3" strokeDasharray="4 3" />
@@ -89,8 +72,8 @@ export function TrackMap(): React.ReactElement {
           )}
 
           {/* car dots — positioned on the track path */}
-          {trackPathEl && positions.map((p) => {
-            const pt = pointAt(p.lapDistancePct)
+          {positions.map((p) => {
+            const pt = hasTrackPath ? pointAt(p.lapDistancePct) : fallbackPointAt(p.lapDistancePct)
             if (!pt) return null
             const isP = p.isPlayer
             return (
@@ -133,13 +116,7 @@ export function TrackMap(): React.ReactElement {
   )
 }
 
-/** Extract the inner content of an SVG file (strip the outer <svg> tag). */
-function extractSvgInner(svgContent: string): string {
-  // remove XML declaration and outer <svg> tag
-  let inner = svgContent.replace(/<\?xml[^>]*\?>/, '')
-  const match = inner.match(/<svg[^>]*>([\s\S]*)<\/svg>/)
-  if (match) {
-    return match[1]
-  }
-  return inner
+function fallbackPointAt(t: number): { x: number; y: number } {
+  const a = Math.max(0, Math.min(1, t)) * 2 * Math.PI - Math.PI / 2
+  return { x: 50 + Math.cos(a) * 38, y: 50 + Math.sin(a) * 38 }
 }

@@ -3,7 +3,7 @@ import { Sender } from '../ipc/sender'
 import { DigestBuilder } from './DigestBuilder'
 import { StubAdvice } from './StubAdvice'
 import { ConversationMemory } from './ConversationMemory'
-import { getEngineerStyle } from '@shared/personas/engineer-styles'
+import { getEngineerSkill } from './EngineerSkillLibrary'
 import type { TriggerFiring } from '@shared/types/triggers'
 import type { RaceState } from '@shared/types/state'
 import type { LanguageMode } from '@shared/constants/voices'
@@ -40,9 +40,8 @@ export class EngineerService {
 
   setEngineerStyle(style: string): void {
     this.memory.setEngineerStyle(style)
-    // update TTS direction to match the engineer style's voice direction
-    const es = getEngineerStyle(style)
-    this.direction = es.ttsDirection
+    // The skill's #0 section is the MiMo TTS voice-style direction.
+    this.direction = getEngineerSkill(style).ttsDirection
   }
 
   setVoice(voice: string, direction: string): void {

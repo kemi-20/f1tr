@@ -1,39 +1,89 @@
 import type { TyreCompound } from '@shared/index'
 
 /**
- * Map F1 25 `m_actualTyreCompound` / `m_visualTyreCompound` to our label.
+ * Map F1 25 `m_actualTyreCompound` to our weekend label.
  *
- * F1 25 uses the C-compound naming (the @deltazeroproduction lib TYRES table):
- *   16 = C5  (red)    → soft
- *   17 = C4  (red)    → soft
- *   18 = C3  (yellow) → medium
- *   19 = C2  (white)  → hard
- *   20 = C1  (white)  → hard
- *   21 = C0  (white)  → hard
- *   22 = C6  (red)    → soft  (C6 is the super-soft variant)
- *   7  = inter, 8 = wet
- * Classic values (F1 22 and earlier): 0=hypersoft, 3=soft, 4=medium, 5=hard...
+ * The raw value identifies the physical Pirelli C-compound. S/M/H is NOT fixed:
+ * Pirelli nominates three compounds per race weekend, and the hardest nominated
+ * compound is labelled hard, the middle one medium, and the softest one soft.
  */
-const COMPOUND_MAP: Record<number, TyreCompound> = {
-  // F1 25 actualTyreCompound (C-compound scheme)
-  16: 'soft', // C5
-  17: 'soft', // C4
-  18: 'medium', // C3
-  19: 'hard', // C2
-  20: 'hard', // C1
-  21: 'hard', // C0
-  22: 'soft', // C6
-  // intermediates & wets
+type DryCompound = 1 | 2 | 3 | 4 | 5 | 6
+
+const WET_COMPOUND_MAP: Record<number, TyreCompound> = {
   7: 'inter',
-  8: 'wet',
-  // classic fallback (F1 22-era visual compounds)
+  8: 'wet'
+}
+
+const ACTUAL_TO_DRY_C: Record<number, DryCompound> = {
+  21: 1, // C0/legacy hard-range value; treat as hardest if it appears
+  20: 1, // C1
+  19: 2, // C2
+  18: 3, // C3
+  17: 4, // C4
+  16: 5, // C5
+  22: 6 // C6, used by selected 2025 weekends
+}
+
+// F1 25 calendar allocations, keyed by Codemasters m_trackId. Tuple = [hard, medium, soft].
+// Madrid is a 2026 DLC track; no final race allocation was available when added, so use
+// the game's street-circuit fallback of C3/C4/C5 until an official nomination is published.
+export const TRACK_DRY_TYRE_ALLOCATIONS: Record<number, readonly [DryCompound, DryCompound, DryCompound]> = {
+  0: [3, 4, 5], // Australia
+  2: [2, 3, 4], // China
+  3: [1, 2, 3], // Bahrain
+  4: [1, 2, 3], // Spain / Catalunya
+  5: [4, 5, 6], // Monaco
+  6: [4, 5, 6], // Canada
+  7: [2, 3, 4], // Silverstone
+  9: [3, 4, 5], // Hungary
+  10: [1, 3, 4], // Belgium
+  11: [3, 4, 5], // Monza
+  12: [3, 4, 5], // Singapore
+  13: [1, 2, 3], // Japan
+  14: [3, 4, 5], // Abu Dhabi
+  15: [1, 3, 4], // Austin
+  16: [2, 3, 4], // Sao Paulo
+  17: [3, 4, 5], // Austria
+  19: [2, 4, 5], // Mexico City
+  20: [4, 5, 6], // Baku
+  26: [2, 3, 4], // Zandvoort
+  27: [4, 5, 6], // Imola
+  29: [3, 4, 5], // Jeddah
+  30: [3, 4, 5], // Miami
+  31: [3, 4, 5], // Las Vegas
+  32: [1, 2, 3], // Qatar
+  42: [3, 4, 5] // Madrid
+}
+
+const LEGACY_VISUAL_COMPOUND_MAP: Record<number, TyreCompound> = {
   3: 'soft',
   4: 'medium',
   5: 'hard'
 }
 
-export function mapCompound(id: number): TyreCompound {
-  return COMPOUND_MAP[id] ?? 'unknown'
+export function mapCompound(id: number, trackId?: number): TyreCompound {
+  const wet = WET_COMPOUND_MAP[id]
+  if (wet) return wet
+
+  const dry = ACTUAL_TO_DRY_C[id]
+  if (dry) return mapDryCompoundForTrack(dry, trackId)
+
+  return LEGACY_VISUAL_COMPOUND_MAP[id] ?? 'unknown'
+}
+
+function mapDryCompoundForTrack(compound: DryCompound, trackId?: number): TyreCompound {
+  const allocation = trackId == null ? null : TRACK_DRY_TYRE_ALLOCATIONS[trackId]
+  if (allocation) {
+    if (compound === allocation[0]) return 'hard'
+    if (compound === allocation[1]) return 'medium'
+    if (compound === allocation[2]) return 'soft'
+    return 'unknown'
+  }
+
+  // Conservative fallback for unknown/custom tracks.
+  if (compound <= 2) return 'hard'
+  if (compound === 3) return 'medium'
+  return 'soft'
 }
 
 /** Safety car status -> flags, per F1 spec enum. */

@@ -40,6 +40,6 @@ export class StubAdvice {
     }
 
     // heartbeat / default
-    return `P${reason ? '' : ''}${d.player.pos}, ${d.player.fuel} fuel, tyres at ${d.player.tyre.wear}. Push, keep the gap.`
+    return `${d.player.pos}, ${d.player.fuel} fuel, tyres at ${d.player.tyre.wear}. Push, keep the gap.`
   }
 }

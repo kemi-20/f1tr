@@ -1,5 +1,6 @@
 import type { TriggerConfig } from './triggers'
 import type { LanguageMode } from '../constants/voices'
+import { normalizeEngineerStyleId } from '../personas/engineer-styles'
 
 /** Recursively-optional type for config PATCHES (the main process merges them). */
 export type DeepPartial<T> = {
@@ -64,7 +65,7 @@ export interface AppConfig {
 export const DEFAULT_CONFIG: AppConfig = {
   llm: { baseURL: '', apiKeyOverride: '', model: '', temperature: 0.6, maxTokens: 80, hasSecret: false },
   tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false },
-  language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气', engineerStyle: 'default' },
+  language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气', engineerStyle: 'gp' },
   telemetry: {
     port: 20777,
     host: '127.0.0.1',
@@ -112,5 +113,6 @@ export function mergeConfig(patch: Partial<AppConfig>): AppConfig {
       out[key] = p as any
     }
   }
+  out.language.engineerStyle = normalizeEngineerStyleId(out.language.engineerStyle)
   return out
 }

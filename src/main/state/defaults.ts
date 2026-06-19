@@ -16,6 +16,7 @@ export function emptyRaceState(format: PacketFormat = 2025): RaceState {
       isVirtualSafetyCar: false,
       isRedFlag: false,
       pitSpeedLimitKmh: 0,
+      trackLengthM: 0,
       gameYear: 0,
       packetFormat: format,
       sessionUID: '',

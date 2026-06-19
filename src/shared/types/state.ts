@@ -149,6 +149,7 @@ export interface SessionState {
   isVirtualSafetyCar: boolean
   isRedFlag: boolean
   pitSpeedLimitKmh: number
+  trackLengthM: number
   gameYear: number
   packetFormat: PacketFormat
   sessionUID: string
