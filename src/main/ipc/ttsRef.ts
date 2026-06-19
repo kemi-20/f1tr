@@ -1,6 +1,7 @@
 import type { AudioPipeline } from '../audio/AudioPipeline'
 import { ConfigStore } from '../config/ConfigStore'
 import { MiMoTtsClient } from '../tts/MiMoTtsClient'
+import { normalizeURL } from '../config/env'
 import { logger } from '../logging/Logger'
 import type { AppConfig } from '@shared/index'
 
@@ -28,10 +29,10 @@ export function getTtsClient(): MiMoTtsClient | null {
 }
 
 /** Build/rebuild the MiMo client from current config; inject into the pipeline.
- *  Effective key = UI override if set, else .env. */
+ *  Effective key = UI override if set, else .env. URL normalized same as LLM. */
 export async function wireTts(cfg: AppConfig): Promise<void> {
   if (!pipeline) return
-  const baseURL = cfg.tts.baseURL
+  const baseURL = normalizeURL(cfg.tts.baseURL)
   const apiKey = ConfigStore.ttsKey()
   if (!baseURL || !apiKey) {
     logger.info('TTS backend inactive (no baseURL/key via UI or .env)')

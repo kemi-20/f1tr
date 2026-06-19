@@ -54,13 +54,13 @@ export function TopStrip(): React.ReactElement {
         </div>
         <div className="text-center">
           <div className="num-mono text-sm text-white/80">
-            {player?.lastLapTimeS ? fmtLapTime(player.lastLapTimeS) : '--'}
+            {player?.lastLapTimeS ? fmtLapTime(player.lastLapTimeS * 1000) : '--'}
           </div>
           <div className="label">last</div>
         </div>
         <div className="text-center">
           <div className="num-mono text-sm text-white/60">
-            {player?.bestLapTimeS ? fmtLapTime(player.bestLapTimeS) : '--'}
+            {player?.bestLapTimeS ? fmtLapTime(player.bestLapTimeS * 1000) : '--'}
           </div>
           <div className="label">best</div>
         </div>

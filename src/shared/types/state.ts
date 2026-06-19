@@ -162,6 +162,7 @@ export interface RecentEvent {
   type:
     | 'fastestLap'
     | 'retirement'
+    | 'sessionEnded'
     | 'penalty'
     | 'raceWinner'
     | 'safetyCar'

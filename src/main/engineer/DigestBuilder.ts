@@ -116,7 +116,7 @@ export class DigestBuilder {
       pos: r.position,
       name: (r.name || `car${r.carIndex}`).toUpperCase(),
       tyre: r.tyreCompound,
-      gap: fmtGap(r.deltaToCarInFrontS),
+      gap: fmtGap(r.gapToPlayerS),
       pits: r.pitStopCount,
       pen: r.penaltiesS > 0 ? `${r.penaltiesS}s` : undefined,
       note:
@@ -133,16 +133,21 @@ export class DigestBuilder {
   private fmtAheadGap(state: RaceState): string | undefined {
     const playerPos = state.player.position
     const ahead = Object.values(state.rivals).find((r) => r.position === playerPos - 1)
-    if (!ahead || ahead.deltaToCarInFrontS == null) return undefined
-    return `${fmtGap(ahead.deltaToCarInFrontS)} to ${ahead.name || 'ahead'}`
+    if (!ahead) return undefined
+    // use the ahead car's gapToPlayerS (cumulative from player = correct), or the
+    // player's own deltaToCarInFrontS for the directly-adjacent car
+    const gap = ahead.gapToPlayerS
+    if (gap == null || gap === 0) return undefined
+    return `${fmtGap(gap)} to ${ahead.name || 'ahead'}`
   }
 
   private fmtBehindGap(state: RaceState): string | undefined {
     const playerPos = state.player.position
     const behind = Object.values(state.rivals).find((r) => r.position === playerPos + 1)
-    if (!behind || behind.deltaToCarInFrontS == null) return undefined
-    // behind car's gap to car in front == their gap to player
-    return `${fmtGap(-behind.deltaToCarInFrontS)} to ${behind.name || 'behind'}`
+    if (!behind) return undefined
+    const gap = behind.gapToPlayerS
+    if (gap == null || gap === 0) return undefined
+    return `${fmtGap(gap)} to ${behind.name || 'behind'}`
   }
 
   private fmtClock(s: number): string {

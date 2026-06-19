@@ -19,7 +19,7 @@ function Row({ r, isPlayer }: { r: RivalState; isPlayer: boolean }): React.React
       <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: tyreColor }} title={r.tyreCompound} />
       <span className="w-5 text-center text-[10px] text-white/40">{compoundLabel(r.tyreCompound)}</span>
       <span className="num-mono w-16 text-right text-white/60">
-        {r.deltaToCarInFrontS != null ? fmtGap(r.deltaToCarInFrontS) : '--'}
+        {r.gapToPlayerS != null ? fmtGap(r.gapToPlayerS) : '--'}
       </span>
       <span className="num-mono w-5 text-center text-white/30">{r.pitStopCount}</span>
       {r.penaltiesS > 0 && <span className="chip bg-accent-racing/15 text-accent-racing">{r.penaltiesS}s</span>}
@@ -44,7 +44,7 @@ export function RivalsPanel(): React.ReactElement {
       <div className="mb-2 flex items-center justify-between">
         <span className="label">Rivals</span>
         <div className="flex items-center gap-3 text-[9px] text-white/30">
-          <span>gap</span>
+          <span>gap to you</span>
           <span>pits</span>
         </div>
       </div>

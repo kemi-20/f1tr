@@ -112,7 +112,7 @@ export function loadSecrets(): Secrets {
 }
 
 /** Ensure baseURL has a scheme and ends with /v1 for the chat-completions path. */
-function normalizeURL(u: string): string {
+export function normalizeURL(u: string): string {
   if (!u) return u
   let url = u.trim()
   if (!/^https?:\/\//.test(url)) {

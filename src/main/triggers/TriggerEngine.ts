@@ -26,7 +26,7 @@ export class TriggerEngine {
   private attackActive = false
   private rainImminentActive = false
   private lastPosition = 0
-  private lastLap = 0
+  private lastLap = -1
   private flashbackUntilMs = 0
   private onFiring: (f: TriggerFiring) => void
 
@@ -152,9 +152,9 @@ export class TriggerEngine {
     const playerPos = state.player.position
     const ahead = Object.values(state.rivals).find((r) => r.position === playerPos - 1)
     const behind = Object.values(state.rivals).find((r) => r.position === playerPos + 1)
-    // defending: car behind close AND closing
+    // defending: car behind close (their gap to the car in front = gap to us)
     if (behind && behind.deltaToCarInFrontS != null) {
-      const gap = behind.deltaToCarInFrontS // their gap to us
+      const gap = behind.deltaToCarInFrontS
       if (!this.defendActive && gap < this.config.defendGapS && gap > 0) {
         this.defendActive = true
         this.tryFire(
@@ -167,21 +167,28 @@ export class TriggerEngine {
       } else if (this.defendActive && gap > this.config.defendGapS + 0.3) {
         this.defendActive = false
       }
+    } else if (this.defendActive) {
+      // car behind disappeared (retired/pit) — reset
+      this.defendActive = false
     }
-    // attacking: car ahead close
-    if (ahead && ahead.deltaToCarInFrontS != null) {
-      if (!this.attackActive && ahead.deltaToCarInFrontS < this.config.attackGapS && ahead.deltaToCarInFrontS > 0) {
+    // attacking: use the ahead car's deltaToCarBehindS (gap that the trailing car
+    // has to the car ahead — i.e. the player's gap to the car in front)
+    const attackGap = ahead?.deltaToCarBehindS
+    if (attackGap != null && attackGap > 0) {
+      if (!this.attackActive && attackGap < this.config.attackGapS) {
         this.attackActive = true
         this.tryFire(
           state,
           'attack_opportunity',
           'normal',
           'attack_opportunity',
-          `${ahead.name || 'car ahead'} within ${ahead.deltaToCarInFrontS.toFixed(2)}s`
+          `${ahead?.name || 'car ahead'} within ${attackGap.toFixed(2)}s`
         )
-      } else if (this.attackActive && ahead.deltaToCarInFrontS > this.config.attackGapS + 0.3) {
+      } else if (this.attackActive && attackGap > this.config.attackGapS + 0.3) {
         this.attackActive = false
       }
+    } else if (this.attackActive) {
+      this.attackActive = false
     }
   }
 

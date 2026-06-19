@@ -31,6 +31,7 @@ export class StateAggregator {
     this.state = emptyRaceState(format)
     this.state.recentEvents = prevErrors
     this.lastSessionUID = ''
+    this.lastEventBucket.clear()
   }
 
   // ───────────────────────── reducers ─────────────────────────
@@ -135,8 +136,10 @@ export class StateAggregator {
       })
     }
 
-    // derive deltaToCarBehind from the running order:
-    // car[i]'s gap-behind = the gap that the trailing car[i+1] has to it (their deltaToCarInFront).
+    // Cumulative gap-to-player: walk the sorted-by-position list, accumulating deltas
+    // from the player's position. This gives the REAL total gap (not just the adjacent
+    // pair delta), fixing the bug where non-adjacent rivals showed wrong gaps.
+    // Also derive deltaToCarBehindS for each car along the way.
     const sorted = Object.values(this.state.rivals).slice().sort((a, b) => a.position - b.position)
     for (let i = 0; i < sorted.length - 1; i++) {
       sorted[i].deltaToCarBehindS = sorted[i + 1].deltaToCarInFrontS
@@ -150,7 +153,6 @@ export class StateAggregator {
       const pl = this.state.player
       pl.position = numOr(pld.m_carPosition, pl.position)
       pl.lap = numOr(pld.m_currentLapNum, pl.lap)
-      // session.currentLap mirrors the player's lap (used by HUD + digest)
       this.state.session.currentLap = numOr(pld.m_currentLapNum, this.state.session.currentLap)
       pl.lapDistancePct = clamp01((pld.m_lapDistance ?? 0) / Math.max(1, pld.m_totalDistance ?? 1))
       pl.currentLapTimeS = msToS(pld.m_currentLapTimeInMs)
@@ -162,25 +164,28 @@ export class StateAggregator {
       pl.onTrack = (pld.m_driverStatus ?? 1) === 1
     }
 
-    // gap-to-player: correct sign + correct pairing.
-    //  - a car AHEAD of the player: the player is behind it. The player's deltaToCarInFrontS
-    //    chain leads up to it, but the simplest correct per-car value: the gap is positive
-    //    (ahead), and equals that car's deltaToCarBehindS (gap of the car directly behind it,
-    //    which walks toward the player) — but to avoid cumulative walks, use the direct:
-    //    ahead car gap = +|its deltaToCarBehindS| (the trailing car's gap to it).
-    //  - a car BEHIND the player: gap is negative, = -(its deltaToCarInFrontS) magnitude.
-    // The sign convention (state.ts): + = ahead by that much.
+    // gap-to-player via cumulative walk from the player's position in the sorted order.
+    // Sign: + = ahead (player needs to close that gap to reach them), - = behind.
     const playerPos = this.state.player.position
-    for (const r of Object.values(this.state.rivals)) {
-      if (r.position === playerPos) {
-        r.gapToPlayerS = 0
-      } else if (r.position < playerPos) {
-        // ahead of player: positive gap (how far ahead). Use deltaToCarBehindS (car behind's gap to it).
-        r.gapToPlayerS = r.deltaToCarBehindS != null ? Math.abs(r.deltaToCarBehindS) : null
-      } else {
-        // behind player: negative gap. Use its deltaToCarInFrontS (gap to the car ahead).
-        r.gapToPlayerS = r.deltaToCarInFrontS != null ? -Math.abs(r.deltaToCarInFrontS) : null
+    const playerIdxInSorted = sorted.findIndex((r) => r.position === playerPos)
+    if (playerIdxInSorted >= 0) {
+      // walk UP (cars ahead): accumulate their deltaToCarInFrontS
+      let cumAhead = 0
+      for (let i = playerIdxInSorted - 1; i >= 0; i--) {
+        const gap = sorted[i + 1].deltaToCarInFrontS
+        if (gap != null) cumAhead += gap
+        sorted[i].gapToPlayerS = cumAhead > 0 ? cumAhead : null
       }
+      // walk DOWN (cars behind): accumulate their deltaToCarInFrontS (negative)
+      let cumBehind = 0
+      for (let i = playerIdxInSorted + 1; i < sorted.length; i++) {
+        const gap = sorted[i].deltaToCarInFrontS
+        if (gap != null) cumBehind += gap
+        sorted[i].gapToPlayerS = cumBehind > 0 ? -cumBehind : null
+      }
+      sorted[playerIdxInSorted].gapToPlayerS = 0
+    }
+    for (const r of sorted) {
       r.relationToPlayer =
         r.position < playerPos ? 'ahead' : r.position > playerPos ? 'behind' : 'same'
     }
@@ -311,8 +316,8 @@ export class StateAggregator {
         // button press — informational, no event needed
         break
       case 'SEND':
-        // SessionEnded — emit a dedicated event, do NOT mislabel as retirement
-        if (!this.isDupe('sessionEnded', uid)) this.pushEvent('retirement', 'Session ended', vIdx)
+        // SessionEnded — NOT retirement
+        if (!this.isDupe('sessionEnded', uid)) this.pushEvent('sessionEnded', 'Session ended', vIdx)
         break
       case 'PENA':
         if (vIdx === this.state.player.carIndex && !this.isDupe(`pen-${vIdx}`, uid))

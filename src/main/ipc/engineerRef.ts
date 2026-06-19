@@ -2,6 +2,7 @@ import type { EngineerService } from '../engineer/EngineerService'
 import type { LlmClient } from '../engineer/LlmClient'
 import type { AppConfig } from '@shared/index'
 import { ConfigStore } from '../config/ConfigStore'
+import { normalizeURL } from '../config/env'
 import { logger } from '../logging/Logger'
 
 /**
@@ -29,7 +30,7 @@ export function getLlm(): LlmClient | null {
 export async function wireLlm(cfg: AppConfig): Promise<void> {
   if (!svc) return
   const { LlmClient } = await import('../engineer/LlmClient')
-  const baseURL = cfg.llm.baseURL
+  const baseURL = normalizeURL(cfg.llm.baseURL)
   const apiKey = ConfigStore.llmKey()
   svc.setLanguage(cfg.language.mode)
   if (!baseURL || !apiKey) {
