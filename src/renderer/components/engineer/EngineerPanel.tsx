@@ -27,14 +27,22 @@ export function EngineerPanel(): React.ReactElement {
         <StatusPills />
       </div>
 
-      {/* message stream */}
+      {/* message stream — newest on top, older sinks down */}
       <div className="flex-1 overflow-y-auto rounded-xl bg-black/20 p-3">
         {messages.length === 0 && !streamingId && (
           <div className="flex h-full items-center justify-center text-center text-xs text-white/25">
             等待比赛数据… 工程师会在关键时刻自动播报。
           </div>
         )}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col-reverse gap-2">
+          {/* flex-col-reverse: later DOM children render on top. Put the streaming
+              bubble AFTER the committed list so the newest (in-progress) message is at the top. */}
+          {streamingId && (
+            <div className="animate-fade-in rounded-lg border border-accent-carbon/30 bg-accent-carbon/[0.06] px-3 py-2 text-sm text-white/90">
+              {streamingText}
+              <span className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-accent-carbon" />
+            </div>
+          )}
           {messages.map((m) => (
             <div key={m.id} className="animate-slide-up rounded-lg bg-white/[0.03] px-3 py-2 text-sm text-white/85">
               <div className="num-mono mb-0.5 text-[9px] text-white/30">
@@ -43,12 +51,6 @@ export function EngineerPanel(): React.ReactElement {
               {m.text}
             </div>
           ))}
-          {streamingId && (
-            <div className="animate-fade-in rounded-lg border border-accent-carbon/30 bg-accent-carbon/[0.06] px-3 py-2 text-sm text-white/90">
-              {streamingText}
-              <span className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-accent-carbon" />
-            </div>
-          )}
         </div>
       </div>
 

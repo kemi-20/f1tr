@@ -70,7 +70,7 @@ export const useEngineerStore = create<EngineerState>((set) => ({
     set((s) => ({ streamingText: s.streamingText + delta })),
   commit: (id, text) =>
     set((s) => ({
-      messages: [...s.messages, { id, text, ts: Date.now() }].slice(-50),
+      messages: [{ id, text, ts: Date.now() }, ...s.messages].slice(0, 50),
       streamingId: null,
       streamingText: '',
       status: 'speaking'
