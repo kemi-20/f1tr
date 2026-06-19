@@ -203,9 +203,11 @@ export class StateAggregator {
 
     const surf = (t.m_tyresSurfaceTemperature ?? []) as number[]
     const inner = (t.m_tyresInnerTemperature ?? []) as number[]
+    const brakes = (t.m_brakesTemperature ?? []) as number[]
     WHEEL.forEach((w, i) => {
       pl.tyres.surfaceTempC[w] = surf[i] ?? 0
       pl.tyres.innerTempC[w] = inner[i] ?? 0
+      pl.tyres.brakeTempC[w] = brakes[i] ?? 0
     })
 
     // update track position speeds

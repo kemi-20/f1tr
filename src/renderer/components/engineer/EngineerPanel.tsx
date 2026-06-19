@@ -34,9 +34,9 @@ export function EngineerPanel(): React.ReactElement {
             等待比赛数据… 工程师会在关键时刻自动播报。
           </div>
         )}
-        <div className="flex flex-col-reverse gap-2">
-          {/* flex-col-reverse: later DOM children render on top. Put the streaming
-              bubble AFTER the committed list so the newest (in-progress) message is at the top. */}
+        <div className="flex flex-col gap-2">
+          {/* store prepends newest message to the front of the array, so a normal
+              flex-col renders it at the top. The streaming bubble is placed first too. */}
           {streamingId && (
             <div className="animate-fade-in rounded-lg border border-accent-carbon/30 bg-accent-carbon/[0.06] px-3 py-2 text-sm text-white/90">
               {streamingText}

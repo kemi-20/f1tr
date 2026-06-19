@@ -35,9 +35,10 @@ export function TopStrip(): React.ReactElement {
         <div>
           <div className="num-display text-lg font-bold text-white">
             {session?.currentLap ?? 0}
-            <span className="text-sm text-white/40">/{session?.totalLaps ?? '?'}</span>
+            {session?.totalLaps ? <span className="text-sm text-white/40">/{session.totalLaps}</span> : null}
           </div>
-          <div className="label">lap</div>
+          {/* practice sessions have no lap limit; show time-remaining instead */}
+          <div className="label">{session?.totalLaps ? 'lap' : 'lap · practice'}</div>
         </div>
         <div>
           <div className="num-mono text-lg font-medium text-white">{timeLeftStr}</div>

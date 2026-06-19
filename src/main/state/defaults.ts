@@ -66,7 +66,8 @@ export function emptyRaceState(format: PacketFormat = 2025): RaceState {
         wear: { rl: 0, rr: 0, fl: 0, fr: 0 },
         blisters: { rl: 0, rr: 0, fl: 0, fr: 0 },
         surfaceTempC: { rl: 0, rr: 0, fl: 0, fr: 0 },
-        innerTempC: { rl: 0, rr: 0, fl: 0, fr: 0 }
+        innerTempC: { rl: 0, rr: 0, fl: 0, fr: 0 },
+        brakeTempC: { rl: 0, rr: 0, fl: 0, fr: 0 }
       },
       damage: {
         frontLeftWing: 0,

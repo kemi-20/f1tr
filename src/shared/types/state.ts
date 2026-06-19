@@ -22,6 +22,7 @@ export interface TyreState {
   blisters: Corners // 0..100, F1 25 m_tyreBlisters
   surfaceTempC: Corners // CarTelemetry m_tyresSurfaceTemperature
   innerTempC: Corners // CarTelemetry m_tyresInnerTemperature
+  brakeTempC: Corners // CarTelemetry m_brakesTemperature
 }
 
 export interface DamageState {

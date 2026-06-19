@@ -64,17 +64,6 @@ export function DriverHud(): React.ReactElement {
         </div>
       </div>
 
-      {/* rpm arc */}
-      <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.05]">
-        <div
-          className="h-full rounded-full transition-[width] duration-75"
-          style={{
-            width: `${revPct * 100}%`,
-            background: 'linear-gradient(90deg,#2DD4BF 0%,#FFB020 80%,#FF3B3B 100%)'
-          }}
-        />
-      </div>
-
       {/* pedals */}
       <div className="grid grid-cols-2 gap-3">
         <Bar label="Throttle" value={throttle} color="#2DD4BF" />
