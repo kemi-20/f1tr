@@ -1,0 +1,82 @@
+name: Build & Package
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Quick checks on every push/PR ──
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Tests
+        run: npm test
+      - name: Build (vite)
+        run: npm run build
+
+  # ── Windows packaging + release on tag / manual ──
+  package-windows:
+    needs: check
+    runs-on: windows-latest
+    # Only package on tags, manual, or main pushes (skip PR-only runs to save minutes)
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build & package Windows (NSIS + portable)
+        env:
+          # electron-builder needs this to fetch its bundled tools
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build:win
+      - name: List artifacts
+        run: Get-ChildItem -Recurse release -Filter "*.exe" | Select-Object FullName, Length
+
+      - name: Upload NSIS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: F1-Race-Engineer-Setup
+          path: release/*-setup.exe
+          if-no-files-found: ignore
+      - name: Upload portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: F1-Race-Engineer-Portable
+          path: release/*-portable.exe
+          if-no-files-found: ignore
+
+      # On a tag push, publish a GitHub Release with the exes attached
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*-setup.exe
+            release/*-portable.exe
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

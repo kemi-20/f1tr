@@ -1,0 +1,61 @@
+import { useConfigStore } from '../store'
+import { Field, TextInput, TestButton } from './SettingsModal'
+
+export function LlmTab(): React.ReactElement {
+  const config = useConfigStore((s) => s.config)
+  const patch = useConfigStore((s) => s.patch)
+  if (!config) return <p className="text-white/40">loading…</p>
+  const { llm } = config
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="API Base URL" hint="OpenAI 兼容端点（从 .env 的 AI_API_BASE_URL 读取）">
+          <TextInput
+            value={llm.baseURL}
+            placeholder="https://api.deepseek.com/v1"
+            onChange={(e) => void patch({ llm: { baseURL: e.target.value } })}
+          />
+        </Field>
+        <Field label="模型" hint="如 deepseek-v4-flash / deepseek-v4-pro / gpt-4o-mini">
+          <TextInput
+            value={llm.model}
+            placeholder="deepseek-v4-flash"
+            onChange={(e) => void patch({ llm: { model: e.target.value } })}
+          />
+        </Field>
+      </div>
+
+      <Field label="API Key" hint={llm.hasSecret ? '已从 .env (AI_API_KEY) 读取 ✓' : '未检测到 .env 中的 AI_API_KEY'}>
+        <TextInput type="password" value="••••••••••••" disabled placeholder="未配置" />
+      </Field>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={`温度 (temperature: ${llm.temperature.toFixed(2)})`}>
+          <input
+            type="range"
+            min={0}
+            max={1.5}
+            step={0.05}
+            value={llm.temperature}
+            onChange={(e) => void patch({ llm: { temperature: Number(e.target.value) } })}
+            className="h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-accent-carbon"
+          />
+        </Field>
+        <Field label="最大回复 tokens" hint="工程师口播通常 ≤ 80 tokens 即可">
+          <TextInput
+            type="number"
+            value={llm.maxTokens}
+            min={16}
+            max={512}
+            onChange={(e) => void patch({ llm: { maxTokens: Number(e.target.value) } })}
+          />
+        </Field>
+      </div>
+
+      <div className="border-t border-white/[0.06] pt-4">
+        <TestButton kind="llm" />
+      </div>
+    </div>
+  )
+}

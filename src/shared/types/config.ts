@@ -1,0 +1,109 @@
+import type { TriggerConfig } from './triggers'
+import type { LanguageMode } from '../constants/voices'
+
+/** Recursively-optional type for config PATCHES (the main process merges them). */
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends (infer U)[] ? U[] : T[P] extends object ? DeepPartial<T[P]> : T[P]
+}
+
+/**
+ * Non-sensitive application config, persisted to userData/config.json via electron-store.
+ * Secrets (API keys) are NEVER stored here — they live in .env / Windows Credential Vault.
+ */
+export interface AppConfig {
+  llm: {
+    baseURL: string // e.g. https://api.deepseek.com/v1  (resolved from AI_API_BASE_URL)
+    model: string // resolved from AI_MODEL
+    temperature: number
+    maxTokens: number
+    hasSecret: boolean // whether AI_API_KEY is present (never the key itself)
+  }
+  tts: {
+    baseURL: string // resolved from MIMO_API_BASE_URL
+    model: string // mimo-v2.5-tts
+    hasSecret: boolean
+  }
+  language: {
+    mode: LanguageMode
+    voice: string
+    direction: string
+  }
+  telemetry: {
+    port: number
+    host: string
+    rendererPaintHz: number
+    forwardMotion: boolean
+    formatOverride: 'auto' | 2025 | 2026
+  }
+  triggers: TriggerConfig
+  audio: {
+    muted: boolean
+    volume: number // 0..1
+    pause: boolean
+    preemptOnHigh: boolean
+  }
+  ui: {
+    theme: 'midnight' | 'papaya' | 'racing'
+    accent: string
+    glassmorphism: boolean
+    reduceMotion: boolean
+  }
+  advanced: {
+    maxQueueDepth: number
+    memoryTurns: number
+  }
+}
+
+export const DEFAULT_CONFIG: AppConfig = {
+  llm: { baseURL: '', model: '', temperature: 0.6, maxTokens: 80, hasSecret: false },
+  tts: { baseURL: '', model: 'mimo-v2.5-tts', hasSecret: false },
+  language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气' },
+  telemetry: {
+    port: 20777,
+    host: '127.0.0.1',
+    rendererPaintHz: 12,
+    forwardMotion: false,
+    formatOverride: 'auto'
+  },
+  triggers: {
+    tyreWearLevels: [50, 70, 90],
+    tyreHotC: 110,
+    tyreColdC: 80,
+    defendGapS: 0.8,
+    defendClosingS: 0.05,
+    attackGapS: 0.8,
+    pitWindowLeadLaps: 3,
+    lowFuelKg: 5,
+    lowFuelLapMultiplier: 1.5,
+    ersLowPct: 0.1,
+    stintEndLapRatio: 0.95,
+    positionChangeDelta: 2,
+    damageWingThreshold: 0.35,
+    damageSuspThreshold: 0.3,
+    rainImminentPct: 40,
+    heartbeatIntervalS: 60,
+    globalMinGapS: 8,
+    perRuleCooldownS: {},
+    suppressFirstLap: true,
+    suppressLastLapLowPriority: false
+  },
+  audio: { muted: false, volume: 1, pause: false, preemptOnHigh: true },
+  ui: { theme: 'midnight', accent: '#2DD4BF', glassmorphism: true, reduceMotion: false },
+  advanced: { maxQueueDepth: 3, memoryTurns: 6 }
+}
+
+/** Deep-merge a partial config patch over defaults (shallow per-section). */
+export function mergeConfig(patch: Partial<AppConfig>): AppConfig {
+  const out: AppConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as AppConfig
+  for (const key of Object.keys(patch) as (keyof AppConfig)[]) {
+    const p = patch[key]
+    if (p && typeof p === 'object' && !Array.isArray(p)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      out[key] = { ...(out[key] as any), ...(p as any) } as any
+    } else if (p !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      out[key] = p as any
+    }
+  }
+  return out
+}

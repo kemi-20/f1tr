@@ -1,0 +1,100 @@
+import type { RaceState, PacketFormat } from '@shared/index'
+
+export function emptyRaceState(format: PacketFormat = 2025): RaceState {
+  return {
+    session: {
+      sessionType: 0,
+      sessionTypeLabel: '',
+      trackId: -1,
+      trackName: '',
+      totalLaps: null,
+      currentLap: 0,
+      sessionTimeLeftS: null,
+      sessionDurationS: null,
+      safetyCarPhase: 0,
+      isSafetyCar: false,
+      isVirtualSafetyCar: false,
+      isRedFlag: false,
+      pitSpeedLimitKmh: 0,
+      gameYear: 0,
+      packetFormat: format,
+      sessionUID: '',
+      overallFrameIdentifier: 0,
+      lastUpdateMs: 0
+    },
+    weather: {
+      airTempC: 0,
+      trackTempC: 0,
+      rainPercentage: 0,
+      wetness: 0,
+      predictedWetness: 0,
+      weatherCode: 0,
+      predictedCode: 0,
+      isRaining: false,
+      rainOnset: false
+    },
+    player: {
+      carIndex: 0,
+      position: 0,
+      lap: 0,
+      lapDistancePct: 0,
+      onTrack: true,
+      currentLapTimeS: null,
+      lastLapTimeS: null,
+      bestLapTimeS: null,
+      sectors: [null, null, null],
+      sectorSplitDelta: [null, null, null],
+      speedKmh: 0,
+      gear: 0,
+      rpm: 0,
+      ersPercent: 0,
+      drsActive: false,
+      drsAllowed: false,
+      throttle: 0,
+      brake: 0,
+      revLightsPercent: 0,
+      fuelRemainingKg: null,
+      fuelMix: 1,
+      fuelTargetDeltaS: null,
+      pitStatus: 0,
+      pitTimerS: null,
+      pitStopCount: 0,
+      penaltiesS: 0,
+      tyres: {
+        compound: 'unknown',
+        ageLaps: 0,
+        wear: { rl: 0, rr: 0, fl: 0, fr: 0 },
+        blisters: { rl: 0, rr: 0, fl: 0, fr: 0 },
+        surfaceTempC: { rl: 0, rr: 0, fl: 0, fr: 0 },
+        innerTempC: { rl: 0, rr: 0, fl: 0, fr: 0 }
+      },
+      damage: {
+        frontWing: 0,
+        rearWing: 0,
+        floor: 0,
+        sidepodL: 0,
+        sidepodR: 0,
+        suspension: 0
+      },
+      powerUnit: {
+        engine: 1,
+        gearbox: 1,
+        es: 1,
+        ce: 1,
+        turbo: 1,
+        mguh: 1,
+        mguk: 1,
+        exhaust: 1
+      },
+      setup: null
+    },
+    rivals: {},
+    trackPositions: [],
+    recentEvents: [],
+    packetFormat: format,
+    lastPacketMs: 0,
+    packetsReceived: 0,
+    packetsDropped: 0,
+    flashbackActive: false
+  }
+}

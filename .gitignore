@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+
+# Vite/electron-vite caches
+.vite/
+release/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Env / secrets — NEVER commit
+.env
+.env.local
+.env.*.local
+
+# Test artifacts
+coverage/
+
+# generated icon artifacts
+build/icon-src.png
+build/make-ico.mjs
+release/
+
+# CLAUDE-FABLE-5.md
+CLAUDE-FABLE-5.md
+
+# agent-only reference doc (NOT for public repo)
+README_for_agent.md
