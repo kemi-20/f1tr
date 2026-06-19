@@ -41,3 +41,6 @@ CLAUDE-FABLE-5.md
 README_for_agent.md
 # screenshot test output
 tests/shots/
+
+# stray downloaded installers
+tests/*.exe
