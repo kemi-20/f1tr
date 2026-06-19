@@ -24,25 +24,25 @@ export function getLlm(): LlmClient | null {
 }
 
 /** Build/rebuild the LLM client from current config + secrets; inject into the engineer.
- *  Called at boot and whenever config (model/baseURL/temperature/language) changes. */
+ *  Called at boot and whenever config (model/baseURL/key/temperature/language) changes.
+ *  Effective key = UI override if set, else .env. */
 export async function wireLlm(cfg: AppConfig): Promise<void> {
   if (!svc) return
   const { LlmClient } = await import('../engineer/LlmClient')
-  const secrets = ConfigStore.secrets()
+  const baseURL = cfg.llm.baseURL
+  const apiKey = ConfigStore.llmKey()
   svc.setLanguage(cfg.language.mode)
-  if (!secrets.aiBaseURL || !secrets.aiKey) {
-    logger.info(
-      `LLM backend inactive — baseURL=${secrets.aiBaseURL ? '(set)' : '(empty)'} key=${secrets.aiKey ? '(set)' : '(empty)'}`
-    )
+  if (!baseURL || !apiKey) {
+    logger.info(`LLM backend inactive — baseURL=${baseURL ? '(set)' : '(empty)'} key=${apiKey ? '(set)' : '(empty)'}`)
     svc.setBackend(null)
     llm = null
     return
   }
-  const model = cfg.llm.model || secrets.aiModel || 'deepseek-v4-flash'
+  const model = cfg.llm.model || 'deepseek-v4-flash'
   llm = new LlmClient(
-    { baseURL: secrets.aiBaseURL, apiKey: secrets.aiKey, model, temperature: cfg.llm.temperature, maxTokens: cfg.llm.maxTokens },
+    { baseURL, apiKey, model, temperature: cfg.llm.temperature, maxTokens: cfg.llm.maxTokens },
     svc.memory
   )
   svc.setBackend(llm)
-  logger.info(`LLM backend ready: ${secrets.aiBaseURL} model=${model}`)
+  logger.info(`LLM backend ready: ${baseURL} model=${model}`)
 }

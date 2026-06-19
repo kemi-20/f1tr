@@ -3,8 +3,8 @@ import { DEFAULT_CONFIG, mergeConfig, type AppConfig, type DeepPartial } from '@
 import { loadSecrets } from './env'
 
 /**
- * Persists non-sensitive preferences to userData/config.json.
- * Secrets never enter here — they are resolved from .env at read time.
+ * Persists user preferences (incl. optional API-key overrides) to userData/config.json.
+ * .env remains the default; UI overrides win when set.
  */
 class ConfigStoreImpl {
   private store: Store<AppConfig> | null = null
@@ -19,13 +19,14 @@ class ConfigStoreImpl {
   getAll(): AppConfig {
     const stored = this.ensure().store as unknown as Partial<AppConfig>
     const merged = mergeConfig(stored)
-    // resolve secret presence flags from .env
     const secrets = loadSecrets()
-    merged.llm.hasSecret = !!secrets.aiKey
-    merged.tts.hasSecret = !!secrets.mimoKey
+    // base URL / model: fall back to .env when not set in UI
     if (!merged.llm.baseURL) merged.llm.baseURL = secrets.aiBaseURL
     if (!merged.llm.model) merged.llm.model = secrets.aiModel
     if (!merged.tts.baseURL) merged.tts.baseURL = secrets.mimoBaseURL
+    // hasSecret: true if EITHER an override OR a .env key is present
+    merged.llm.hasSecret = !!(merged.llm.apiKeyOverride || secrets.aiKey)
+    merged.tts.hasSecret = !!(merged.tts.apiKeyOverride || secrets.mimoKey)
     return merged
   }
 
@@ -44,7 +45,19 @@ class ConfigStoreImpl {
     return this.getAll()
   }
 
-  /** Returns resolved secrets (for main-internal use only). */
+  /** Resolve the effective LLM key: override wins, else .env. */
+  llmKey(): string {
+    const cfg = this.getAll()
+    return cfg.llm.apiKeyOverride || loadSecrets().aiKey
+  }
+
+  /** Resolve the effective MiMo key: override wins, else .env. */
+  ttsKey(): string {
+    const cfg = this.getAll()
+    return cfg.tts.apiKeyOverride || loadSecrets().mimoKey
+  }
+
+  /** Returns raw .env secrets (fallback source). */
   secrets() {
     return loadSecrets()
   }

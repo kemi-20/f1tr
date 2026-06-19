@@ -26,8 +26,22 @@ export function LlmTab(): React.ReactElement {
         </Field>
       </div>
 
-      <Field label="API Key" hint={llm.hasSecret ? '已从 .env (AI_API_KEY) 读取 ✓' : '未检测到 .env 中的 AI_API_KEY'}>
-        <TextInput type="password" value="••••••••••••" disabled placeholder="未配置" />
+      <Field
+        label="API Key"
+        hint={
+          llm.apiKeyOverride
+            ? '使用此处填入的 key（覆盖 .env）· 明文存于 userData/config.json'
+            : llm.hasSecret
+              ? '已从 .env (AI_API_KEY) 读取 ✓ · 在此填入可覆盖'
+              : '未配置：在此填入，或设 .env 的 AI_API_KEY'
+        }
+      >
+        <TextInput
+          type="password"
+          value={llm.apiKeyOverride}
+          placeholder={llm.hasSecret ? '（用 .env 的 key，留空保持）' : 'sk-...'}
+          onChange={(e) => void patch({ llm: { apiKeyOverride: e.target.value } })}
+        />
       </Field>
 
       <div className="grid grid-cols-2 gap-3">

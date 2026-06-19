@@ -7,19 +7,25 @@ export type DeepPartial<T> = {
 }
 
 /**
- * Non-sensitive application config, persisted to userData/config.json via electron-store.
- * Secrets (API keys) are NEVER stored here — they live in .env / Windows Credential Vault.
+ * User-editable application config, persisted to userData/config.json via electron-store.
+ *
+ * API keys: read from .env by default, but the user can ALSO enter them in the Settings
+ * UI (stored here as `apiKeyOverride`). Overrides win over .env. For a local desktop app,
+ * storing the key in userData is acceptable and standard (like VS Code storing tokens) —
+ * but it is NOT encrypted at rest; document this in the UI.
  */
 export interface AppConfig {
   llm: {
-    baseURL: string // e.g. https://api.deepseek.com/v1  (resolved from AI_API_BASE_URL)
+    baseURL: string // resolved from AI_API_BASE_URL, editable in UI
+    apiKeyOverride: string // '' = use .env AI_API_KEY; otherwise this wins
     model: string // resolved from AI_MODEL
     temperature: number
     maxTokens: number
-    hasSecret: boolean // whether AI_API_KEY is present (never the key itself)
+    hasSecret: boolean // whether a key is available (.env or override)
   }
   tts: {
-    baseURL: string // resolved from MIMO_API_BASE_URL
+    baseURL: string // resolved from MIMO_API_BASE_URL, editable in UI
+    apiKeyOverride: string // '' = use .env MIMO_API_KEY; otherwise this wins
     model: string // mimo-v2.5-tts
     hasSecret: boolean
   }
@@ -55,8 +61,8 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  llm: { baseURL: '', model: '', temperature: 0.6, maxTokens: 80, hasSecret: false },
-  tts: { baseURL: '', model: 'mimo-v2.5-tts', hasSecret: false },
+  llm: { baseURL: '', apiKeyOverride: '', model: '', temperature: 0.6, maxTokens: 80, hasSecret: false },
+  tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false },
   language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气' },
   telemetry: {
     port: 20777,

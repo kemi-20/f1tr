@@ -27,19 +27,21 @@ export function getTtsClient(): MiMoTtsClient | null {
   return client
 }
 
-/** Build/rebuild the MiMo client from current config + secrets; inject into the pipeline. */
+/** Build/rebuild the MiMo client from current config; inject into the pipeline.
+ *  Effective key = UI override if set, else .env. */
 export async function wireTts(cfg: AppConfig): Promise<void> {
   if (!pipeline) return
-  const secrets = ConfigStore.secrets()
-  if (!secrets.mimoBaseURL || !secrets.mimoKey) {
-    logger.info('TTS backend inactive (no MIMO_* secrets)')
+  const baseURL = cfg.tts.baseURL
+  const apiKey = ConfigStore.ttsKey()
+  if (!baseURL || !apiKey) {
+    logger.info('TTS backend inactive (no baseURL/key via UI or .env)')
     pipeline.setClient(null)
     client = null
     return
   }
-  client = new MiMoTtsClient({ baseURL: secrets.mimoBaseURL, apiKey: secrets.mimoKey, model: cfg.tts.model })
+  client = new MiMoTtsClient({ baseURL, apiKey, model: cfg.tts.model })
   pipeline.setClient(client)
   pipeline.setPreemptOnHigh(cfg.audio.preemptOnHigh)
   pipeline.setMaxQueueDepth(cfg.advanced.maxQueueDepth)
-  logger.info(`TTS backend ready: ${secrets.mimoBaseURL}`)
+  logger.info(`TTS backend ready: ${baseURL}`)
 }
