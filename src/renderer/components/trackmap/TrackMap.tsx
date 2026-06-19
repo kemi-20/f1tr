@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useRaceStore } from '../../store'
 import { getTrack, fmtGap, compoundLabel } from '@shared/index'
+import { TRACK_SVG_RAW } from './trackSvgAssets'
 
 /**
- * TrackMap — renders a normalized track path and places car dots along it.
- * Full source SVGs are kept as assets, but the live panel only draws the track
- * outline so embedded white backgrounds/labels never cover the cockpit UI.
+ * TrackMap — renders the original high-resolution SVG for each circuit and
+ * overlays live car dots in the same SVG coordinate system.
  */
 export function TrackMap(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
@@ -14,6 +14,7 @@ export function TrackMap(): React.ReactElement {
   const positions = race?.trackPositions ?? []
   const pathRef = useRef<SVGPathElement>(null)
   const [pathLen, setPathLen] = useState(0)
+  const trackSvg = useMemo(() => parseTrackSvg(TRACK_SVG_RAW[trackId]), [trackId])
 
   useEffect(() => {
     setPathLen(0)
@@ -23,7 +24,7 @@ export function TrackMap(): React.ReactElement {
     } catch {
       setPathLen(0)
     }
-  }, [track?.path])
+  }, [trackSvg?.probePath, track?.path])
 
   const pointAt = useCallback((t: number): { x: number; y: number } | null => {
     if (!pathLen || !pathRef.current) return null
@@ -40,7 +41,10 @@ export function TrackMap(): React.ReactElement {
   const sorted = [...rivals].sort((a, b) => a.position - b.position)
   const start = Math.max(0, sorted.findIndex((r) => r.position === playerPos) - 2)
   const raceWindow = sorted.slice(start, start + 6)
-  const hasTrackPath = Boolean(track && pathLen)
+  const hasTrackPath = Boolean(pathLen && (trackSvg?.probePath || track?.path))
+  const viewBox = trackSvg?.viewBox ?? '0 0 100 100'
+  const probePath = trackSvg?.probePath ?? track?.path ?? ''
+  const marker = markerSize(viewBox)
 
   return (
     <div className="glass relative flex h-full flex-col p-4">
@@ -51,16 +55,21 @@ export function TrackMap(): React.ReactElement {
 
       {/* track SVG + car dots overlay */}
       <div className="relative flex-1">
-        <svg viewBox="0 0 100 100" className="h-full w-full" preserveAspectRatio="xMidYMid meet">
-          {track ? (
+        <svg viewBox={viewBox} className="h-full w-full" preserveAspectRatio="xMidYMid meet">
+          {trackSvg ? (
             <>
-              <path ref={pathRef} d={track.path} fill="none" stroke="rgba(45,212,191,0.12)" strokeWidth="7" strokeLinejoin="round" strokeLinecap="round" />
+              <g className="track-svg-original" dangerouslySetInnerHTML={{ __html: trackSvg.inner }} />
+              <path ref={pathRef} d={probePath} fill="none" stroke="none" pointerEvents="none" opacity="0" />
+            </>
+          ) : track ? (
+            <>
+              <path ref={pathRef} d={probePath} fill="none" stroke="rgba(45,212,191,0.12)" strokeWidth="7" strokeLinejoin="round" strokeLinecap="round" />
               <path d={track.path} fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
               {pointAt(0) && (
                 <line
-                  x1={pointAt(0)!.x - 3} y1={pointAt(0)!.y - 3}
-                  x2={pointAt(0)!.x + 3} y2={pointAt(0)!.y + 3}
-                  stroke="#FF6A00" strokeWidth="1.5"
+                  x1={pointAt(0)!.x - marker * 1.4} y1={pointAt(0)!.y - marker * 1.4}
+                  x2={pointAt(0)!.x + marker * 1.4} y2={pointAt(0)!.y + marker * 1.4}
+                  stroke="#FF6A00" strokeWidth={marker * 0.5}
                 />
               )}
             </>
@@ -79,12 +88,12 @@ export function TrackMap(): React.ReactElement {
             return (
               <g key={p.carIndex}>
                 {isP && (
-                  <circle cx={pt.x} cy={pt.y} r="3.5" fill="none" stroke="#2DD4BF" strokeWidth="0.8">
-                    <animate attributeName="r" values="2.5;5;2.5" dur="1.6s" repeatCount="indefinite" />
+                  <circle cx={pt.x} cy={pt.y} r={marker * 1.5} fill="none" stroke="#2DD4BF" strokeWidth={marker * 0.3}>
+                    <animate attributeName="r" values={`${marker * 1.2};${marker * 2.4};${marker * 1.2}`} dur="1.6s" repeatCount="indefinite" />
                     <animate attributeName="opacity" values="0.9;0;0.9" dur="1.6s" repeatCount="indefinite" />
                   </circle>
                 )}
-                <circle cx={pt.x} cy={pt.y} r={isP ? 2.2 : 1.5} fill={isP ? '#2DD4BF' : 'rgba(255,255,255,0.7)'} />
+                <circle cx={pt.x} cy={pt.y} r={isP ? marker * 1.1 : marker * 0.75} fill={isP ? '#2DD4BF' : 'rgba(255,255,255,0.7)'} />
               </g>
             )
           })}
@@ -114,6 +123,45 @@ export function TrackMap(): React.ReactElement {
       </div>
     </div>
   )
+}
+
+interface ParsedTrackSvg {
+  viewBox: string
+  inner: string
+  probePath: string
+}
+
+function parseTrackSvg(raw?: string): ParsedTrackSvg | null {
+  if (!raw || typeof DOMParser === 'undefined') return null
+  const doc = new DOMParser().parseFromString(raw, 'image/svg+xml')
+  const svg = doc.documentElement
+  if (!svg || svg.tagName.toLowerCase() !== 'svg') return null
+
+  const viewBox = svg.getAttribute('viewBox') ?? inferViewBox(svg) ?? '0 0 100 100'
+  const paths = Array.from(svg.querySelectorAll('path'))
+    .map((path) => path.getAttribute('d') ?? '')
+    .filter(Boolean)
+  return {
+    viewBox,
+    inner: svg.innerHTML,
+    probePath: pickLongestPath(paths)
+  }
+}
+
+function inferViewBox(svg: Element): string | null {
+  const width = parseFloat(svg.getAttribute('width') ?? '')
+  const height = parseFloat(svg.getAttribute('height') ?? '')
+  return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0 ? `0 0 ${width} ${height}` : null
+}
+
+function pickLongestPath(paths: string[]): string {
+  return paths.reduce((best, path) => (path.length > best.length ? path : best), '')
+}
+
+function markerSize(viewBox: string): number {
+  const [, , w, h] = viewBox.split(/[\s,]+/).map(Number)
+  const base = Math.min(w || 100, h || 100)
+  return Math.max(0.8, base * 0.009)
 }
 
 function fallbackPointAt(t: number): { x: number; y: number } {

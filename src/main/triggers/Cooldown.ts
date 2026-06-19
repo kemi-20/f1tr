@@ -44,4 +44,4 @@ export class Cooldown {
 }
 
 /** Default cooldown applied when a rule has no explicit override (ms). */
-const DEFAULT_COOLDOWN_MS = 45 * 1000
+const DEFAULT_COOLDOWN_MS = 75 * 1000

@@ -17,7 +17,6 @@ import { logger } from '../logging/Logger'
 export class TriggerEngine {
   private cooldown: Cooldown
   private lastHeartbeatMs = 0
-  private lastHeartbeatLap = -1
   // hysteresis state
   private tyreWearLevel = 0 // highest level currently "live" (0/1/2/3)
   private tyreHotActive = false
@@ -241,13 +240,12 @@ export class TriggerEngine {
 
   private evalHeartbeat(state: RaceState): void {
     const now = Date.now()
-    const lapChanged = state.player.lap !== this.lastHeartbeatLap
     const due = now - this.lastHeartbeatMs >= this.config.heartbeatIntervalS * 1000
-    // fire at lap boundary OR after the interval, whichever first (but not lap 1)
+    // Quiet check-ins are time based only. Lap-boundary heartbeats made the engineer
+    // talk too often in normal races; real radio should stay quiet unless useful.
     if (state.player.lap <= 1) return
-    if (due || (lapChanged && this.lastHeartbeatLap > 0)) {
+    if (due) {
       this.lastHeartbeatMs = now
-      this.lastHeartbeatLap = state.player.lap
       this.tryFire(state, 'heartbeat', 'low', 'heartbeat', 'Scheduled check-in')
     }
   }

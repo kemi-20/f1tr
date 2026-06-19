@@ -63,7 +63,7 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  llm: { baseURL: '', apiKeyOverride: '', model: '', temperature: 0.6, maxTokens: 80, hasSecret: false },
+  llm: { baseURL: '', apiKeyOverride: '', model: '', temperature: 0.55, maxTokens: 140, hasSecret: false },
   tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false },
   language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气', engineerStyle: 'gp' },
   telemetry: {
@@ -89,8 +89,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     damageWingThreshold: 0.35,
     damageSuspThreshold: 0.3,
     rainImminentPct: 40,
-    heartbeatIntervalS: 60,
-    globalMinGapS: 8,
+    heartbeatIntervalS: 150,
+    globalMinGapS: 18,
     perRuleCooldownS: {},
     suppressFirstLap: true,
     suppressLastLapLowPriority: false

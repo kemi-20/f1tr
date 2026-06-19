@@ -196,6 +196,20 @@ describe('TriggerEngine — heartbeat', () => {
     expect(firings.some((f) => f.reasonCode === 'heartbeat')).toBe(true)
   })
 
+  it('does not heartbeat just because the lap changed', () => {
+    const { engine, firings } = makeEngine({ heartbeatIntervalS: 120, globalMinGapS: 0 })
+    const state = emptyRaceState()
+    state.player.lap = 3
+    engine.evaluate(state)
+    expect(firings.some((f) => f.reasonCode === 'heartbeat')).toBe(true)
+    firings.length = 0
+
+    vi.advanceTimersByTime(30_000)
+    state.player.lap = 4
+    engine.evaluate(state)
+    expect(firings.some((f) => f.reasonCode === 'heartbeat')).toBe(false)
+  })
+
   it('does not heartbeat on lap 1', () => {
     const { engine, firings } = makeEngine({ heartbeatIntervalS: 0, globalMinGapS: 0 })
     const state = emptyRaceState()

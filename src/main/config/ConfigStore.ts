@@ -24,6 +24,7 @@ class ConfigStoreImpl {
     if (!merged.llm.baseURL) merged.llm.baseURL = secrets.aiBaseURL
     if (!merged.llm.model) merged.llm.model = secrets.aiModel
     if (!merged.tts.baseURL) merged.tts.baseURL = secrets.mimoBaseURL
+    this.upgradeQuietEngineerDefaults(merged, stored)
     // hasSecret: true if EITHER an override OR a .env key is present
     merged.llm.hasSecret = !!(merged.llm.apiKeyOverride || secrets.aiKey)
     merged.tts.hasSecret = !!(merged.tts.apiKeyOverride || secrets.mimoKey)
@@ -60,6 +61,12 @@ class ConfigStoreImpl {
   /** Returns raw .env secrets (fallback source). */
   secrets() {
     return loadSecrets()
+  }
+
+  private upgradeQuietEngineerDefaults(config: AppConfig, stored: Partial<AppConfig>): void {
+    if (stored.llm?.maxTokens === 80) config.llm.maxTokens = DEFAULT_CONFIG.llm.maxTokens
+    if (stored.triggers?.heartbeatIntervalS === 60) config.triggers.heartbeatIntervalS = DEFAULT_CONFIG.triggers.heartbeatIntervalS
+    if (stored.triggers?.globalMinGapS === 8) config.triggers.globalMinGapS = DEFAULT_CONFIG.triggers.globalMinGapS
   }
 }
 

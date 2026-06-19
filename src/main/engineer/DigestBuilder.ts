@@ -15,7 +15,7 @@ export class DigestBuilder {
     const p = state.player
     const sc = s.isRedFlag ? 'red' : s.isSafetyCar ? 'sc' : s.isVirtualSafetyCar ? 'vsc' : 'none'
 
-    const playerRivals = this.rivalsAroundPlayer(state, 3)
+    const playerRivals = this.rivalsAroundPlayer(state, 4)
 
     return {
       ts: Date.now(),

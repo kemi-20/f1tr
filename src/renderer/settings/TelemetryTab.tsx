@@ -84,8 +84,8 @@ export function TelemetryTab(): React.ReactElement {
           <Field label={`心跳间隔 (s): ${triggers.heartbeatIntervalS}`}>
             <input
               type="range"
-              min={15}
-              max={180}
+              min={60}
+              max={300}
               step={5}
               value={triggers.heartbeatIntervalS}
               onChange={(e) => void patch({ triggers: { heartbeatIntervalS: Number(e.target.value) } })}
@@ -95,8 +95,8 @@ export function TelemetryTab(): React.ReactElement {
           <Field label={`最小播报间隔 (s): ${triggers.globalMinGapS}`}>
             <input
               type="range"
-              min={3}
-              max={30}
+              min={8}
+              max={45}
               step={1}
               value={triggers.globalMinGapS}
               onChange={(e) => void patch({ triggers: { globalMinGapS: Number(e.target.value) } })}

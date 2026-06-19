@@ -56,7 +56,7 @@ export function LlmTab(): React.ReactElement {
             className="h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-accent-carbon"
           />
         </Field>
-        <Field label="最大回复 tokens" hint="工程师口播通常 ≤ 80 tokens 即可">
+        <Field label="最大回复 tokens" hint="默认 140：减少次数后，单次可包含局势、动作和原因">
           <TextInput
             type="number"
             value={llm.maxTokens}
