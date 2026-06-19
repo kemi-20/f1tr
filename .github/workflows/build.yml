@@ -30,7 +30,7 @@ jobs:
       - name: Build (vite)
         run: npm run build
 
-  # ── Windows packaging + release on tag / manual ──
+  # ── Windows packaging + release ──
   package-windows:
     needs: check
     runs-on: windows-latest
@@ -46,35 +46,35 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
-      - name: Build & package Windows (NSIS + portable)
+
+      # electron-builder publishes to a GitHub Release automatically when on a tag.
+      # On non-tag pushes it just builds (publish skipped), and we upload artifacts below.
+      - name: Build & package Windows
         env:
-          # electron-builder needs this to fetch its bundled tools
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:win
-      - name: List artifacts
+
+      - name: List built executables
+        shell: pwsh
         run: Get-ChildItem -Recurse release -Filter "*.exe" | Select-Object FullName, Length
 
-      - name: Upload NSIS installer
+      # Upload EVERY .exe under release/ (names contain spaces + version, so use a recursive glob)
+      - name: Upload executables
         uses: actions/upload-artifact@v4
         with:
-          name: F1-Race-Engineer-Setup
-          path: release/*-setup.exe
-          if-no-files-found: ignore
-      - name: Upload portable
-        uses: actions/upload-artifact@v4
-        with:
-          name: F1-Race-Engineer-Portable
-          path: release/*-portable.exe
-          if-no-files-found: ignore
+          name: windows-executables
+          path: |
+            release/**/*.exe
+          if-no-files-found: error
 
-      # On a tag push, publish a GitHub Release with the exes attached
-      - name: Release
+      # belt-and-suspenders: if electron-builder's own publisher didn't fire (e.g. not on a tag),
+      # this still creates a release when on a tag. No-op otherwise.
+      - name: Create GitHub Release with executables (on tag)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/*-setup.exe
-            release/*-portable.exe
+            release/**/*.exe
           generate_release_notes: true
           draft: false
           prerelease: false
