@@ -51,8 +51,8 @@ export class DigestBuilder {
           blister: String(this.maxCorner(p.tyres.blisters))
         },
         dmg: {
-          wing: this.fmtDamage(p.damage.frontWing),
-          susp: this.fmtDamage(p.damage.suspension)
+          wingL: this.fmtDamage(p.damage.frontLeftWing),
+          wingR: this.fmtDamage(p.damage.frontRightWing)
         }
       },
       rivals: playerRivals,
@@ -83,7 +83,7 @@ export class DigestBuilder {
       `  TYRE: ${d.player.tyre.compound} ${d.player.tyre.age} • wear ${d.player.tyre.wear}` +
         ` • surf ${d.player.tyre.surfaceT}C • blister ${d.player.tyre.blister}`
     )
-    lines.push(`  DMG: wing ${d.player.dmg.wing} susp ${d.player.dmg.susp}`)
+    lines.push(`  DMG: F-wing L ${d.player.dmg.wingL} R ${d.player.dmg.wingR}`)
     if (d.rivals.length > 0) {
       lines.push('RIVALS:')
       for (const r of d.rivals) {

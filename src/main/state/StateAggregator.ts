@@ -231,22 +231,22 @@ export class StateAggregator {
       pl.tyres.wear[w] = clampPct(wear[i] ?? 0)
       pl.tyres.blisters[w] = clampPct(blist[i] ?? 0)
     })
-    // power-unit wear fields are part of CarDamageData in the F1 spec (0=new, 100=worn)
-    pl.powerUnit.engine = 1 - normWear(d.m_engineICEWear)
-    pl.powerUnit.turbo = 1 - normWear(d.m_engineTCWear)
-    pl.powerUnit.mguh = 1 - normWear(d.m_engineMGUHWear)
-    pl.powerUnit.es = 1 - normWear(d.m_engineESWear)
-    pl.powerUnit.ce = 1 - normWear(d.m_engineCEWear)
-    pl.powerUnit.mguk = 1 - normWear(d.m_engineMGUKWear)
+    // power-unit wear fields are uint8 0..100 in the F1 spec (0=new, 100=worn).
+    // Per request, only show: engine(ICE), turbo(TC), MGU-H, ES, CE, gearbox, exhaust.
+    pl.powerUnit.engine = 1 - clamp01(normPctTo01(d.m_engineICEWear))
+    pl.powerUnit.turbo = 1 - clamp01(normPctTo01(d.m_engineTCWear))
+    pl.powerUnit.mguh = 1 - clamp01(normPctTo01(d.m_engineMGUHWear))
+    pl.powerUnit.es = 1 - clamp01(normPctTo01(d.m_engineESWear))
+    pl.powerUnit.ce = 1 - clamp01(normPctTo01(d.m_engineCEWear))
+    pl.powerUnit.gearbox = 1 - clamp01(normPctTo01(d.m_gearBoxDamage ?? d.m_engineDamage))
     pl.powerUnit.exhaust = pl.powerUnit.engine
-    pl.powerUnit.gearbox = 1 - normWear(d.m_gearBoxDamage ?? d.m_engineDamage)
-    const wing = ((d.m_frontLeftWingDamage ?? 0) + (d.m_frontRightWingDamage ?? 0)) / 2
-    pl.damage.frontWing = clamp01(wing)
-    pl.damage.rearWing = clamp01(d.m_rearWingDamage ?? 0)
-    pl.damage.floor = clamp01(d.m_floorDamage ?? 0)
-    pl.damage.sidepodL = clamp01((d.m_sidepodDamage ?? 0) / 2)
+    // wing damage is uint8 0..100 — divide by 100, NOT clamp01 (which would max any value > 1).
+    pl.damage.frontLeftWing = clamp01(normPctTo01(d.m_frontLeftWingDamage))
+    pl.damage.frontRightWing = clamp01(normPctTo01(d.m_frontRightWingDamage))
+    pl.damage.rearWing = clamp01(normPctTo01(d.m_rearWingDamage))
+    pl.damage.floor = clamp01(normPctTo01(d.m_floorDamage))
+    pl.damage.sidepodL = clamp01(normPctTo01(d.m_sidepodDamage))
     pl.damage.sidepodR = pl.damage.sidepodL
-    pl.damage.suspension = clamp01(avgSusp(d))
   }
 
   onCarSetup(p: AnyParsedPacket): void {
@@ -416,15 +416,10 @@ function readGapS(d: AnyParsedPacket): number | null {
   const totalMs = minPart * 60000 + msPart
   return totalMs > 0 ? totalMs / 1000 : null
 }
-/** F1 wear fields are 0..n where bigger = more worn; normalize to 0..1 (assume 100 max). */
-function normWear(v: number | undefined): number {
+/** Convert a 0..100 percentage field (uint8 damage/wear) to 0..1, guarding NaN/undef. */
+function normPctTo01(v: number | undefined | null): number {
   if (v == null || !isFinite(v)) return 0
   return Math.max(0, Math.min(1, v / 100))
-}
-function avgSusp(d: AnyParsedPacket): number {
-  const tyresDamage = (d.m_tyresDamage ?? []) as number[]
-  if (tyresDamage.length === 0) return 0
-  return tyresDamage.reduce((a: number, b: number) => a + b, 0) / tyresDamage.length / 100
 }
 function rivalStatus(driverStatus: number, resultStatus: number): RivalState['status'] {
   if (resultStatus === 3) return 'finished'

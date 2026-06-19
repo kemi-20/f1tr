@@ -69,12 +69,12 @@ export function emptyRaceState(format: PacketFormat = 2025): RaceState {
         innerTempC: { rl: 0, rr: 0, fl: 0, fr: 0 }
       },
       damage: {
-        frontWing: 0,
+        frontLeftWing: 0,
+        frontRightWing: 0,
         rearWing: 0,
         floor: 0,
         sidepodL: 0,
-        sidepodR: 0,
-        suspension: 0
+        sidepodR: 0
       },
       powerUnit: {
         engine: 1,
@@ -83,7 +83,6 @@ export function emptyRaceState(format: PacketFormat = 2025): RaceState {
         ce: 1,
         turbo: 1,
         mguh: 1,
-        mguk: 1,
         exhaust: 1
       },
       setup: null

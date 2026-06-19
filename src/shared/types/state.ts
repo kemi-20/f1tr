@@ -25,22 +25,21 @@ export interface TyreState {
 }
 
 export interface DamageState {
-  frontWing: number // 0..1
+  frontLeftWing: number // 0..1 (from m_frontLeftWingDamage, 0-100)
+  frontRightWing: number // 0..1 (from m_frontRightWingDamage, 0-100)
   rearWing: number
   floor: number
   sidepodL: number
   sidepodR: number
-  suspension: number
 }
 
 export interface PowerUnitState {
   engine: number // remaining life 0..1
   gearbox: number
-  es: number
-  ce: number
-  turbo: number
-  mguh: number
-  mguk: number
+  es: number // energy store
+  ce: number // control electronics
+  turbo: number // TC
+  mguh: number // MGU-H
   exhaust: number
 }
 

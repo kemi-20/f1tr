@@ -50,3 +50,29 @@ export function tempScale(c: number | null | undefined): number {
   const hi = 120
   return Math.max(0, Math.min(1, (c - lo) / (hi - lo)))
 }
+
+/** Ideal surface-temp window (°C) per dry/wet compound. Source: F1 25 game/tyre model. */
+export const TYRE_TEMP_WINDOW: Record<string, [number, number]> = {
+  soft: [90, 100],
+  medium: [85, 100],
+  hard: [90, 105],
+  inter: [70, 85],
+  wet: [60, 80],
+  unknown: [85, 100]
+}
+
+export function tyreTempWindow(compound: string | undefined): [number, number] {
+  return TYRE_TEMP_WINDOW[compound ?? 'unknown'] ?? [85, 100]
+}
+
+/** Classification of current surface temp vs the compound's ideal window. */
+export function tempStatus(
+  c: number | null | undefined,
+  compound: string | undefined
+): { status: 'cold' | 'ideal' | 'hot'; color: string } {
+  if (c == null || !isFinite(c)) return { status: 'ideal', color: '#2DD4BF' }
+  const [lo, hi] = tyreTempWindow(compound)
+  if (c < lo) return { status: 'cold', color: '#3B82F6' }
+  if (c > hi) return { status: 'hot', color: '#FF3B3B' }
+  return { status: 'ideal', color: '#2DD4BF' }
+}

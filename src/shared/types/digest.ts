@@ -31,7 +31,7 @@ export interface Digest {
     ers: string
     drs: string
     tyre: { compound: string; age: string; wear: string; surfaceT: string; blister: string }
-    dmg: { wing: string; susp: string }
+    dmg: { wingL: string; wingR: string }
   }
   rivals: {
     pos: number

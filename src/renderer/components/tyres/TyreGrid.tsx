@@ -1,26 +1,27 @@
 import { useRaceStore } from '../../store'
-import { tempScale, compoundLabel, type Corners } from '@shared/index'
+import { compoundLabel, tyreTempWindow, tempStatus, type Corners } from '@shared/index'
 
 const CORNERS: (keyof Corners)[] = ['rl', 'rr', 'fl', 'fr']
 const CORNER_LABEL: Record<keyof Corners, string> = { rl: 'RL', rr: 'RR', fl: 'FL', fr: 'FR' }
 
-function heatColor(scale: number): string {
-  // blue -> green -> orange -> red
-  const h = (1 - scale) * 220 // 220 (blue) -> 0 (red)
-  return `hsl(${h} 80% 55%)`
+const COMPOUND_COLOR: Record<string, string> = {
+  soft: '#FF3B3B',
+  medium: '#FFB020',
+  hard: '#E6EDF6',
+  inter: '#2DD4BF',
+  wet: '#3B82F6',
+  unknown: '#666'
 }
 
-function TyreCard({ corner }: { corner: keyof Corners }): React.ReactElement {
+function TyreCard({ corner, compound }: { corner: keyof Corners; compound: string }): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const tyre = race?.player.tyres
   const wear = tyre ? tyre.wear[corner] : 0
   const surf = tyre ? tyre.surfaceTempC[corner] : 0
   const blister = tyre ? tyre.blisters[corner] : 0
-  const compound = race?.player.tyres.compound ?? 'unknown'
-  const age = race?.player.tyres.ageLaps ?? 0
-
-  const compoundColor =
-    { soft: '#FF3B3B', medium: '#FFB020', hard: '#E6EDF6', inter: '#2DD4BF', wet: '#3B82F6', unknown: '#666' }[compound] ?? '#666'
+  const compoundColor = COMPOUND_COLOR[compound] ?? '#666'
+  const [loT, hiT] = tyreTempWindow(compound)
+  const { status, color } = tempStatus(surf, compound)
 
   const wearPct = Math.round(wear)
   const R = 26
@@ -45,7 +46,7 @@ function TyreCard({ corner }: { corner: keyof Corners }): React.ReactElement {
             cy="32"
             r={R}
             fill="none"
-            stroke={heatColor(tempScale(surf))}
+            stroke={color}
             strokeWidth="5"
             strokeLinecap="round"
             strokeDasharray={`${dash} ${circ}`}
@@ -57,32 +58,37 @@ function TyreCard({ corner }: { corner: keyof Corners }): React.ReactElement {
           <span className="text-[8px] text-white/40">wear</span>
         </div>
       </div>
-      <div className="num-mono text-[10px]" style={{ color: heatColor(tempScale(surf)) }}>
+      <div className="num-mono text-[10px]" style={{ color }}>
         {Math.round(surf)}°C
       </div>
-      <div className="flex items-center gap-1 text-[9px] text-white/40">
+      <div className="flex items-center gap-1 text-[9px]">
         <span className="chip bg-white/[0.05] text-white/60">{compoundLabel(compound)}</span>
-        <span>L{age}</span>
-        {blister > 5 && (
-          <span className="chip bg-accent-ember/15 text-accent-ember" title="blisters">
-            ◆
-          </span>
-        )}
       </div>
+      <div className="text-[8px] text-white/30">
+        ideal {loT}–{hiT}°C · {status === 'cold' ? '过冷' : status === 'hot' ? '过热' : '理想'}
+      </div>
+      {blister > 5 && (
+        <span className="chip bg-accent-ember/15 text-accent-ember" title="blisters">
+          ◆ {Math.round(blister)}
+        </span>
+      )}
     </div>
   )
 }
 
 export function TyreGrid(): React.ReactElement {
+  const race = useRaceStore((s) => s.race)
+  const compound = race?.player.tyres.compound ?? 'unknown'
+
   return (
     <div className="glass p-4">
       <div className="mb-2 flex items-center justify-between">
         <span className="label">Tyres</span>
-        <span className="text-[9px] text-white/30">wear · surf temp · compound</span>
+        <span className="text-[9px] text-white/30">wear · surf temp · 窗口</span>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {CORNERS.map((c) => (
-          <TyreCard key={c} corner={c} />
+          <TyreCard key={c} corner={c} compound={compound} />
         ))}
       </div>
     </div>

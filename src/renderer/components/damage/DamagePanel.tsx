@@ -23,13 +23,13 @@ export function DamagePanel(): React.ReactElement {
     <div className="glass p-4">
       <div className="mb-2 flex items-center justify-between">
         <span className="label">Damage</span>
-        <span className="text-[9px] text-white/30">car · power unit</span>
+        <span className="text-[9px] text-white/30">body · power unit</span>
       </div>
       <div className="flex flex-col gap-1.5">
-        <DamageBar label="F-Wing" value={dmg?.frontWing ?? 0} />
+        <DamageBar label="F-Wing L" value={dmg?.frontLeftWing ?? 0} />
+        <DamageBar label="F-Wing R" value={dmg?.frontRightWing ?? 0} />
         <DamageBar label="R-Wing" value={dmg?.rearWing ?? 0} />
         <DamageBar label="Floor" value={dmg?.floor ?? 0} />
-        <DamageBar label="Susp" value={dmg?.suspension ?? 0} />
       </div>
       {pu && (
         <>
@@ -37,7 +37,7 @@ export function DamagePanel(): React.ReactElement {
           <div className="flex flex-col gap-1.5">
             <DamageBar label="ICE" value={1 - pu.engine} />
             <DamageBar label="Box" value={1 - pu.gearbox} />
-            <DamageBar label="MGU-K" value={1 - pu.mguk} />
+            <DamageBar label="MGU-H" value={1 - pu.mguh} />
             <DamageBar label="Exh" value={1 - pu.exhaust} />
           </div>
         </>

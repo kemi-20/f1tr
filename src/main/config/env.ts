@@ -16,11 +16,22 @@ export interface Secrets {
 }
 
 function candidatePaths(): string[] {
-  const cwd = process.cwd()
   const paths: string[] = []
-  // dev: project root (cwd may be project root or a subdir)
+  // 1. Prod / portable FIRST: .env beside the running exe (so a portable user can drop
+  //    .env next to the .exe) and in userData. These win over cwd which is unreliable
+  //    in packaged/portable builds (often a system temp dir).
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { app } = require('electron')
+    const exeDir = app.getPath('exe').replace(/[\\/][^/\\]+$/, '')
+    paths.push(resolve(exeDir, '.env'))
+    paths.push(resolve(app.getPath('userData'), '.env'))
+  } catch {
+    // app not ready / not electron — fall through to cwd
+  }
+  // 2. Dev: cwd + walk up parents (project root when running via electron-vite)
+  const cwd = process.cwd()
   paths.push(resolve(cwd, '.env'))
-  // walk up a few parents in case cwd is nested (dev/ and build scenarios)
   let dir = cwd
   for (let i = 0; i < 6 && dir; i++) {
     paths.push(resolve(dir, '.env'))
@@ -28,16 +39,7 @@ function candidatePaths(): string[] {
     if (parent === dir) break
     dir = parent
   }
-  // prod: beside the exe and in userData
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { app } = require('electron')
-    paths.push(app.getPath('exe').replace(/[^/\\]+$/, '.env'))
-    paths.push(resolve(app.getPath('userData'), '.env'))
-  } catch {
-    // app not ready / not electron — ignore
-  }
-  // de-dup
+  // de-dup, preserve order (exe-dir first)
   return Array.from(new Set(paths))
 }
 
