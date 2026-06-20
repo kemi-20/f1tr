@@ -70,6 +70,7 @@ export interface PlayerCarState {
   position: number
   lap: number
   lapDistancePct: number
+  currentSector: number // m_sector from LapData: 0=sector1, 1=sector2, 2=sector3
   onTrack: boolean
   currentLapTimeS: number | null
   lastLapTimeS: number | null

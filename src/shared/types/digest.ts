@@ -30,6 +30,8 @@ export interface Digest {
     pits: number
     ers: string
     drs: string
+    /** Track position: lap-distance % + current sector */
+    position: { lapPct: number; sector: number }
     tyre: { compound: string; age: string; wear: string; surfaceT: string; innerT: string; blister: string }
     dmg: { wingL: string; wingR: string; wingRear: string }
   }

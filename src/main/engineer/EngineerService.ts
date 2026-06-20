@@ -146,16 +146,22 @@ export class EngineerService {
         : this.simulateStream(this.stub.generate(digest), emitDelta)
       const text = cleanAutoTriggerAcknowledgement(rawText, firing)
 
-      // success path: commit + speak, then settle to idle so pills don't stick
+      // Parse 【NOW】/【HOLD】 prefix: AI judges speak-immediately vs hold-for-straight
+      const isNow = /^【NOW】/i.test(text)
+      const isHold = /^【HOLD】/i.test(text)
+      const cleanText = text.replace(/^【(NOW|HOLD)】/i, '').trim()
+      // speak if NOW, or if no prefix + critical; HOLD skips TTS
+      const shouldSpeak = isNow || (!isHold && firing.priority === 'critical')
+
       Sender.send('engineer:advice', {
         id,
-        text,
+        text: cleanText,
         firing: { code: firing.reasonCode, priority: firing.priority },
         ts: Date.now()
       })
-      Sender.send('engineer:status', { status: 'speaking' })
-      logger.info(`engineer advice [${firing.reasonCode}] stub=${!this.llm}: ${text.slice(0, 80)}`)
-      if (text) this.onSpeak(text, firing, this.voice, this.direction)
+      Sender.send('engineer:status', { status: shouldSpeak ? 'speaking' : 'idle' })
+      logger.info(`engineer advice [${firing.reasonCode}] speak=${shouldSpeak}: ${cleanText.slice(0, 80)}`)
+      if (cleanText && shouldSpeak) this.onSpeak(cleanText, firing, this.voice, this.direction)
       // settle to idle after the (approx) speaking window; clear any previous timer first
       this.clearIdleTimer()
       this.idleTimer = setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 6000)

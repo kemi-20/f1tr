@@ -39,6 +39,7 @@ export function emptyRaceState(format: PacketFormat = 2025): RaceState {
       position: 0,
       lap: 0,
       lapDistancePct: 0,
+      currentSector: -1,
       onTrack: true,
       currentLapTimeS: null,
       lastLapTimeS: null,

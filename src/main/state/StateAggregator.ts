@@ -199,6 +199,7 @@ export class StateAggregator {
     if (pld) {
       const pl = this.state.player
       pl.position = pld.m_carPosition > 0 ? pld.m_carPosition : pl.position
+      pl.currentSector = typeof pld.m_sector === 'number' ? pld.m_sector : pl.currentSector
       pl.lap = numOr(pld.m_currentLapNum, pl.lap)
       this.state.session.currentLap = numOr(pld.m_currentLapNum, this.state.session.currentLap)
       const pldTrackLen = this.state.session.trackLengthM

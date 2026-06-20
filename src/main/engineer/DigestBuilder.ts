@@ -45,6 +45,10 @@ export class DigestBuilder {
         pits: p.pitStopCount,
         ers: fmtPct(p.ersPercent),
         drs: drsBlockedByWeather ? 'disabled by rain/wet track' : p.drsActive ? 'active' : p.drsAllowed ? 'available' : 'no',
+        position: {
+          lapPct: Math.round(p.lapDistancePct * 100),
+          sector: p.currentSector
+        },
         tyre: {
           compound: p.tyres.compound,
           age: `${p.tyres.ageLaps}L`,
@@ -79,8 +83,9 @@ export class DigestBuilder {
     lines.push(
       `WEATHER: air ${d.weather.airC}C track ${d.weather.trackC}C rain ${d.weather.rainPct}% wet ${d.weather.wet}% expected: ${d.weather.expected}`
     )
+    const sectorLabel = d.player.position.sector >= 0 ? `S${d.player.position.sector + 1}` : '?'
     lines.push(
-      `PLAYER: ${d.player.pos}` +
+      `PLAYER: ${d.player.pos} • Lap ${d.player.position.lapPct}% (sector ${sectorLabel})` +
         (d.player.gapAhead ? ` • ${d.player.gapAhead} to car ahead` : '') +
         (d.player.gapBehind ? ` • ${d.player.gapBehind} to car behind` : '') +
         ` • last ${d.player.lastLap} best ${d.player.bestLap} • fuel ${d.player.fuel} • pits ${d.player.pits}` +
