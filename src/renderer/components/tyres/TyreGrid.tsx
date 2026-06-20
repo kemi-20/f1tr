@@ -28,8 +28,10 @@ function TyreCard({ corner, label, compound, rawId }: { corner: keyof Corners; l
   const cName = compoundCName(rawId)
   const { status, color } = tempStatus(surf, compound)
   const wearPct = Math.round(wear)
-  // wear bar: 100% = full green (good), 0% = empty (worn out). bar shrinks as tyre wears.
-  const wearColor = wear > 70 ? '#FF3B3B' : wear > 40 ? '#FFB020' : '#2DD4BF'
+  // remaining life: 100 = full bar (fresh), 0 = empty bar (worn out)
+  const remainingPct = 100 - wearPct
+  // bar colour follows tyre surface temperature: cold=blue, ideal=green, hot=red
+  const { color: barColor } = tempStatus(surf, compound)
 
   return (
     <div className="glass-flat p-2">
@@ -45,15 +47,16 @@ function TyreCard({ corner, label, compound, rawId }: { corner: keyof Corners; l
         </div>
       </div>
 
-      {/* wear bar: full = 100% (fresh), empty = 0% (worn out) */}
+      {/* wear bar: remaining life. full=100% (no wear), empty=0% (fully worn).
+          colour = tyre temperature status (cold/ideal/hot). */}
       <div className="mt-1">
         <div className="flex justify-between text-[7px] text-white/30">
-          <span>wear</span><span className="num-mono">{wearPct}%</span>
+          <span>remaining</span><span className="num-mono">{remainingPct}%</span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.05]">
           <div
             className="h-full rounded-full transition-[width] duration-300"
-            style={{ width: `${wearPct}%`, background: wearColor }}
+            style={{ width: `${remainingPct}%`, background: barColor }}
           />
         </div>
       </div>
