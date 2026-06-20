@@ -59,11 +59,11 @@ export function TelemetryTab(): React.ReactElement {
               className="h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-accent-carbon"
             />
           </Field>
-          <Field label={`轮胎过热温度 (°C): ${triggers.tyreHotC}`}>
+          <Field label={`轮胎内部温度上限 (°C): ${triggers.tyreHotC}`}>
             <input
               type="range"
-              min={90}
-              max={130}
+              min={95}
+              max={140}
               step={1}
               value={triggers.tyreHotC}
               onChange={(e) => void patch({ triggers: { tyreHotC: Number(e.target.value) } })}

@@ -158,6 +158,37 @@ describe('TriggerEngine — cooldown & suppression', () => {
   })
 })
 
+describe('TriggerEngine — tyre temperature window', () => {
+  beforeEach(() => {
+    now = 1_000_000
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('uses inner tyre temperature, not surface temperature, for the window', () => {
+    const { engine, firings } = makeEngine({ tyreColdC: 75, tyreHotC: 115 })
+    const state = emptyRaceState()
+    state.player.lap = 5
+    state.player.tyres.surfaceTempC = { rl: 130, rr: 130, fl: 130, fr: 130 }
+    state.player.tyres.innerTempC = { rl: 95, rr: 96, fl: 95, fr: 96 }
+    engine.evaluate(state)
+    expect(firings.some((f) => f.reasonCode === 'tyre_hot' || f.reasonCode === 'tyre_cold')).toBe(false)
+  })
+
+  it('fires when inner tyre temperature leaves the widened window', () => {
+    const { engine, firings } = makeEngine({ tyreColdC: 75, tyreHotC: 115, globalMinGapS: 0 })
+    const state = emptyRaceState()
+    state.player.lap = 5
+    state.player.tyres.innerTempC = { rl: 116, rr: 110, fl: 110, fr: 110 }
+    engine.evaluate(state)
+    state.player.tyres.innerTempC = { rl: 70, rr: 80, fl: 80, fr: 80 }
+    engine.evaluate(state)
+    expect(firings.map((f) => f.reasonCode)).toContain('tyre_hot')
+    expect(firings.map((f) => f.reasonCode)).toContain('tyre_cold')
+  })
+})
+
 describe('TriggerEngine — events', () => {
   it('fires on safety car / fastest lap events', () => {
     const { engine, firings } = makeEngine()

@@ -38,6 +38,13 @@ export class TriggerEngine {
     this.onFiring = onFiring
   }
 
+  /** Hot-reload config (from UI settings changes). Resets cooldown state so the new
+   *  threshold values apply immediately instead of being held back by old timestamps. */
+  setConfig(config: TriggerConfig): void {
+    this.config = config
+    this.cooldown.setConfig(config)
+  }
+
   /** Called when the aggregator has updated state (throttled, e.g. once per tick). */
   evaluate(state: RaceState): void {
     if (this.inFlashback()) return
@@ -132,22 +139,29 @@ export class TriggerEngine {
   }
 
   private evalTyreTemp(state: RaceState): void {
-    const surf = Math.max(
-      state.player.tyres.surfaceTempC.rl,
-      state.player.tyres.surfaceTempC.rr,
-      state.player.tyres.surfaceTempC.fl,
-      state.player.tyres.surfaceTempC.fr
+    // Tyre operating window is based on INNER/core temperature, not surface temperature.
+    const innerMax = Math.max(
+      state.player.tyres.innerTempC.rl,
+      state.player.tyres.innerTempC.rr,
+      state.player.tyres.innerTempC.fl,
+      state.player.tyres.innerTempC.fr
     )
-    if (!this.tyreHotActive && surf > this.config.tyreHotC) {
+    const innerMin = minPositive(
+      state.player.tyres.innerTempC.rl,
+      state.player.tyres.innerTempC.rr,
+      state.player.tyres.innerTempC.fl,
+      state.player.tyres.innerTempC.fr
+    )
+    if (!this.tyreHotActive && innerMax > this.config.tyreHotC) {
       this.tyreHotActive = true
-      this.tryFire(state, 'tyre_hot', 'normal', 'tyre_hot', `Tyres overheating (${Math.round(surf)}°C)`)
-    } else if (this.tyreHotActive && surf < this.config.tyreHotC - 5) {
+      this.tryFire(state, 'tyre_hot', 'normal', 'tyre_hot', `Tyre inner/core temperature high (${Math.round(innerMax)}°C)`)
+    } else if (this.tyreHotActive && innerMax < this.config.tyreHotC - 5) {
       this.tyreHotActive = false
     }
-    if (!this.tyreColdActive && surf > 0 && surf < this.config.tyreColdC) {
+    if (!this.tyreColdActive && innerMin != null && innerMin < this.config.tyreColdC) {
       this.tyreColdActive = true
-      this.tryFire(state, 'tyre_cold', 'normal', 'tyre_cold', `Tyres too cold (${Math.round(surf)}°C)`)
-    } else if (this.tyreColdActive && surf > this.config.tyreColdC + 5) {
+      this.tryFire(state, 'tyre_cold', 'normal', 'tyre_cold', `Tyre inner/core temperature low (${Math.round(innerMin)}°C)`)
+    } else if (this.tyreColdActive && innerMin != null && innerMin > this.config.tyreColdC + 5) {
       this.tyreColdActive = false
     }
   }
@@ -270,7 +284,7 @@ export class TriggerEngine {
     this.cooldown.recordFire(ruleId, priority)
     const firing: TriggerFiring = {
       ruleId,
-      kind: ruleId === 'heartbeat' ? 'heartbeat' : ruleId.startsWith('safety') || ruleId === 'red_flag' ? 'event' : 'threshold',
+      kind: classifyKind(ruleId),
       priority,
       reasonCode,
       reason,
@@ -279,6 +293,28 @@ export class TriggerEngine {
     logger.debug(`trigger fired: ${ruleId} [${priority}] — ${reason}`)
     this.onFiring(firing)
   }
+}
+
+/** Classify a ruleId's kind: heartbeat, discrete event, or threshold (edge-hysteretic). */
+function classifyKind(ruleId: string): 'heartbeat' | 'event' | 'threshold' {
+  if (ruleId === 'heartbeat') return 'heartbeat'
+  const EVENT_RULES = new Set([
+    'safety_car',
+    'vsc',
+    'red_flag',
+    'fastest_lap',
+    'penalty',
+    'position_gain',
+    'position_loss',
+    'race_winner'
+  ])
+  if (EVENT_RULES.has(ruleId)) return 'event'
+  return 'threshold'
+}
+
+function minPositive(...values: number[]): number | null {
+  const filtered = values.filter((v) => Number.isFinite(v) && v > 0)
+  return filtered.length ? Math.min(...filtered) : null
 }
 
 export { Cooldown }

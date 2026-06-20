@@ -32,9 +32,10 @@ describe('mappings', () => {
   })
 
   it('decodes safety car status', () => {
-    expect(decodeSafetyCar(0)).toEqual({ sc: false, vsc: false, red: false })
-    expect(decodeSafetyCar(1)).toEqual({ sc: true, vsc: false, red: false })
-    expect(decodeSafetyCar(2)).toEqual({ sc: false, vsc: true, red: false })
+    expect(decodeSafetyCar(0)).toEqual({ sc: false, vsc: false, formation: false })
+    expect(decodeSafetyCar(1)).toEqual({ sc: true, vsc: false, formation: false })
+    expect(decodeSafetyCar(2)).toEqual({ sc: false, vsc: true, formation: false })
+    expect(decodeSafetyCar(3)).toEqual({ sc: false, vsc: false, formation: true })
   })
 
   it('labels session types', () => {

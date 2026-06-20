@@ -47,12 +47,13 @@ export class TelemetryService {
     this.receiver.on(P.session, (p) => {
       const prevUid = this.aggregator.getState().session.sessionUID
       const newUid = (p.m_header as { m_sessionUID: bigint }).m_sessionUID.toString()
-      this.aggregator.onSession(p)
-      // reset state on session change to avoid stale rivals/data
+      // reset state BEFORE onSession so the new session's data isn't wiped by an
+      // empty reset (otherwise stale-rival + session-data loss bug C2).
       if (prevUid && prevUid !== newUid) {
         logger.info(`Session changed: ${prevUid} -> ${newUid}, resetting state`)
         this.aggregator.reset(this.receiver.currentFormat ?? 2025)
       }
+      this.aggregator.onSession(p)
       this.maybeEmitSessionMeta()
     })
     this.receiver.on(P.motion, (p) => this.aggregator.onMotion(p))

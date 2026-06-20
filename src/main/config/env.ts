@@ -111,7 +111,9 @@ export function loadSecrets(): Secrets {
   return cached
 }
 
-/** Ensure baseURL has a scheme and ends with /v1 for the chat-completions path. */
+/** Ensure baseURL has a scheme and ends with /v1 for the chat-completions path.
+ *  If the URL already contains /vN somewhere in the path, strip any trailing segments
+ *  (e.g., /chat/completions) and keep only the base + /vN. */
 export function normalizeURL(u: string): string {
   if (!u) return u
   let url = u.trim()
@@ -119,7 +121,14 @@ export function normalizeURL(u: string): string {
     // tp- keys use the CN host; otherwise assume https
     url = 'https://' + url
   }
-  return url.replace(/\/+$/, '') + (/(\/v\d+)$/.test(url) ? '' : '/v1')
+  url = url.replace(/\/+$/, '')
+  // if URL already has /vN somewhere, use that as the base
+  const versionMatch = url.match(/^(https?:\/\/[^/]+\/[^/]*\/v\d+)(?:\/.*)?$/)
+  if (versionMatch) return versionMatch[1]
+  // strip known suffixes like /chat/completions
+  const suffixMatch = url.match(/^(https?:\/\/[^/]+)\/chat\/completions.*$/)
+  if (suffixMatch) url = suffixMatch[1]
+  return url + '/v1'
 }
 
 export function refreshSecrets(): Secrets {

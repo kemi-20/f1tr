@@ -5,7 +5,8 @@ import { fmtLapTime } from '@shared/index'
 
 export function TopStrip(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
-  const health = useHealthStore()
+  const healthWaiting = useHealthStore((s) => s.waiting)
+  const healthConnected = useHealthStore((s) => s.connected)
   const openSettings = useConfigStore((s) => s.openSettings)
   const session = race?.session
   const player = race?.player
@@ -13,7 +14,8 @@ export function TopStrip(): React.ReactElement {
   const sc = session?.isSafetyCar ? 'SC' : session?.isVirtualSafetyCar ? 'VSC' : session?.isRedFlag ? 'RED' : null
 
   const timeLeft = session?.sessionTimeLeftS
-  const timeLeftStr = timeLeft != null ? `${Math.floor(timeLeft / 60)}:${String(Math.floor(timeLeft % 60)).padStart(2, '0')}` : '--:--'
+  const tl = timeLeft != null ? Math.max(0, timeLeft) : null
+  const timeLeftStr = tl != null ? `${Math.floor(tl / 60)}:${String(Math.floor(tl % 60)).padStart(2, '0')}` : '--:--'
 
   return (
     <div className="glass relative flex items-center justify-between overflow-hidden px-5 py-3">
@@ -86,12 +88,12 @@ export function TopStrip(): React.ReactElement {
           <span
             className="h-2 w-2 rounded-full"
             style={{
-              background: health.waiting ? '#FFB020' : health.connected ? '#2DD4BF' : '#FF3B3B',
-              boxShadow: `0 0 8px ${health.waiting ? '#FFB020' : health.connected ? '#2DD4BF' : '#FF3B3B'}`
+              background: healthWaiting ? '#FFB020' : healthConnected ? '#2DD4BF' : '#FF3B3B',
+              boxShadow: `0 0 8px ${healthWaiting ? '#FFB020' : healthConnected ? '#2DD4BF' : '#FF3B3B'}`
             }}
           />
           <span className="label">
-            {health.waiting ? 'WAITING' : health.connected ? 'CONNECTED' : 'OFFLINE'}
+            {healthWaiting ? 'WAITING' : healthConnected ? 'CONNECTED' : 'OFFLINE'}
           </span>
         </div>
       </div>

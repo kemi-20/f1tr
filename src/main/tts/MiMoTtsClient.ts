@@ -50,8 +50,9 @@ export class MiMoTtsClient {
     signal?: AbortSignal
   ): Promise<void> {
     if (!this.ready) throw new Error('MiMo TTS not configured (missing MIMO_API_BASE_URL/MIMO_API_KEY)')
-    // if an already-aborted signal was passed, bail immediately
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    if (signal?.aborted) {
+      throw new DOMException('The operation was aborted.', 'AbortError')
+    }
 
     const url = this.config.baseURL.replace(/\/+$/, '') + '/chat/completions'
     const body = {
@@ -66,7 +67,8 @@ export class MiMoTtsClient {
 
     this.abort = new AbortController()
     // also honor an externally-supplied signal (cancellation from the pipeline)
-    signal?.addEventListener('abort', () => this.abort?.abort(), { once: true })
+    const onExternalAbort = (): void => this.abort?.abort()
+    signal?.addEventListener('abort', onExternalAbort, { once: true })
 
     this.parser.reset()
     let done = false
@@ -92,7 +94,10 @@ export class MiMoTtsClient {
         while (true) {
           const { value, done: streamDone } = await reader.read()
           if (streamDone) break
-          this.parser.feed(value, onChunk, () => {
+          this.parser.feed(value, onChunk, (chunksReceived) => {
+            if (chunksReceived === 0) {
+              logger.warn('MiMo TTS stream completed with 0 audio chunks — check SSE format')
+            }
             done = true
           })
           if (done) break
@@ -108,9 +113,11 @@ export class MiMoTtsClient {
     } catch (err) {
       if (this.isAbort(err)) {
         logger.info('MiMo TTS stream aborted')
-        return
+        throw err // re-throw so AudioPipeline can distinguish abort from success
       }
       throw err
+    } finally {
+      signal?.removeEventListener('abort', onExternalAbort)
     }
   }
 

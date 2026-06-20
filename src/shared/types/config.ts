@@ -75,8 +75,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   triggers: {
     tyreWearLevels: [50, 70, 90],
-    tyreHotC: 110,
-    tyreColdC: 80,
+    tyreHotC: 115,
+    tyreColdC: 75,
     defendGapS: 0.8,
     defendClosingS: 0.05,
     attackGapS: 0.8,

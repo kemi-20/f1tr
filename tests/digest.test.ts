@@ -25,6 +25,7 @@ function makeState(): RaceState {
   s.player.tyres.ageLaps = 9
   s.player.tyres.wear = { rl: 58, rr: 55, fl: 60, fr: 57 }
   s.player.tyres.surfaceTempC = { rl: 102, rr: 99, fl: 104, fr: 98 }
+  s.player.tyres.innerTempC = { rl: 96, rr: 95, fl: 97, fr: 94 }
   s.player.damage.frontLeftWing = 0.12
   s.player.damage.frontRightWing = 0.18
   s.rivals[3] = {
@@ -73,6 +74,8 @@ describe('DigestBuilder', () => {
     expect(text).toContain('Lap 12/53')
     expect(text).toContain('PLAYER: P4')
     expect(text).toContain('medium 9L')
+    expect(text).toContain('surface temp 102/99/104/98C')
+    expect(text).toContain('inner/core temp 96/95/97/94C')
     expect(text).toContain('TRIGGER [high] defend_warning')
   })
 

@@ -6,12 +6,13 @@
 export class SseParser {
   private buffer = ''
   private decoder = new TextDecoder()
+  private chunksReceived = 0
 
   /** Feed raw bytes; invoke onData(base64Chunk) for each audio chunk, onDone() at [DONE]. */
   feed(
     chunk: Uint8Array | string,
     onData: (base64Pcm16: string) => void,
-    onDone: () => void
+    onDone: (chunksReceived: number) => void
   ): void {
     // Reuse one TextDecoder so multi-byte UTF-8 split across chunks is handled correctly.
     this.buffer += typeof chunk === 'string' ? chunk : this.decoder.decode(chunk, { stream: true })
@@ -23,13 +24,16 @@ export class SseParser {
       if (!line.startsWith('data:')) continue
       const payload = line.slice(line.indexOf(':') + 1).trim()
       if (payload === '[DONE]') {
-        onDone()
+        onDone(this.chunksReceived)
         return
       }
       try {
         const json = JSON.parse(payload)
         const b64 = json?.choices?.[0]?.delta?.audio?.data
-        if (typeof b64 === 'string' && b64.length > 0) onData(b64)
+        if (typeof b64 === 'string' && b64.length > 0) {
+          this.chunksReceived++
+          onData(b64)
+        }
       } catch {
         // partial JSON mid-chunk — ignore; will be completed in a later feed
       }
@@ -38,5 +42,6 @@ export class SseParser {
 
   reset(): void {
     this.buffer = ''
+    this.chunksReceived = 0
   }
 }

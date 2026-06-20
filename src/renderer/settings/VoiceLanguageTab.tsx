@@ -89,15 +89,6 @@ export function VoiceLanguageTab(): React.ReactElement {
           })}
         </div>
       </Field>
-
-      <Field label="基础风格指令 (direction)" hint="语言模式的兜底 TTS 指令；实际播报会优先使用所选 skill 的 #0 语音音色风格">
-        <textarea
-          value={language.direction}
-          onChange={(e) => void patch({ language: { direction: e.target.value } })}
-          rows={2}
-          className="resize-none rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-sm text-white/90 outline-none placeholder:text-white/25 focus:border-accent-carbon/50"
-        />
-      </Field>
     </div>
   )
 }

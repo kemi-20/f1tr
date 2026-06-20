@@ -1,177 +1,190 @@
-# 潜在 Bug / 风险汇总（第三版，基于当前代码）
+# 潜在 Bug / 风险汇总（第四版 — 跨模块一致性审计）
 
-> 阅读范围：全量 `src/**/*.{ts,tsx}`、`tests/`、构建配置。仅汇总，未修改代码。
-> 许多前两轮发现的问题已在当前代码中修复（玩家差距排序、圈速格式化、BaseURL 规范化、LLM 消息交替、音频取消通知、低油量滞回等），以下仅列出当前代码中仍存在的问题。
-
----
-
-## 1. 状态聚合
-
-### 1.1 `TelemetryService` 未在 session 切换时调用 `aggregator.reset()`
-- **位置**：`src/main/telemetry/TelemetryService.ts`（无调用 `reset` 的代码）
-- **问题**：`StateAggregator.onSession` 检测到 `sessionChanged` 但仅打日志，不调用 `reset()`。旧 session 的 `rivals` 条目会残留。
-- **影响**：若新 session 赛车数量不同（如排位 → 正赛从 20 变 22 车），旧条目可能残留并短暂显示错误的车名/车队。
-- **修复**：在 `TelemetryService` 中检测 `sessionChanged` 后调用 `aggregator.reset(format)`。
-
-### 1.2 `rivalStatus` 未完整映射 F1 规格
-- **位置**：`src/main/state/StateAggregator.ts:461-466`
-- **问题**：仅处理 `resultStatus === 3`（finished）、`=== 4`（DSQ）、`driverStatus === 4/0/7`，遗漏 `resultStatus === 6`（retired）、`=== 5`（not classified）。
-- **影响**：这些车辆被显示为 `running`。
-- **修复**：补充 `resultStatus === 6 || resultStatus === 5`。
-
-### 1.3 `isRedFlag` 未被设置
-- **位置**：`src/main/state/StateAggregator.ts:39-91`
-- **问题**：`onSession` 没有读取 `m_numRedFlagPeriods`，`isRedFlag` 永远为 `false`。
-- **影响**：红旗事件无法触发 UI/触发器响应。
-- **修复**：在 `onSession` 中设置 `s.isRedFlag = p.m_numRedFlagPeriods > 0`。
-
-### 1.4 `relationToPlayer` 类型允许 `leader | lapped | lapping` 但从未使用
-- **位置**：`src/main/state/StateAggregator.ts:196-199`
-- **问题**：仅设置 `ahead | behind | same`，`leader`（领跑）、`lapped`（被套圈）、`lapping`（套圈中）从未出现。
-- **影响**：UI 无法区分领跑者和普通前车，也无法识别套圈关系。
-- **修复**：根据 `lap` 差值和位置判断 leader/lapped/lapping。
-
-### 1.5 `isDupe` 去重桶在大量事件时可能误删近期条目
-- **位置**：`src/main/state/StateAggregator.ts:408-412`
-- **问题**：桶超过 200 条时裁剪后半部分（`arr.slice(arr.length / 2)`），但这不是按时间排序的，可能删掉最近的条目。
-- **影响**：极端情况下近期事件可能被错误去重。
-- **修复**：使用 `Map`（保持插入顺序）并按时间戳裁剪。
-
-### 1.6 `onSession` 中 `prevSC` 未在 session 切换时重置
-- **位置**：`src/main/state/StateAggregator.ts:20,66-69`
-- **问题**：`prevSC` 是 session 间持久的，新 session 开始时若安全车状态与旧 session 末尾相同，SC 事件不会触发。
-- **影响**：新 session 以安全车状态开始时不会发出部署事件。
-- **修复**：在 session 切换时 `this.prevSC = 0`。
+> 本次扫描覆盖全量 `src/**/*.{ts,tsx}`、`tests/`、构建配置与 README_for_agent.md，采用四路并行 cross-module 审查 + 逐模块逐行 review。
+> 所有发现均交叉校验过代码中实际的字段定义与读写，仅报告可验证的 concrete bug。
 
 ---
 
-## 2. 触发器
+## Critical
 
-### 2.1 `suppressLastLapLowPriority` 配置未实现
-- **位置**：`src/shared/types/triggers.ts:36`、`src/main/triggers/TriggerEngine.ts`
-- **问题**：配置中存在 `suppressLastLapLowPriority`，但 `TriggerEngine` 从未引用。
-- **影响**：用户在设置中开启"末圈抑制低优先级"后无效果。
-- **修复**：在 `tryFire` 中判断 `state.player.lap === state.session.totalLaps` 且非 critical 时跳过。
+### C1. `isRedFlag` 一旦置 `true` 后不再恢复，整个 session 残留
+- **位置**：`src/main/state/StateAggregator.ts:67`
+- **问题**：`s.isRedFlag = (p.m_numRedFlagPeriods ?? 0) > 0`。`m_numRedFlagPeriods` 是累计计数器，红旗期间递增，恢复比赛后不减。一次红旗过后，`isRedFlag` 永久为 `true`。
+- **影响**：Digest 永久显示 `SC: RED`；HUD 永久显示红旗横幅；触发器持续认为处于红旗状态。
+- **修复**：改用 `m_safetyCarStatus === 5`（racing resumed）重置 `isRedFlag = false`，或从 Event packet 的 `RDFL` 码触发状态切换。
 
-### 2.2 `evalTyreTemp` 首包时可能误报"轮胎过冷"
-- **位置**：`src/main/triggers/TriggerEngine.ts:147`
-- **问题**：`surf > 0 && surf < tyreColdC`——在数据未初始化时 `surfaceTempC` 默认为 0，`surf > 0` 为 false，不会误触发。但如果游戏刚启动且温度极低（如 >0 但 <80），会在首次评估时触发，而非等到"上升沿"后再下降。
-- **影响**：正常情况下可接受，但若首包数据异常可能误触发。
-- **修复**：可增加 `state.session.lastUpdateMs > 0` 作为数据就绪条件。
+### C2. `rivalStatus` 将 `driverStatus === 4`（on track）错误映射为 `'retired'`
+- **位置**：`src/main/state/StateAggregator.ts:552`
+- **问题**：F1 规格 `driverStatus`：`0=garage, 1=flying, 2=inlap, 3=outlap, 4=on track`。代码 `driverStatus === 4` 被判为 `'retired'`，实际上 `4` 是正常行驶状态。
+- **影响**：正常行驶的对手被标记为 `retired`，RivalsPanel 显示 `DNF`，digest 中 `note: 'DNF'`，LLM 收到假退赛信息。
+- **修复**：移除 `driverStatus === 4` 条件，退赛应只用 `resultStatus === 4 || 5 || 6`。
 
-### 2.3 `Cooldown` 的 `perRuleCooldownS` 在 config 变更时不会重置
-- **位置**：`src/main/triggers/Cooldown.ts`
-- **问题**：`byRule` Map 保留旧的 cooldown 时间戳；用户在 UI 调整阈值后，旧规则的 75s 冷却仍生效。
-- **影响**：改配置后短时间内规则不会重新触发。
-- **修复**：在 `EngineerService.setConfig` 或 `TriggerEngine` 的 config 更新时清空 `byRule`。
-
----
-
-## 3. 工程师 / LLM
-
-### 3.1 `EngineerService.enqueue` 无条件覆盖 pending，忽略优先级
-- **位置**：`src/main/engineer/EngineerService.ts:66-73`
-- **问题**：注释说 "higher-or-equal priority replaces"，但代码直接 `this.pending = { state, firing }`。
-- **影响**：低优先级触发会挤掉排队中的高优先级触发（如安全车被低优先级覆盖）。
-- **修复**：比较 `firing.priority` 与 `this.pending.firing.priority`，仅在新触发优先级 >= 时替换。
-
-### 3.2 `advise` 中的 idle timer 不可取消
-- **位置**：`src/main/engineer/EngineerService.ts:137,147`
-- **问题**：`setTimeout(() => ... 'idle'), 6000/4000)` 未保存 handle。
-- **影响**：若 `cancel()` 后立即开始新请求，旧 timer 仍会发送 `idle` 状态，可能覆盖新请求的 `thinking/speaking`。
-- **修复**：保存 timer handle，在 `cancel` 或新 `advise` 开始时清除。
-
-### 3.3 `cancel()` 不中止 `inFlight` promise
-- **位置**：`src/main/engineer/EngineerService.ts:89-95`
-- **问题**：`cancel()` 设 `this.pending = null` 并调用 `llm?.cancel?.()`，但 `inFlight` 引用的 promise 仍继续运行直到 LLM abort 完成。若 LLM 未正确抛出 abort 错误，`inFlight` 可能永远不会 resolve。
-- **影响**：极端情况下 `inFlight` 卡住，后续所有 enqueue 被阻塞。
-- **修复**：增加 `inFlight` 超时保护，或在 `cancel` 中设置标志让 `run` 的 `finally` 立即执行。
+### C3. 多个类型字段定义了但从未被遥测写入
+- **位置**：
+  - `src/shared/types/state.ts:77-78` → `PlayerCarState.sectors` / `sectorSplitDelta`
+  - `src/shared/types/state.ts:90` → `PlayerCarState.fuelTargetDeltaS`
+  - `src/shared/types/state.ts:131,133` → `WeatherState.predictedWetness` / `predictedCode`
+  - `src/shared/types/state.ts:106` → `RivalState.carClass`
+- **问题**：以上字段均在类型和 `emptyRaceState()` 中定义，但 `StateAggregator` 没有任何 reducer 写入它们。F1 UDP 包中有对应的原始字段（如 `m_sector1TimeInMS`、`m_fuelTargetDelta`、`m_carClass`、forecast samples），但均未被读取。
+- **影响**：这些字段永远为初始值（null 或 0），任何人读取都将得到脏数据。
+- **修复**：在对应 reducer 中填充这些字段，或从类型中删除。
 
 ---
 
-## 4. 音频 / 渲染
+## High
 
-### 4.1 `AudioPipeline.cancelAll` 发送 `audio:end` 但渲染端未处理
-- **位置**：`src/main/audio/AudioPipeline.ts:89-91`、`src/renderer/audio/WebAudioEngine.ts:145-147`
-- **问题**：`cancelAll` 发送 `audio:end`，但渲染端 handler 为空（`/* scheduling handles itself */`）。已调度的 `BufferSourceNode` 继续播放。
-- **影响**：点击 Stop 后当前语音仍继续播放直到自然结束。
-- **修复**：在 `audio:end` handler 中停止所有活跃 source 节点并清空 `active` 集合。
+### H1. `gapToPlayerS` walk-up 在前车链中使用了后车的前向 delta，而非玩家自身 gap
+- **位置**：`src/main/state/StateAggregator.ts:190-208`
+- **问题**：walk-up 累积的是 `sorted[i].deltaToCarBehindS`。但 `deltaToCarBehindS` 由 `sorted[i+1].deltaToCarInFrontS` 赋值得来（line 162），而紧邻玩家的前车（`i = playerIdxInSorted - 1`）的 `deltaToCarBehindS` = 紧邻玩家的 **后车**的 `deltaToCarInFrontS`——即后车到它再前面那辆车的 gap，而不是玩家到前车的 gap。玩家不在 sorted 数组中，所以玩家自己的 `deltaToCarInFrontS` 从未参与计算。
+- **影响**：前车差距链不走玩家，数值被污染。
+- **修复**：紧邻玩家的前车需使用玩家自身的 `deltaToCarInFrontS`（从 `state.player` 获取），或显式将玩家注入 sorted 链。
 
-### 4.2 `WebAudioEngine` 在非 preempt 的 `audio:start` 时不清理旧 source
-- **位置**：`src/renderer/audio/WebAudioEngine.ts:135-142`
-- **问题**：`audio:start` 仅设置 `activeUtteranceId`，不停止已调度的旧 source。新旧音频重叠播放。
-- **影响**：快速连续触发时（非抢占优先级），新旧语音重叠。
-- **修复**：在 `setActiveUtterance` 中也执行旧 source 的停止逻辑。
+### H2. `driverStatus === 4` 标记为 `retired` → 见 C2（最高严重性）
 
-### 4.3 `WebAudioEngine.setMuted`/`setVolume` 与 `preempt()` 的 `linearRamp` 冲突
-- **位置**：`src/renderer/audio/WebAudioEngine.ts:93-100, 74-90`
-- **问题**：`setMuted`/`setVolume` 直接赋值 `gain.value`，但 `preempt()` 使用 `linearRampToValueAtTime`。直接赋值会覆盖未执行的 ramp。
-- **影响**：在 preempt 过程中切换静音/音量可能导致音频 glitch（静音后又被 ramp 恢复）。
-- **修复**：`setMuted`/`setVolume` 中先调用 `cancelScheduledValues` 再赋值。
+### H3. `PACKET_NAMES` 索引依赖 `Object.keys` 插入序，库升级即崩溃
+- **位置**：`src/main/telemetry/UdpReceiver.ts:9`
+- **问题**：`const PACKET_NAMES = Object.keys(PACKETS) as string[]` 按库插入序排列，然后用 `packetId` 做索引查 `expectedSize`。如果 `@deltazeroproduction/f1-udp-parser` 将来更改 `PACKETS` 对象的字段顺序，`PACKET_NAMES[6]` 可能不再是 `'carTelemetry'`，导致长度校验用错值。
+- **修复**：按实际 packetId 构建一个显式 `Map<number, string>`。
 
-### 4.4 `WebAudioEngine.onChunk` 在 `activeUtteranceId === null` 时丢弃所有 chunk
-- **位置**：`src/renderer/audio/WebAudioEngine.ts:42-45`
-- **问题**：若 `audio:chunk` 在首次 `audio:start` 之前到达，`activeUtteranceId` 为 null，所有 chunk 被丢弃。
-- **影响**：极少数情况下丢失首段音频。
-- **修复**：在首个 `audio:start` 之前缓存少量 chunk。
+### H4. `lapDistancePct` 降级到 `m_totalDistance`（累计距离）严重偏小
+- **位置**：`src/main/state/StateAggregator.ts:132,174`
+- **问题**：注释明确指出“use track length not total distance”，但回退表达式 `trackLengthM || d.m_totalDistance || 1` 在 `trackLengthM === 0` 时把累计距离当除数。赛程中期 `m_totalDistance` 可达 150km+，导致百分比变成 0.007 而不是 0.2。
+- **修复**：trackLengthM 为 0 时不应 fallback 到 m_totalDistance，要么跳过百分比计算，要么在 session 包到达后才设置。
 
-### 4.5 `SseParser` 不支持多行 `data:` 事件
-- **位置**：`src/main/tts/SseParser.ts:18-36`
-- **问题**：按行解析，不按 SSE 规范合并多行 `data:` 事件。
-- **影响**：若 MiMo 返回多行 `data:` 事件，解析失败。
-- **修复**：缓存 `data:` 行，遇到空行后拼接再 parse。
+### H5. `normalizeURL` 正则无法匹配单段 `/v1` 路径，导致 `/v1/v1`
+- **位置**：`src/main/config/env.ts:126`
+- **问题**：正则 `^(https?:\/\/[^/]+\/[^/]*\/v\d+)(?:\/.*)?$` 要求 `/vN` 前必须有路径段，对 `https://api.deepseek.com/v1` 无法匹配，追加 `/v1` 得到 `.../v1/v1`。
+- **修复**：简化正则，直接检测 URL 中是否包含 `/v\d(self-indented-number)`，或使用 `URL` 标准库解析。
 
-### 4.6 `MiMoTtsClient.synthesize` 未检查外部 signal 是否已 abort
-- **位置**：`src/main/tts/MiMoTtsClient.ts:45-68`
-- **问题**：只监听 `signal` 的 `abort` 事件，不检查 `signal.aborted`。
-- **影响**：传入已取消的 signal 时仍发起请求。
-- **修复**：顶部 `if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')`。
+### H6. `evalPositionChange` 首个 tick 误触发 + 丢失 lap 0→1 的合法转换
+- **位置**：`src/main/triggers/TriggerEngine.ts:29,238`
+- **问题**：`lastLap` 初始化为 `-1`。首次 evaluate（formation lap, lap=0）时：`lastLap !== 0` 为 true，`lap === -1+1` 为 true，被当作一次“圈转换”触发虚假的 `position_loss/gain`。此后 `lastLap = 0`，lap 0→1 时 `lastLap !== 0` 为 false，合法转换被跳过。
+- **修复**：`lastLap` 初始化为 `0`。
 
----
+### H7. Audio preemption 在新 utterance 首段 ~90ms 静音
+- **位置**：`src/renderer/audio/WebAudioEngine.ts:66-93`
+- **问题**：`preempt()` 立即把 `activeUtteranceId` 切换到新 utterance，但 master gain 正在向 0.0001 fade。新 chunk 在这 80ms 内被调度到旧 `nextStart` 位置，然后在 90ms 后的 `setTimeout` 中被 `stopAll()` 一并清除。
+- **影响**：抢断后新语音的前 ~90ms 音频永久缺失。
+- **修复**：将 `nextStart` 重置延迟到 setTimeout 内部，避免新 chunk 落入 fade 窗口。
 
-## 5. 配置 / 环境
-
-### 5.1 `env.ts` 的 `normalizeURL` 对带路径的 URL 会重复追加 `/v1`
-- **位置**：`src/main/config/env.ts:114-123`
-- **问题**：正则 `/(\/v\d+)$/` 仅匹配末尾。若 URL 是 `https://api.example.com/proxy/v2/chat`，会变成 `.../v2/chat/v1`。
-- **影响**：使用代理或自定义路径的用户会 404。
-- **修复**：仅在路径为空或 `/` 时追加，或明确文档只接受 base URL。
-
-### 5.2 `ConfigStore.getAll()` 在 `app.whenReady()` 之前调用
-- **位置**：`src/main/index.ts:77`
-- **问题**：模块顶层调用 `ConfigStore.getAll()`，可能在 Electron `app` 未就绪时访问 `app.getPath`。
-- **影响**：某些 Electron 版本/便携构建可能抛错或取错路径。
-- **修复**：移到 `app.whenReady()` 内部。
-
-### 5.3 `ConfigStore.patch` 无字段校验
-- **位置**：`src/main/config/ConfigStore.ts:33-46`
-- **问题**：直接写入 electron-store，不校验范围/类型。
-- **影响**：UI 可写入非法值（如负数 port、volume > 1）。
-- **修复**：增加基础校验/裁剪。
+### H8. `AudioStart.priority` 有 `'preempt'` 但实际流程中永不发送
+- **位置**：`src/shared/types/audio.ts:2` vs `src/shared/types/ipc.ts:63`
+- **问题**：`Priority` 类型 = `'critical' | 'high' | 'normal' | 'low'`，不含 `'preempt'`。`SynthRequest.priority: Priority`。因此 `AudioPipeline.enqueue` 发给 `audio:start` 的 payload 中 `priority` 永远是 Priority 之一。`WebAudioEngine.preempt()` 中的 `start.priority === 'preempt'` 分支从不执行。
+- **影响**：preempt fade logic 死代码。实际抢断走 `enqueue` 的 abort + queue 路径，不走 `priority: 'preempt'` 通道。
+- **修复**：要么移除 `AudioStart` 的 `'preempt'` variant，要么让 `AudioPipeline` 在 preempt 路径中发送 `priority: 'preempt'`。
 
 ---
 
-## 6. 测试覆盖缺口
+## Medium
 
-| 未覆盖区域 | 风险等级 |
-|-----------|---------|
-| `StateAggregator` 所有 reducer | High — gap/position/damage 是核心逻辑 |
-| 触发器：tyre temp、low fuel、rain、position change、attack、flashback | High — 大量生产逻辑无回归保护 |
-| `AudioPipeline` 抢断/去重/队列 | Medium |
-| `LlmClient` abort/watchdog/usage | Medium |
-| `MiMoTtsClient` 非 2xx/abort | Medium |
-| 渲染组件（React） | Medium |
-| `live-udp-inject.mjs` 不验证解析结果 | Low |
-| `screenshot.mjs` 未注册 IPC 处理器 | Low |
-| `vitest.config.ts` 仅含 `.test.ts`，不含 `.tsx` | Low |
+### M1. `readGapS` 在两个 gap 字段均 undefined 时返回 0 而非 null
+- **位置**：`src/main/state/StateAggregator.ts:536-539`
+- **问题**：`minPart` 和 `msPart` 默认为 0，`totalMs = 0`，函数返回 `0 / 1000 = 0`。但两个字段均为 undefined 时应表示“无数据”（null）。
+- **影响**：无数据的车辆被标记为 0s 差距，污染累积 gap walk。
+- **修复**：当两个字段中至少一个有效时才计算，否则返回 null。
+
+### M2. SC/VSC ended 在 status 4（VSC ending）时误触发
+- **位置**：`src/main/state/StateAggregator.ts:74-76`
+- **问题**：ended 事件检测 `!decoded.sc && !decoded.vsc && !decoded.formation`，SC/VSC → 4（VSC ending）时该条件为 true，但实际比赛未恢复。
+- **修复**：仅在 `scStatus === 0 || scStatus === 5` 时触发 ended。
+
+### M3. 5 个 `TriggerConfig` 字段声明但从未被 `TriggerEngine` 读取
+- **位置**：`src/shared/types/triggers.ts:21-27`
+- **字段**：`defendClosingS`、`pitWindowLeadLaps`、`lowFuelLapMultiplier`、`stintEndLapRatio`、`damageSuspThreshold`、`ersLowPct`
+- **影响**：用户可在 UI 配置这些值并持久化，但运行时毫无作用。配置契约不可信。
+- **修复**：实现对应触发规则，或标记为 reserved/removed。
+
+### M4. `LlmClient.ping()` 抛错而非返回 `false`
+- **位置**：`src/main/engineer/LlmClient.ts:76`
+- **问题**：函数签名 `Promise<boolean>` 但 `catch` 中 `throw err`。`config:test:llm` 的调用者虽然用 try/catch 包裹，但类型承诺被否决。
+- **修复**：catch 中 `return false`。
+
+### M5. `config:test:tts` 无超时，连接挂起时 UI 永久冻结
+- **位置**：`src/main/ipc/register.ts:41-53`
+- **问题**：`client.synthesize(...)` 无 AbortSignal 或 timeout。服务器无响应时，测试按钮永久显示 "测试中……"。
+- **修复**：添加 `AbortSignal.timeout(15000)` 或 race-with-timeout 包装。
+
+### M6. `ENV_KEYS` 将 `aiModel` 映射到 `AI_MODEL`，但 `.env` 中用户可能写 `AI_API_MODEL`
+- **位置**：`src/main/config/env.ts:94-97`
+- **问题**：`fromProcess` 读取 `process.env.AI_API_MODEL ?? process.env.AI_MODEL`（兼顾两个变量名），但 `ENV_KEYS` 对于文件 `.env` 只查 `AI_MODEL`。如果用户在 `.env` 中写 `AI_API_MODEL=...`，该值被文件层忽略。
+- **修复**：`ENV_KEYS` 也尝试 `AI_API_MODEL`，或在文件解析中处理同义键名。
+
+### M7. `session:meta` IPC 通道主进程发、渲染端无订阅者
+- **位置**：`TelemetryService.ts:84` / `index.ts:58` → 无渲染端 handler
+- **问题**：`session:meta` 在 `did-finish-load` 时 flush，也随 track/format 变更发送，但 IpcProvider 从未订阅。
+- **修复**：添加 handler 或移除未使用的 flush。
+
+### M8. `DigestBuilder` 注释声称有 fallback 到 `deltaToCarInFrontS`，但代码未实现
+- **位置**：`src/main/engineer/DigestBuilder.ts:139-141`
+- **问题**：注释说“or the player's own deltaToCarInFrontS for the directly-adjacent car”，但代码只读 `ahead.gapToPlayerS`，无 fallback。
+- **修复**：实现 fallback 或更新注释。
+
+### M9. `RaceState.lastPacketMs` 定义但从未被更新（死字段）
+- **位置**：`src/shared/types/state.ts:201`、`defaults.ts:97`
+- **问题**：实际 last-packet 时间戳在 `UdpReceiver.lastPacketMs`，`RaceState` 同名字段永远为 0。
+- **修复**：删除或由 StateAggregator 同步更新。
 
 ---
 
-## 附录：优先级修复建议
+## Low
 
-| 优先级 | 修复项 |
-|--------|--------|
-| P0 | 4.1（cancelAll 不停旧音频）、4.2（audio:start 不清理旧 source） |
-| P1 | 3.1（enqueue 优先级）、1.1（session 切换 reset）、3.2（idle timer 不可取消） |
-| P2 | 1.3（isRedFlag）、1.4（relationToPlayer）、2.1（suppressLastLap） |
-| P3 | 测试补齐、配置校验、CSP/IPC 规范化 |
+### L1. `gapToPlayerS` 对零差距车辆返回 null 而非 0
+- **位置**：`src/main/state/StateAggregator.ts:199,206`
+- **问题**：`cumAhead > 0 ? cumAhead : null`——零差距时得到 null，被当作“无数据”。
+- **修复**：改为 `>= 0`。
+
+### L2. `DamagePanel` 未显示 ES / CE / turbo 三个动力单元组件
+- **位置**：`src/renderer/components/damage/DamagePanel.tsx:34-44`
+- **修复**：补齐 `DamageBar`。
+
+### L3. macOS 关闭所有窗口后 telemetry 被 `stop()`，重启窗口不恢复
+- **位置**：`src/main/index.ts:117,121-123`
+- **修复**：activate 中调用 `telemetry?.start()` 或延迟 stop。
+
+### L4. Mixed 语言模式中 `mimo_default` 嗓音重复出现
+- **位置**：`src/shared/constants/voices.ts:52` — `[...zh, ...en]`，两份 `mimo_default`
+- **修复**：去重。
+
+### L5. `fmtLapTime` 接收毫秒但 state 存秒——调用方需手动 `* 1000`
+- **位置**：`src/shared/util/format.ts:3`
+- **修复**：重命名为 `fmtLapTimeMs` 或改为接收秒。
+
+### L6. `SseParser.reset()` 不清空 `TextDecoder` 内部状态
+- **位置**：`src/main/tts/SseParser.ts:39-41`
+- **问题**：跨流复用 TextDecoder 在多字节字符截断时有理论风险。
+- **修复**：实际 SSE 数据只含 ASCII，风险极低。可保留现状。
+
+### L7. `LlmClient` 使用 `as any` 绕过 OpenAI SDK 类型检查
+- **位置**：`src/main/engineer/LlmClient.ts:71,117-120`
+- **修复**：SDK 升级时需验证兼容性，无立即 bug。
+
+---
+
+## 已确认修复项（之前版本已解决，本版不再报告）
+
+| 问题 | 状态 |
+|------|------|
+| DRS bitfield 检测 `(m_drs & 2) !== 0` | ✅ 正确 |
+| `onTrack` 使用 `>= 1 && <= 4` | ✅ 正确 |
+| `lapDistancePct` 主路径使用 `trackLengthM` | ✅ 正确（仅 fallback 有风险 — 见 H4） |
+| gap 累积 walk 方向（walk-up 改用 deltaToCarBehindS） | ✅ walk-up 方向正确，但首段 gap 值源错误（见 H1） |
+| `readGapS` `>= 0` | ✅ 正确 |
+| `ensureRival` position 初始 0 | ✅ 正确 |
+| `normalizeURL` 已改写 | ⚠️ 仍有 bug（见 H5） |
+| `EngineerService.enqueue` 优先级检查 | ✅ 正确 |
+| `AudioPipeline.cancelAll` 发送 audio:end | ✅ 正确 |
+| `WebAudioEngine audio:end` 调用 stopAll | ✅ 正确 |
+| `WebAudioEngine audio:start` 调用 stopAll | ✅ 正确 |
+| `MiMoTtsClient abort` re-throw | ✅ 正确 |
+| MiMoTtsClient signal listener remove | ✅ 正确 |
+| `AudioControls` narrow selector | ✅ 正确 |
+| `TopStrip` timeLeft clamp | ✅ 正确 |
+| `TopStrip` health selector | ✅ 正确 |
+| SC/VSC 结束事件 | ✅ 已加入（但有 case 4 误触发 — 见 M2） |
+| Event codes OVTK/COLL/SPIN 等 | ✅ 已加入 |
+| Trigger kind 分类扩展到更多事件 | ✅ 正确 |
+| wetness 读取 | ✅ 正确 |
+| rainOnset 重置 | ✅ 正确 |
+| digest DRS 三元顺序 | ✅ 正确 |
+| `fmtBehindGap` Math.abs | ✅ 正确 |
+| `void get()` 删除 | ✅ 正确 |

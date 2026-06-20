@@ -23,7 +23,7 @@ interface ConfigState {
   patch: (p: DeepPartial<AppConfig>) => Promise<void>
 }
 
-export const useConfigStore = create<ConfigState>((set, get) => ({
+export const useConfigStore = create<ConfigState>((set) => ({
   config: null,
   loading: true,
   settingsOpen: false,
@@ -36,7 +36,6 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   patch: async (p) => {
     const config = await api.setConfig(p)
     set({ config })
-    void get()
   }
 }))
 

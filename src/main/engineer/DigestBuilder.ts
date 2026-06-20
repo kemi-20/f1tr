@@ -43,17 +43,19 @@ export class DigestBuilder {
         fuel: p.fuelRemainingKg != null ? `${p.fuelRemainingKg.toFixed(1)}kg` : '--',
         pits: p.pitStopCount,
         ers: fmtPct(p.ersPercent),
-        drs: p.drsAllowed ? 'available' : p.drsActive ? 'active' : 'no',
+        drs: p.drsActive ? 'active' : p.drsAllowed ? 'available' : 'no',
         tyre: {
           compound: p.tyres.compound,
           age: `${p.tyres.ageLaps}L`,
           wear: this.fmtCorners(p.tyres.wear),
           surfaceT: this.fmtCorners(p.tyres.surfaceTempC),
+          innerT: this.fmtCorners(p.tyres.innerTempC),
           blister: String(this.maxCorner(p.tyres.blisters))
         },
         dmg: {
           wingL: this.fmtDamage(p.damage.frontLeftWing),
-          wingR: this.fmtDamage(p.damage.frontRightWing)
+          wingR: this.fmtDamage(p.damage.frontRightWing),
+          wingRear: this.fmtDamage(p.damage.rearWing)
         }
       },
       rivals: playerRivals,
@@ -85,9 +87,9 @@ export class DigestBuilder {
     )
     lines.push(
       `  TYRE: ${d.player.tyre.compound} ${d.player.tyre.age} • wear ${d.player.tyre.wear}` +
-        ` • surf ${d.player.tyre.surfaceT}C • blister ${d.player.tyre.blister}`
+        ` • surface temp ${d.player.tyre.surfaceT}C • inner/core temp ${d.player.tyre.innerT}C • blister ${d.player.tyre.blister}`
     )
-    lines.push(`  DMG: F-wing L ${d.player.dmg.wingL} R ${d.player.dmg.wingR}`)
+    lines.push(`  DMG: F-wing L ${d.player.dmg.wingL} R ${d.player.dmg.wingR} Rear ${d.player.dmg.wingRear}`)
     if (d.rivals.length > 0) {
       lines.push('RIVALS:')
       for (const r of d.rivals) {
@@ -147,7 +149,7 @@ export class DigestBuilder {
     if (!behind) return undefined
     const gap = behind.gapToPlayerS
     if (gap == null || gap === 0) return undefined
-    return `${fmtGap(gap)} to ${behind.name || 'behind'}`
+    return `${fmtGap(Math.abs(gap))} to ${behind.name || 'behind'}`
   }
 
   private fmtClock(s: number): string {

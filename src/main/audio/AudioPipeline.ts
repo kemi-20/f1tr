@@ -63,7 +63,9 @@ export class AudioPipeline {
 
     // preemption: a higher priority than the current in-flight cuts it off
     if (this.preemptOnHigh && this.higherThan(priority, this.current.priority)) {
+      const preemptedId = this.current.id
       logger.info(`AudioPipeline preempt: [${priority}] > [${this.current.priority}]`)
+      Sender.send('audio:end', { utteranceId: preemptedId })
       this.client?.cancel()
       this.queue = this.queue.filter((r) => r.priority !== 'low' && r.priority !== 'normal') // drop superseded low/normal
       this.queue.unshift(req) // new request runs next
@@ -114,6 +116,8 @@ export class AudioPipeline {
       Sender.send('audio:end', { utteranceId: req.id })
     } catch (err) {
       logger.error('AudioPipeline synthesis failed:', (err as Error)?.message ?? err)
+      // on abort/error, still notify renderer so it stops playing the old utterance
+      Sender.send('audio:end', { utteranceId: req.id })
       // graceful: the renderer still shows the text advice; just no audio
     } finally {
       this.current = null

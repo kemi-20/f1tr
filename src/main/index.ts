@@ -106,8 +106,12 @@ app.whenReady().then(() => {
   telemetry.start()
 
   // wire the real LLM + TTS backends (P3/P5) if secrets are present
-  void wireLlm(cfg)
-  void wireTts(cfg)
+  wireLlm(cfg).catch((err) => {
+    logger.error('Failed to wire LLM backend:', (err as Error)?.message ?? err)
+  })
+  wireTts(cfg).catch((err) => {
+    logger.error('Failed to wire TTS backend:', (err as Error)?.message ?? err)
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

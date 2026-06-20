@@ -65,19 +65,21 @@ export class EngineerService {
    * while one is in flight, it replaces the pending one (last-wins coalescing).
    */
   enqueue(state: RaceState, firing: TriggerFiring): void {
+    // if nothing in flight, run immediately; otherwise stash as pending (coalesce)
     if (!this.inFlight) {
       void this.run(state, firing)
     } else {
-      // only replace pending if the new firing has >= priority (don't let low-pri
-      // overwrite a queued high-pri like safety car)
-      if (!this.pending || this.prioRank(firing.priority) >= this.prioRank(this.pending.firing.priority)) {
-        this.pending = { state, firing }
+      // only replace pending if the new firing is higher-or-equal priority
+      if (this.pending && !this.priorityGte(firing.priority, this.pending.firing.priority)) {
+        return // existing pending is higher priority — keep it
       }
+      this.pending = { state, firing }
     }
   }
 
-  private prioRank(p: TriggerFiring['priority']): number {
-    return p === 'critical' ? 4 : p === 'high' ? 3 : p === 'normal' ? 2 : 1
+  private priorityGte(a: TriggerFiring['priority'], b: TriggerFiring['priority']): boolean {
+    const rank: Record<TriggerFiring['priority'], number> = { critical: 4, high: 3, normal: 2, low: 1 }
+    return rank[a] >= rank[b]
   }
 
   private async run(state: RaceState, firing: TriggerFiring): Promise<void> {

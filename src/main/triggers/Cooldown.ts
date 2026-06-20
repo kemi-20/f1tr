@@ -11,6 +11,15 @@ export class Cooldown {
 
   constructor(private config: TriggerConfig) {}
 
+  /** Hot-swap config and reset cooldown state so new thresholds apply immediately
+   *  (old per-rule timestamps / global gap otherwise linger under stale durations). */
+  setConfig(config: TriggerConfig): void {
+    this.config = config
+    this.byRule.clear()
+    this.globalNext = 0
+    this.lastPriority = 'normal'
+  }
+
   /** True if a rule may fire now (respects per-rule + global + first-lap suppression). */
   canFire(ruleId: string, priority: 'critical' | 'high' | 'normal' | 'low', currentLap: number): boolean {
     const now = Date.now()

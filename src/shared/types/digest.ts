@@ -30,8 +30,8 @@ export interface Digest {
     pits: number
     ers: string
     drs: string
-    tyre: { compound: string; age: string; wear: string; surfaceT: string; blister: string }
-    dmg: { wingL: string; wingR: string }
+    tyre: { compound: string; age: string; wear: string; surfaceT: string; innerT: string; blister: string }
+    dmg: { wingL: string; wingR: string; wingRear: string }
   }
   rivals: {
     pos: number

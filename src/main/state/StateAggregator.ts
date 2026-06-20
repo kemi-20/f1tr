@@ -69,6 +69,12 @@ export class StateAggregator {
     if (scStatus !== this.prevSC) {
       if (decoded.sc && !this.isDupe('sc', uid)) this.pushEvent('safetyCar', 'Safety Car deployed')
       else if (decoded.vsc && !this.isDupe('vsc', uid)) this.pushEvent('vsc', 'Virtual Safety Car')
+      else if (decoded.formation && !this.isDupe('formation', uid)) this.pushEvent('safetyCar', 'Formation lap')
+      // SC/VSC ended: prev was active, now it's not
+      const prevDecoded = decodeSafetyCar(this.prevSC)
+      if ((prevDecoded.sc || prevDecoded.vsc) && !decoded.sc && !decoded.vsc && !decoded.formation) {
+        if (!this.isDupe('sc-ended', uid)) this.pushEvent('safetyCar', 'SC/VSC ended — green flag')
+      }
       this.prevSC = scStatus
     }
 
@@ -77,9 +83,11 @@ export class StateAggregator {
     w.airTempC = p.m_airTemperature ?? w.airTempC
     w.trackTempC = p.m_trackTemperature ?? w.trackTempC
     w.weatherCode = p.m_weather ?? w.weatherCode
+    w.wetness = clamp01((p.m_trackWetness ?? 0) / 100)
     const rainPct = p.m_weatherForecastSamples?.[0]?.m_rainPercentage ?? w.rainPercentage
     const wasRaining = w.rainPercentage > 30
     w.rainPercentage = rainPct ?? w.rainPercentage
+    w.rainOnset = false
     const nowRaining = w.rainPercentage > 30
     w.isRaining = nowRaining
     w.rainOnset = !wasRaining && nowRaining
@@ -182,10 +190,11 @@ export class StateAggregator {
     let playerIdxInSorted = sorted.findIndex((r) => r.position > playerPos)
     if (playerIdxInSorted === -1) playerIdxInSorted = sorted.length // player is last
     if (sorted.length > 0) {
-      // walk UP (cars ahead): accumulate their deltaToCarInFrontS
+      // walk UP (cars ahead): accumulate deltaToCarBehindS — each car's gap to the
+      // car behind it, which chains back toward the player.
       let cumAhead = 0
       for (let i = playerIdxInSorted - 1; i >= 0; i--) {
-        const gap = sorted[i + 1].deltaToCarInFrontS
+        const gap = sorted[i].deltaToCarBehindS
         if (gap != null) cumAhead += gap
         sorted[i].gapToPlayerS = cumAhead > 0 ? cumAhead : null
       }
@@ -216,7 +225,7 @@ export class StateAggregator {
     pl.throttle = t.m_throttle ?? pl.throttle
     pl.brake = t.m_brake ?? pl.brake
     pl.revLightsPercent = t.m_revLightsPercent ?? pl.revLightsPercent
-    pl.drsActive = (t.m_drs ?? 0) === 1
+    pl.drsActive = ((t.m_drs ?? 0) & 2) !== 0
 
     const surf = (t.m_tyresSurfaceTemperature ?? []) as number[]
     const inner = (t.m_tyresInnerTemperature ?? []) as number[]
@@ -365,6 +374,33 @@ export class StateAggregator {
         // RTMT = Retirement (car carries vehicleIdx). SEND = SessionEnded, NOT retirement.
         if (!this.isDupe(`retire-${vIdx}`, uid)) this.pushEvent('retirement', `Car ${vIdx} retired`, vIdx)
         break
+      case 'OVTK':
+        if (!this.isDupe(`ovtk-${vIdx}`, uid)) this.pushEvent('overtake', `Car ${vIdx} overtook`, vIdx)
+        break
+      case 'COLL':
+        if (!this.isDupe(`coll-${vIdx}`, uid)) this.pushEvent('collision', `Collision involving car ${vIdx}`, vIdx)
+        break
+      case 'SPIN':
+        if (!this.isDupe(`spin-${vIdx}`, uid)) this.pushEvent('spin', `Car ${vIdx} spun`, vIdx)
+        break
+      case 'DRSE':
+        if (vIdx === this.state.player.carIndex) logger.debug('DRS enabled')
+        break
+      case 'DRSD':
+        if (vIdx === this.state.player.carIndex) logger.debug('DRS disabled')
+        break
+      case 'FLBK':
+        // flashback — handled by TelemetryService.checkFlashback
+        break
+      case 'STLG':
+        logger.info(`Starting lights: ${d.value ?? '?'}`)
+        break
+      case 'LGOT':
+        logger.info('Lights out — race has started')
+        break
+      case 'SCAR':
+        logger.info('Safety car ending')
+        break
       case 'BUTN':
         // button press — informational, no event needed
         break
@@ -413,7 +449,7 @@ export class StateAggregator {
         team: '',
         raceNumber: 0,
         carClass: 0,
-        position: carIndex + 1,
+        position: 0,
         gridPosition: 0,
         lap: 0,
         lapDistancePct: 0,
@@ -500,7 +536,7 @@ function readGapS(d: AnyParsedPacket): number | null {
   const minPart = typeof d.m_deltaToCarInFrontMinutesPart === 'number' ? d.m_deltaToCarInFrontMinutesPart : 0
   const msPart = typeof d.m_deltaToCarInFrontMSPart === 'number' ? d.m_deltaToCarInFrontMSPart : 0
   const totalMs = minPart * 60000 + msPart
-  return totalMs > 0 ? totalMs / 1000 : null
+  return totalMs >= 0 ? totalMs / 1000 : null
 }
 /** Convert a 0..100 percentage field (uint8 damage/wear) to 0..1, guarding NaN/undef. */
 function normPctTo01(v: number | undefined | null): number {

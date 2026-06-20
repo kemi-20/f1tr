@@ -67,6 +67,8 @@ class ConfigStoreImpl {
     if (stored.llm?.maxTokens === 80) config.llm.maxTokens = DEFAULT_CONFIG.llm.maxTokens
     if (stored.triggers?.heartbeatIntervalS === 60) config.triggers.heartbeatIntervalS = DEFAULT_CONFIG.triggers.heartbeatIntervalS
     if (stored.triggers?.globalMinGapS === 8) config.triggers.globalMinGapS = DEFAULT_CONFIG.triggers.globalMinGapS
+    if (stored.triggers?.tyreColdC === 80) config.triggers.tyreColdC = DEFAULT_CONFIG.triggers.tyreColdC
+    if (stored.triggers?.tyreHotC === 110) config.triggers.tyreHotC = DEFAULT_CONFIG.triggers.tyreHotC
   }
 }
 

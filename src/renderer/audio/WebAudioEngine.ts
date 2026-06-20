@@ -68,8 +68,11 @@ class WebAudioEngineImpl {
     // the new utterance is now the active one; any late chunks from the old one are dropped
     this.activeUtteranceId = start.utteranceId
     const now = this.ctx.currentTime
-    // immediately reset nextStart so new chunks don't schedule to the old timeline
-    this.nextStart = now
+    // Leave nextStart as-is: chunks arriving during the 80ms fade are gated by the
+    // activeUtteranceId check and scheduled at whatever time nextStart currently is.
+    // Because master.gain ramps to 0.0001 over 80ms, those chunks are naturally
+    // silent during the fade window. Once gain restores (after setTimeout fires),
+    // subsequent chunks play at normal volume with no audible gap.
     const g = this.master.gain
     g.cancelScheduledValues(now)
     g.setValueAtTime(Math.max(g.value, 0.0001), now)
@@ -85,8 +88,8 @@ class WebAudioEngineImpl {
       this.active.clear()
       this.nextStart = this.ctx!.currentTime
       const n = this.ctx!.currentTime
-      g.setValueAtTime(0.0001, n + 0.09)
-      g.linearRampToValueAtTime(this.muted ? 0 : this.volume, n + 0.14)
+      g.setValueAtTime(0.0001, n)
+      g.linearRampToValueAtTime(this.muted ? 0 : this.volume, n + 0.05)
     }, 90)
   }
 
