@@ -45,5 +45,4 @@ CLAUDE-FABLE-5.md
 # agent-only reference doc (NOT for public repo)
 README_for_agent.md
 # tests
-tests/*.exe
-tests/shots/
+tests/
