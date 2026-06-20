@@ -38,13 +38,17 @@ export class ConversationMemory {
   setLanguage(mode: LanguageMode): void {
     if (this.mode !== mode) {
       this.mode = mode
+      this.reset()
       logger.info(`engineer language mode -> ${mode}`)
     }
   }
 
   setEngineerStyle(style: string): void {
-    this.engineerStyle = style
-    logger.info(`engineer style -> ${style}`)
+    if (this.engineerStyle !== style) {
+      this.engineerStyle = style
+      this.reset()
+      logger.info(`engineer style -> ${style}`)
+    }
   }
 
   /**
@@ -62,6 +66,10 @@ export class ConversationMemory {
 
   get prime(): string {
     return this.primeText
+  }
+
+  get languageMode(): LanguageMode {
+    return this.mode
   }
 
   /** Record a completed user→assistant turn into the rolling window. */

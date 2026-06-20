@@ -1,4 +1,6 @@
+import type { CSSProperties } from 'react'
 import { useRaceStore, useHealthStore } from './store'
+import { useConfigStore } from './store'
 import { TopStrip } from './components/layout/TopStrip'
 import { TrackMap } from './components/trackmap/TrackMap'
 import { DriverHud } from './components/hud/DriverHud'
@@ -11,9 +13,16 @@ import { SettingsModal } from './settings/SettingsModal'
 export function App(): React.ReactElement {
   const hasRace = useRaceStore((s) => s.race != null)
   const waiting = useHealthStore((s) => s.waiting)
+  const ui = useConfigStore((s) => s.config?.ui)
+  const theme = themeVars(ui?.theme ?? 'midnight', ui?.accent)
+  const className = [
+    'app-backdrop flex h-screen w-screen flex-col gap-3 p-3',
+    ui?.glassmorphism === false ? 'theme-flat-glass' : '',
+    ui?.reduceMotion ? 'theme-reduce-motion' : ''
+  ].filter(Boolean).join(' ')
 
   return (
-    <div className="app-backdrop flex h-screen w-screen flex-col gap-3 p-3">
+    <div className={className} style={theme}>
       <TopStrip />
 
       {/* main 3-column grid */}
@@ -50,6 +59,37 @@ export function App(): React.ReactElement {
       {(waiting || !hasRace) && <WaitingOverlay />}
     </div>
   )
+}
+
+type ThemeId = 'midnight' | 'papaya' | 'racing'
+
+function themeVars(theme: ThemeId, accentOverride?: string): CSSProperties {
+  const preset = THEME_PRESETS[theme] ?? THEME_PRESETS.midnight
+  const primary = hexToRgb(accentOverride || preset.primary) ?? hexToRgb(preset.primary)!
+  const secondary = hexToRgb(preset.secondary)!
+  const ferrari = hexToRgb('#FF2800')!
+  const ember = hexToRgb('#FFB020')!
+  return {
+    '--accent-carbon-rgb': primary,
+    '--accent-papaya-rgb': secondary,
+    '--accent-racing-rgb': ferrari,
+    '--accent-ember-rgb': ember,
+    '--backdrop-primary-rgb': primary,
+    '--backdrop-secondary-rgb': secondary
+  } as CSSProperties
+}
+
+const THEME_PRESETS: Record<ThemeId, { primary: string; secondary: string }> = {
+  midnight: { primary: '#00D2BE', secondary: '#FF6A00' },
+  papaya: { primary: '#FF8700', secondary: '#00D2BE' },
+  racing: { primary: '#FF2800', secondary: '#00D2BE' }
+}
+
+function hexToRgb(hex: string): string | null {
+  const clean = hex.trim().replace(/^#/, '')
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return null
+  const n = Number.parseInt(clean, 16)
+  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`
 }
 
 function WaitingOverlay(): React.ReactElement {

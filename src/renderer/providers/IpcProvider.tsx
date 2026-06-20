@@ -39,8 +39,9 @@ export function IpcProvider({ children }: { children: React.ReactNode }): React.
         const status = (typeof payload === 'string' ? payload : payload?.status ?? 'idle') as never
         const st = useEngineerStore.getState()
         st.setStatus(status)
-        // on error, drop the partial streaming bubble so it doesn't stick with a cursor forever
-        if ((status as string) === 'error') st.clearStream()
+        // on error/abort, drop the partial streaming bubble so an old-language
+        // response doesn't stick after settings changes or Stop.
+        if ((status as string) === 'error' || (status as string) === 'idle') st.clearStream()
       })
     ]
     return () => {

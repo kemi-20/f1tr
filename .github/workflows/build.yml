@@ -3,12 +3,13 @@ name: Build & Package
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
   pull_request:
     branches: [main, master]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   # ── Quick checks on every push/PR ──
@@ -29,8 +30,9 @@ jobs:
       - name: Build (vite)
         run: npm run build
 
-  # ── Windows packaging (build only, NO release) ──
-  # Release is intentional and manual: only when you push a v* tag yourself.
+  # ── Windows packaging ──
+  # On push: build portable only, upload as Actions artifact for download.
+  # On tag (v*): also build NSIS installer and publish a GitHub Release with both.
   package-windows:
     needs: check
     runs-on: windows-latest
@@ -45,17 +47,32 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
-      # Build only (--publish never). Release is never created automatically.
-      - name: Build & package Windows
+      - name: Build & package Windows (portable + NSIS)
         run: npm run build:win
       - name: List built executables
         shell: pwsh
         run: Get-ChildItem -Recurse release -Filter "*.exe" | Select-Object FullName, Length
-      # Upload the two installer exes as CI artifacts (downloadable from the Actions tab).
-      - name: Upload executables
+
+      # Always upload the PORTABLE exe as an Actions artifact (for quick download).
+      - name: Upload portable exe
         uses: actions/upload-artifact@v4
         with:
-          name: windows-executables
-          path: |
-            release/**/*.exe
+          name: F1-Race-Engineer-Portable
+          path: release/**/*portable*.exe
           if-no-files-found: error
+
+      # On a tag push: create a GitHub Release with BOTH portable + NSIS installer.
+      - name: Publish GitHub Release with installer (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="${GITHUB_REF#refs/tags/}"
+          PORTABLE=$(find release -name "*portable*.exe" | head -1)
+          SETUP=$(find release -name "*Setup*.exe" | head -1)
+          echo "portable=$PORTABLE  setup=$SETUP"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" --generate-notes \
+            "$PORTABLE" "$SETUP"

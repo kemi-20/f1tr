@@ -2,9 +2,9 @@ import { useConfigStore } from '../store'
 import { Field } from './SettingsModal'
 
 const THEMES: { id: 'midnight' | 'papaya' | 'racing'; label: string; accent: string }[] = [
-  { id: 'midnight', label: 'Midnight · 碳青', accent: '#2DD4BF' },
-  { id: 'papaya', label: 'Papaya · 木瓜橙', accent: '#FF6A00' },
-  { id: 'racing', label: 'Racing · 赛红', accent: '#FF3B3B' }
+  { id: 'midnight', label: 'Petronas Green · 马石油绿', accent: '#00D2BE' },
+  { id: 'papaya', label: 'Papaya Orange · 木瓜橙', accent: '#FF8700' },
+  { id: 'racing', label: 'Ferrari Red · 法拉利红', accent: '#FF2800' }
 ]
 
 export function AudioThemeTab(): React.ReactElement {

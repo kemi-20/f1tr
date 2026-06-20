@@ -136,15 +136,15 @@ export class EngineerService {
     this.memory.primeIfNeeded(state)
 
     Sender.send('engineer:status', { status: 'thinking' })
+    const emitDelta = createDeltaEmitter(firing, (delta) => {
+      Sender.send('engineer:text', { id, delta })
+    })
 
     try {
-      const text = this.llm
-        ? await this.llm.generate(digest, digestText, firing, manualPrompt, (delta) => {
-            Sender.send('engineer:text', { id, delta })
-          })
-        : this.simulateStream(this.stub.generate(digest), (delta) => {
-            Sender.send('engineer:text', { id, delta })
-          })
+      const rawText = this.llm
+        ? await this.llm.generate(digest, digestText, firing, manualPrompt, emitDelta)
+        : this.simulateStream(this.stub.generate(digest), emitDelta)
+      const text = cleanAutoTriggerAcknowledgement(rawText, firing)
 
       // success path: commit + speak, then settle to idle so pills don't stick
       Sender.send('engineer:advice', {
@@ -205,4 +205,44 @@ export function manualFiring(prompt?: string): TriggerFiring {
     reason: prompt || 'Driver is asking for an update.',
     ts: Date.now()
   }
+}
+
+function cleanAutoTriggerAcknowledgement(text: string, firing: TriggerFiring): string {
+  if (firing.reasonCode === 'manual') return text
+  return stripAutoAcknowledgement(text)
+}
+
+function stripAutoAcknowledgement(text: string): string {
+  return text
+    .replace(/^\s*(copy|copied|received|roger|ok|okay)[,.，。!\s-]*/i, '')
+    .replace(/^\s*(收到|明白|了解|好的|好)[，。,.！!\s-]*/u, '')
+}
+
+function createDeltaEmitter(firing: TriggerFiring, emit: (delta: string) => void): (delta: string) => void {
+  if (firing.reasonCode === 'manual') return emit
+  let pending = ''
+  let decided = false
+  return (delta: string): void => {
+    if (decided) {
+      emit(delta)
+      return
+    }
+    pending += delta
+    const stripped = stripAutoAcknowledgement(pending)
+    if (stripped !== pending) {
+      decided = true
+      if (stripped) emit(stripped)
+      return
+    }
+    if (mightStillBecomeAcknowledgement(pending)) return
+    decided = true
+    emit(pending)
+  }
+}
+
+function mightStillBecomeAcknowledgement(text: string): boolean {
+  const s = text.trimStart().toLowerCase()
+  if (!s) return true
+  const candidates = ['copy', 'copied', 'received', 'roger', 'ok', 'okay', '收到', '明白', '了解', '好的', '好']
+  return candidates.some((word) => word.startsWith(s))
 }

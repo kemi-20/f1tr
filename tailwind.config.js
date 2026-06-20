@@ -13,10 +13,10 @@ export default {
           700: '#1A2233'
         },
         accent: {
-          carbon: '#2DD4BF',
-          papaya: '#FF6A00',
-          racing: '#FF3B3B',
-          ember: '#FFB020'
+          carbon: 'rgb(var(--accent-carbon-rgb) / <alpha-value>)',
+          papaya: 'rgb(var(--accent-papaya-rgb) / <alpha-value>)',
+          racing: 'rgb(var(--accent-racing-rgb) / <alpha-value>)',
+          ember: 'rgb(var(--accent-ember-rgb) / <alpha-value>)'
         }
       },
       fontFamily: {

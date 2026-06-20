@@ -166,11 +166,10 @@ export class LlmClient implements EngineerBackend {
   }
 
   private renderDigestTurn(d: Digest, digestText: string, manualPrompt?: string): string {
-    void d
-    const header =
-      manualPrompt != null
-        ? `DRIVER: ${manualPrompt}\nRACE STATE:`
-        : `TRIGGER: ${d.trigger.reason}\nRACE STATE:`
+    const isManual = manualPrompt != null || d.trigger.code === 'manual'
+    const header = isManual
+      ? manualHeader(this.memory.languageMode, manualPrompt ?? d.trigger.reason)
+      : autoHeader(this.memory.languageMode, d.trigger.reason)
     return `${header}\n${digestText}`
   }
 
@@ -196,6 +195,28 @@ export class LlmClient implements EngineerBackend {
 
   private isAbort(err: unknown): boolean {
     return err instanceof Error && err.name === 'AbortError'
+  }
+}
+
+function manualHeader(mode: ConversationMemory['languageMode'], prompt: string): string {
+  switch (mode) {
+    case 'zh':
+      return `来源：车手主动询问\n车手：${prompt}\n比赛状态：`
+    case 'mixed':
+      return `SOURCE: DRIVER_MESSAGE / 车手主动询问\nDRIVER: ${prompt}\nRACE STATE / 比赛状态：`
+    case 'en':
+      return `SOURCE: DRIVER_MESSAGE\nDRIVER: ${prompt}\nRACE STATE:`
+  }
+}
+
+function autoHeader(mode: ConversationMemory['languageMode'], reason: string): string {
+  switch (mode) {
+    case 'zh':
+      return `来源：系统自动触发\n触发原因：${reason}\n自动播报规则：不要确认，不要以 Copy/Received/OK/收到/明白 开头，直接给建议。\n比赛状态：`
+    case 'mixed':
+      return `SOURCE: AUTO_TRIGGER / 系统自动触发\nTRIGGER: ${reason}\nAUTO-RADIO RULE: 不要确认，不要以 Copy/Received/OK/收到/明白 开头，直接给 advice。\nRACE STATE / 比赛状态：`
+    case 'en':
+      return `SOURCE: AUTO_TRIGGER\nTRIGGER: ${reason}\nAUTO-RADIO RULE: Do not acknowledge. Do not start with Copy/Received/OK/收到/明白. Start directly with advice.\nRACE STATE:`
   }
 }
 

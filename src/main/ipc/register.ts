@@ -16,6 +16,11 @@ export function registerIpc(): void {
 
   ipcMain.handle('config:set', async (_e, patch) => {
     const cfg = ConfigStore.patch(patch)
+    if (patch.language) {
+      getEngineer()?.cancel()
+      getAudio()?.cancelAll()
+      getTtsClient()?.cancel()
+    }
     const rewires: Promise<void>[] = []
     if (patch.llm || patch.language || patch.advanced) rewires.push(wireLlm(cfg))
     if (patch.tts || patch.audio || patch.language || patch.advanced) rewires.push(wireTts(cfg))

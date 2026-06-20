@@ -89,7 +89,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     suppressLastLapLowPriority: false
   },
   audio: { muted: false, volume: 1, pause: false, preemptOnHigh: true },
-  ui: { theme: 'midnight', accent: '#2DD4BF', glassmorphism: true, reduceMotion: false },
+  ui: { theme: 'midnight', accent: '#00D2BE', glassmorphism: true, reduceMotion: false },
   advanced: { maxQueueDepth: 3, memoryTurns: 6 }
 }
 

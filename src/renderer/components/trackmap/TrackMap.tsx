@@ -30,9 +30,9 @@ export function TrackMap(): React.ReactElement {
         <span className="text-[9px] text-white/30">{track?.country}</span>
       </div>
 
-      <div className="relative flex-1">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         {geometry ? (
-          <svg viewBox={geometry.viewBox} className="h-full w-full" preserveAspectRatio="xMidYMid meet">
+          <svg viewBox={geometry.viewBox} className="absolute inset-0 block h-full w-full" preserveAspectRatio="xMidYMid meet">
             <g>
               <polyline
                 points={geometry.fusedPoints}
@@ -87,26 +87,34 @@ export function TrackMap(): React.ReactElement {
               const pt = pointForPosition(p, geometry)
               if (!pt) return null
               const isP = p.isPlayer
+              const colour = teamColorForCar(race?.rivals[p.carIndex]?.team)
               return (
                 <g key={p.carIndex}>
                   {isP && (
-                    <circle cx={pt.x} cy={pt.y} r={marker * 1.5} fill="none" stroke="#2DD4BF" strokeWidth={marker * 0.3}>
-                      <animate attributeName="r" values={`${marker * 1.2};${marker * 2.4};${marker * 1.2}`} dur="1.6s" repeatCount="indefinite" />
+                    <circle cx={pt.x} cy={pt.y} r={marker * 2.2} fill="none" stroke={colour} strokeWidth={marker * 0.38}>
+                      <animate attributeName="r" values={`${marker * 1.8};${marker * 3.2};${marker * 1.8}`} dur="1.6s" repeatCount="indefinite" />
                       <animate attributeName="opacity" values="0.9;0;0.9" dur="1.6s" repeatCount="indefinite" />
                     </circle>
                   )}
-                  <circle cx={pt.x} cy={pt.y} r={isP ? marker * 1.1 : marker * 0.75} fill={isP ? '#2DD4BF' : 'rgba(255,255,255,0.72)'} />
+                  <circle cx={pt.x} cy={pt.y} r={isP ? marker * 1.45 : marker * 1.08} fill="rgba(0,0,0,0.86)" />
+                  <circle cx={pt.x} cy={pt.y} r={isP ? marker * 1.18 : marker * 0.84} fill={colour} stroke="rgba(255,255,255,0.82)" strokeWidth={marker * 0.18} />
                 </g>
               )
             })}
           </svg>
         ) : (
-          <svg viewBox="0 0 100 100" className="h-full w-full" preserveAspectRatio="xMidYMid meet">
+          <svg viewBox="0 0 100 100" className="absolute inset-0 block h-full w-full" preserveAspectRatio="xMidYMid meet">
             <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(45,212,191,0.15)" strokeWidth="7" />
             <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3" strokeDasharray="4 3" />
             {positions.map((p) => {
               const pt = fallbackPointAt(p.lapDistancePct)
-              return <circle key={p.carIndex} cx={pt.x} cy={pt.y} r={p.isPlayer ? 1.8 : 1.2} fill={p.isPlayer ? '#2DD4BF' : 'rgba(255,255,255,0.72)'} />
+              const colour = teamColorForCar(race?.rivals[p.carIndex]?.team)
+              return (
+                <g key={p.carIndex}>
+                  <circle cx={pt.x} cy={pt.y} r={p.isPlayer ? 2.7 : 2.1} fill="rgba(0,0,0,0.86)" />
+                  <circle cx={pt.x} cy={pt.y} r={p.isPlayer ? 2.2 : 1.7} fill={colour} stroke="rgba(255,255,255,0.82)" strokeWidth="0.35" />
+                </g>
+              )
             })}
           </svg>
         )}
@@ -115,7 +123,7 @@ export function TrackMap(): React.ReactElement {
         </div>
       </div>
 
-      <div className="mt-2 border-t border-white/[0.05] pt-2">
+      <div className="mt-2 shrink-0 border-t border-white/[0.05] pt-2">
         <div className="mb-1 label">Track order</div>
         <div className="flex flex-col gap-0.5">
           {raceWindow.length === 0 && <div className="text-[10px] text-white/25">等待车手数据…</div>}
@@ -218,15 +226,15 @@ function viewBoxWithTrackMargin(bounds: TrackBounds): string {
   const [minX, minY, maxX, maxY] = bounds
   const width = maxX - minX
   const height = maxY - minY
-  const padX = Math.max(90, width * 0.18)
-  const padY = Math.max(90, height * 0.18)
+  const padX = Math.max(130, width * 0.3)
+  const padY = Math.max(130, height * 0.3)
   return `${minX - padX} ${minY - padY} ${width + padX * 2} ${height + padY * 2}`
 }
 
 function markerSize(bounds: TrackBounds): number {
   const [, , maxX, maxY] = bounds
   const [minX, minY] = bounds
-  return Math.max(3, Math.min(maxX - minX, maxY - minY) * 0.007)
+  return Math.max(4.2, Math.min(maxX - minX, maxY - minY) * 0.011)
 }
 
 function pointsAttr(points: TrackPoint[]): string {
@@ -259,4 +267,38 @@ function isFiniteNumber(v: unknown): v is number {
 function fallbackPointAt(t: number): { x: number; y: number } {
   const a = clamp01(t) * 2 * Math.PI - Math.PI / 2
   return { x: 50 + Math.cos(a) * 38, y: 50 + Math.sin(a) * 38 }
+}
+
+const TEAM_COLOURS: Record<number, string> = {
+  0: '#00D2BE',
+  1: '#DC0000',
+  2: '#0600EF',
+  3: '#005AFF',
+  4: '#006F62',
+  5: '#0090FF',
+  6: '#2B4562',
+  7: '#FFFFFF',
+  8: '#FF8700',
+  9: '#900000',
+  41: '#FFFFFF',
+  104: '#FFFFFF',
+  129: '#00D2BE',
+  142: '#FFFFFF',
+  154: '#FFFFFF',
+  155: '#00D2BE',
+  185: '#00D2BE',
+  186: '#DC0000',
+  187: '#0600EF',
+  188: '#005AFF',
+  189: '#006F62',
+  190: '#0090FF',
+  191: '#2B4562',
+  192: '#FFFFFF',
+  193: '#FF8700',
+  194: '#900000'
+}
+
+function teamColorForCar(teamId: string | undefined): string {
+  const id = Number(teamId)
+  return Number.isFinite(id) ? TEAM_COLOURS[id] ?? '#E6EDF6' : '#E6EDF6'
 }

@@ -69,6 +69,7 @@ class ConfigStoreImpl {
     if (stored.triggers?.globalMinGapS === 8) config.triggers.globalMinGapS = DEFAULT_CONFIG.triggers.globalMinGapS
     if (stored.triggers?.tyreColdC === 80) config.triggers.tyreColdC = DEFAULT_CONFIG.triggers.tyreColdC
     if (stored.triggers?.tyreHotC === 110) config.triggers.tyreHotC = DEFAULT_CONFIG.triggers.tyreHotC
+    if (stored.ui?.accent === '#2DD4BF') config.ui.accent = DEFAULT_CONFIG.ui.accent
   }
 }
 
