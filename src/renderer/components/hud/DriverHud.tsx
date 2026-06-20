@@ -20,9 +20,9 @@ export function DriverHud(): React.ReactElement {
   const litCount = Math.round(revPct * 15)
   const lights = Array.from({ length: 15 }, (_, i) => {
     const on = i < litCount
-    let color = 'rgb(45,212,191)'
-    if (i >= 12) color = 'rgb(255,176,32)'
-    if (i >= 14) color = 'rgb(255,59,59)'
+    let color = '#22c55e' // green (first 5)
+    if (i >= 5) color = '#ef4444' // red (middle 5)
+    if (i >= 10) color = '#a855f7' // purple (last 5)
     return { on, color }
   })
 

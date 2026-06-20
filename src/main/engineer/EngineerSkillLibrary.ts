@@ -1,6 +1,7 @@
 import gpSkill from '../../engineer_skills/gp.md?raw'
 import bonoSkill from '../../engineer_skills/bono.md?raw'
 import bozziSkill from '../../engineer_skills/bozzi.md?raw'
+import adamiSkill from '../../engineer_skills/adami.md?raw'
 import { normalizeEngineerStyleId, type EngineerStyleId } from '@shared/personas/engineer-styles'
 
 export interface EngineerSkill {
@@ -13,7 +14,8 @@ export interface EngineerSkill {
 const SKILLS: Record<EngineerStyleId, EngineerSkill> = {
   gp: buildSkill('gp', gpSkill),
   bono: buildSkill('bono', bonoSkill),
-  bozzi: buildSkill('bozzi', bozziSkill)
+  bozzi: buildSkill('bozzi', bozziSkill),
+  adami: buildSkill('adami', adamiSkill)
 }
 
 export function getEngineerSkill(id?: string): EngineerSkill {
@@ -37,8 +39,8 @@ function buildSkill(id: EngineerStyleId, markdown: string): EngineerSkill {
 
 function extractNumberedSection(markdown: string, sectionNumber: number): string {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n')
-  const startPattern = new RegExp(`^#\\s*${sectionNumber}\\.`)
-  const nextTopLevelPattern = /^#\s+\d+\./
+  const startPattern = new RegExp(`^#\\s*${sectionNumber}(?:\\.|\\b)`)
+  const nextTopLevelPattern = /^#\s+\d+(?:\.|\b)/
   const start = lines.findIndex((line) => startPattern.test(line.trim()))
   if (start === -1) return ''
 

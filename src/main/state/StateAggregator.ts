@@ -66,15 +66,16 @@ export class StateAggregator {
     const decoded = decodeSafetyCar(scStatus)
     s.isSafetyCar = decoded.sc
     s.isVirtualSafetyCar = decoded.vsc
-    // red flag: m_numRedFlagPeriods is cumulative; detect rising edge to latch,
-    // then clear only when we see a definitive "racing resumed" signal.
+    // red flag: m_numRedFlagPeriods is cumulative; detect rising edge to latch.
+    // Clear when racing resumes (m_safetyCarStatus 0 or 5, and no SC/VSC active).
     const redCount = p.m_numRedFlagPeriods ?? 0
     if (redCount > (this._prevRedFlagCount ?? 0)) {
       s.isRedFlag = true
       this._prevRedFlagCount = redCount
       if (!this.isDupe('redFlag', uid))
         this.pushEvent('redFlag', `Red flag #${redCount}`, undefined)
-    } else if (decoded.resumed) {
+    } else if (decoded.resumed || (scStatus === 0 && !decoded.sc && !decoded.vsc)) {
+      // racing has resumed — clear red flag
       s.isRedFlag = false
       this._prevRedFlagCount = redCount
     } else {
@@ -332,6 +333,9 @@ export class StateAggregator {
         pl.tyres.ageLaps = st.m_tyresAgeLaps ?? pl.tyres.ageLaps
         // ERS store energy is in joules, capacity ~4e6 J
         pl.ersPercent = clamp01((st.m_ersStoreEnergy ?? 0) / 4_000_000)
+        // mirror player's tyre into rival entry so RivalsPanel shows it (not '?')
+        const pr = this.ensureRival(i)
+        pr.tyreCompound = pl.tyres.compound
       } else {
         // update rival's tyre compound
         const r = this.ensureRival(i)

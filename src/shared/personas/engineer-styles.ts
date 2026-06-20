@@ -21,6 +21,11 @@ export const ENGINEER_STYLES = [
     id: 'bozzi',
     name: 'Bozzi · 法拉利式',
     description: '清晰专业，带法拉利式温度和及时肯定'
+  },
+  {
+    id: 'adami',
+    name: 'Adami · 法拉利冷电台',
+    description: '极简、冷静、低反馈，高工程密度'
   }
 ] as const satisfies readonly EngineerStyle[]
 

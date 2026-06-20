@@ -5,7 +5,7 @@ import { getEngineerSkill } from './EngineerSkillLibrary'
  * Persona — the stable, per-language system prompt establishing the race-engineer role.
  * Layer 1 of the context; it never changes mid-session → prime prompt-cache material.
  *
- * `engineerStyle` selects one of the bundled markdown skills (gp / bono / bozzi).
+ * `engineerStyle` selects one of the bundled markdown skills (gp / bono / bozzi / adami).
  * The full skill text is appended after the base instructions so the model can learn it.
  */
 export function systemPrompt(mode: LanguageMode, engineerStyle: string = 'gp'): string {
