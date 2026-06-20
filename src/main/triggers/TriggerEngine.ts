@@ -26,7 +26,7 @@ export class TriggerEngine {
   private rainImminentActive = false
   private fuelLowActive = false
   private lastPosition = 0
-  private lastLap = -1
+  private lastLap = 0
   private flashbackUntilMs = 0
   private onFiring: (f: TriggerFiring) => void
 
@@ -101,7 +101,7 @@ export class TriggerEngine {
     this.rainImminentActive = false
     this.fuelLowActive = false
     this.lastPosition = 0
-    this.lastLap = -1
+    this.lastLap = 0
     logger.info('flashback detected — triggers suppressed for 3s, states reset')
   }
 

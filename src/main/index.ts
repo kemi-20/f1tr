@@ -115,6 +115,11 @@ app.whenReady().then(() => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    // macOS keeps the app alive after all windows close; telemetry was stopped
+    // on window-all-closed — restart it so the reopened window gets data
+    if (!telemetry?.aggregator?.getState()?.session?.lastUpdateMs) {
+      telemetry?.start()
+    }
   })
 })
 

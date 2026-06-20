@@ -60,7 +60,7 @@ export interface EngineerAdvice {
 
 export interface AudioStart {
   utteranceId: string
-  priority: 'critical' | 'high' | 'normal' | 'low' | 'preempt'
+  priority: 'critical' | 'high' | 'normal' | 'low'
 }
 
 export interface AudioChunk {

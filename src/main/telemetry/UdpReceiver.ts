@@ -5,8 +5,21 @@ import { logger } from '../logging/Logger'
 import type { PacketFormat } from '@shared/index'
 
 const { PACKETS, PACKET_SIZES } = constants
-// packetId -> event-name lookup
-const PACKET_NAMES = Object.keys(PACKETS) as string[]
+// Build a map from numeric packetId -> event name (avoid relying on Object.keys order).
+// The library's PACKET_SIZES keys are event names; values are per-format size records.
+const PACKET_ID_TO_NAME = new Map<number, string>()
+const PACKET_ID_REVERSE: Record<string, number> = {}
+for (const name of Object.keys(PACKET_SIZES)) {
+  // PACKETS[name] is the library-exported packet ID string; parse to number.
+  const raw = (PACKETS as Record<string, string | number | undefined>)[name]
+  if (raw != null) {
+    const id = typeof raw === 'number' ? raw : Number(raw)
+    if (typeof id === 'number' && !isNaN(id)) {
+      PACKET_ID_TO_NAME.set(id, name)
+      PACKET_ID_REVERSE[name] = id
+    }
+  }
+}
 
 export interface AnyParsedPacket {
   m_header: PacketHeader
@@ -100,7 +113,7 @@ export class UdpReceiver {
   }
 
   private expectedSize(packetId: number, fmt: number): number | null {
-    const name = PACKET_NAMES[packetId]
+    const name = PACKET_ID_TO_NAME.get(packetId)
     if (!name) return null
     const sizes = (PACKET_SIZES as Record<string, Record<number, number>>)[name]
     if (!sizes) return null

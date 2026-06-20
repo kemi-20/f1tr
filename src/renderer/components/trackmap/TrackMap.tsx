@@ -1,57 +1,27 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useRaceStore } from '../../store'
 import { getTrack, fmtGap, compoundLabel } from '@shared/index'
-import { TRACK_SVG_RAW } from './trackSvgAssets'
+import { CALIBRATED_TRACK_MAPS, type CalibratedTrackMap, type TrackBounds, type TrackPoint } from './trackMapAssets'
 
 /**
- * TrackMap — renders the original high-resolution SVG for each circuit and
- * overlays live car dots in the same SVG coordinate system.
+ * TrackMap renders calibrated F1 world-coordinate map data. Car dots use Motion
+ * packet worldX/worldZ directly; lap-distance interpolation is only a startup
+ * fallback before Motion arrives.
  */
 export function TrackMap(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const trackId = race?.session.trackId ?? -1
   const track = getTrack(trackId)
   const positions = race?.trackPositions ?? []
-  const pathRef = useRef<SVGPathElement>(null)
-  const worldBoundsRef = useRef<ObservedWorldBounds>({ trackId: -1 })
-  const [pathLen, setPathLen] = useState(0)
-  const [pathBox, setPathBox] = useState<Rect | null>(null)
-  const trackSvg = useMemo(() => parseTrackSvg(TRACK_SVG_RAW[trackId]), [trackId])
-
-  useEffect(() => {
-    setPathLen(0)
-    setPathBox(null)
-    if (!pathRef.current) return
-    try {
-      setPathLen(pathRef.current.getTotalLength())
-      const box = pathRef.current.getBBox()
-      setPathBox({ x: box.x, y: box.y, width: box.width, height: box.height })
-    } catch {
-      setPathLen(0)
-      setPathBox(null)
-    }
-  }, [trackSvg?.probePath, track?.path])
-
-  const pointAt = useCallback((t: number): { x: number; y: number } | null => {
-    if (!pathLen || !pathRef.current) return null
-    try {
-      const p = pathRef.current.getPointAtLength(Math.max(0, Math.min(1, t)) * pathLen)
-      return { x: p.x, y: p.y }
-    } catch {
-      return null
-    }
-  }, [pathLen])
-
+  const trackMap = CALIBRATED_TRACK_MAPS[trackId]
+  const geometry = useMemo(() => (trackMap ? buildGeometry(trackMap) : null), [trackMap])
   const rivals = race ? Object.values(race.rivals) : []
   const playerPos = race?.player.position ?? 0
   const sorted = [...rivals].sort((a, b) => a.position - b.position)
-  const start = Math.max(0, sorted.findIndex((r) => r.position === playerPos) - 2)
+  const playerIndex = sorted.findIndex((r) => r.position === playerPos)
+  const start = Math.max(0, (playerIndex >= 0 ? playerIndex : 0) - 2)
   const raceWindow = sorted.slice(start, start + 6)
-  const hasTrackPath = Boolean(pathLen && (trackSvg?.probePath || track?.path))
-  const viewBox = trackSvg?.viewBox ?? '0 0 100 100'
-  const probePath = trackSvg?.probePath ?? track?.path ?? ''
-  const marker = markerSize(viewBox)
-  const worldProjector = buildWorldProjector(trackId, positions, pathBox, pointAt, worldBoundsRef)
+  const marker = geometry ? markerSize(geometry.bounds) : 1
 
   return (
     <div className="glass relative flex h-full flex-col p-4">
@@ -60,57 +30,91 @@ export function TrackMap(): React.ReactElement {
         <span className="text-[9px] text-white/30">{track?.country}</span>
       </div>
 
-      {/* track SVG + car dots overlay */}
       <div className="relative flex-1">
-        <svg viewBox={viewBox} className="h-full w-full" preserveAspectRatio="xMidYMid meet">
-          {trackSvg ? (
-            <>
-              <g className="track-svg-original" dangerouslySetInnerHTML={{ __html: trackSvg.inner }} />
-              <path ref={pathRef} d={probePath} fill="none" stroke="none" pointerEvents="none" opacity="0" />
-            </>
-          ) : track ? (
-            <>
-              <path ref={pathRef} d={probePath} fill="none" stroke="rgba(45,212,191,0.12)" strokeWidth="7" strokeLinejoin="round" strokeLinecap="round" />
-              <path d={track.path} fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-              {pointAt(0) && (
-                <line
-                  x1={pointAt(0)!.x - marker * 1.4} y1={pointAt(0)!.y - marker * 1.4}
-                  x2={pointAt(0)!.x + marker * 1.4} y2={pointAt(0)!.y + marker * 1.4}
-                  stroke="#FF6A00" strokeWidth={marker * 0.5}
+        {geometry ? (
+          <svg viewBox={geometry.viewBox} className="h-full w-full" preserveAspectRatio="xMidYMid meet">
+            <g>
+              <polyline
+                points={geometry.fusedPoints}
+                fill="none"
+                stroke="rgba(45,212,191,0.18)"
+                strokeWidth={marker * 2.6}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+              <polyline
+                points={geometry.fusedPoints}
+                fill="none"
+                stroke="rgba(245,247,250,0.88)"
+                strokeWidth={marker * 1.05}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+              {geometry.pitPoints && (
+                <polyline
+                  points={geometry.pitPoints}
+                  fill="none"
+                  stroke="rgba(255,255,255,0.24)"
+                  strokeWidth={marker * 0.48}
+                  strokeDasharray={`${marker * 0.9} ${marker * 0.75}`}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
                 />
               )}
-            </>
-          ) : (
-            <>
-              <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(45,212,191,0.15)" strokeWidth="7" />
-              <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3" strokeDasharray="4 3" />
-            </>
-          )}
+              {geometry.sectorPoints.map((line, idx) => (
+                <polyline
+                  key={idx}
+                  points={line}
+                  fill="none"
+                  stroke={SECTOR_STROKES[idx]}
+                  strokeWidth={marker * 0.42}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              ))}
+              <line
+                x1={geometry.start.x - marker * 1.5}
+                y1={geometry.start.y - marker * 1.5}
+                x2={geometry.start.x + marker * 1.5}
+                y2={geometry.start.y + marker * 1.5}
+                stroke="#FF6A00"
+                strokeWidth={marker * 0.45}
+                strokeLinecap="round"
+              />
+            </g>
 
-          {/* car dots — positioned on the track path */}
-          {positions.map((p) => {
-            const pt = worldProjector?.(p) ?? (hasTrackPath ? pointAt(p.lapDistancePct) : fallbackPointAt(p.lapDistancePct))
-            if (!pt) return null
-            const isP = p.isPlayer
-            return (
-              <g key={p.carIndex}>
-                {isP && (
-                  <circle cx={pt.x} cy={pt.y} r={marker * 1.5} fill="none" stroke="#2DD4BF" strokeWidth={marker * 0.3}>
-                    <animate attributeName="r" values={`${marker * 1.2};${marker * 2.4};${marker * 1.2}`} dur="1.6s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.9;0;0.9" dur="1.6s" repeatCount="indefinite" />
-                  </circle>
-                )}
-                <circle cx={pt.x} cy={pt.y} r={isP ? marker * 1.1 : marker * 0.75} fill={isP ? '#2DD4BF' : 'rgba(255,255,255,0.7)'} />
-              </g>
-            )
-          })}
-        </svg>
+            {positions.map((p) => {
+              const pt = pointForPosition(p, geometry)
+              if (!pt) return null
+              const isP = p.isPlayer
+              return (
+                <g key={p.carIndex}>
+                  {isP && (
+                    <circle cx={pt.x} cy={pt.y} r={marker * 1.5} fill="none" stroke="#2DD4BF" strokeWidth={marker * 0.3}>
+                      <animate attributeName="r" values={`${marker * 1.2};${marker * 2.4};${marker * 1.2}`} dur="1.6s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.9;0;0.9" dur="1.6s" repeatCount="indefinite" />
+                    </circle>
+                  )}
+                  <circle cx={pt.x} cy={pt.y} r={isP ? marker * 1.1 : marker * 0.75} fill={isP ? '#2DD4BF' : 'rgba(255,255,255,0.72)'} />
+                </g>
+              )
+            })}
+          </svg>
+        ) : (
+          <svg viewBox="0 0 100 100" className="h-full w-full" preserveAspectRatio="xMidYMid meet">
+            <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(45,212,191,0.15)" strokeWidth="7" />
+            <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3" strokeDasharray="4 3" />
+            {positions.map((p) => {
+              const pt = fallbackPointAt(p.lapDistancePct)
+              return <circle key={p.carIndex} cx={pt.x} cy={pt.y} r={p.isPlayer ? 1.8 : 1.2} fill={p.isPlayer ? '#2DD4BF' : 'rgba(255,255,255,0.72)'} />
+            })}
+          </svg>
+        )}
         <div className="absolute bottom-1 right-2 text-[8px] text-white/25">
-          {race?.weather.isRaining ? '🌧 wet' : '☀ dry'} · {Math.round(race?.weather.trackTempC ?? 0)}°
+          {race?.weather.isRaining ? 'wet' : 'dry'} · {Math.round(race?.weather.trackTempC ?? 0)}°
         </div>
       </div>
 
-      {/* running order */}
       <div className="mt-2 border-t border-white/[0.05] pt-2">
         <div className="mb-1 label">Track order</div>
         <div className="flex flex-col gap-0.5">
@@ -132,149 +136,116 @@ export function TrackMap(): React.ReactElement {
   )
 }
 
-interface ParsedTrackSvg {
+interface TrackGeometry {
+  bounds: TrackBounds
   viewBox: string
-  inner: string
-  probePath: string
+  fused: TrackPoint[]
+  cumulative: number[]
+  totalLength: number
+  fusedPoints: string
+  pitPoints: string | null
+  sectorPoints: string[]
+  start: { x: number; y: number }
 }
 
-interface Rect {
-  x: number
-  y: number
-  width: number
-  height: number
-}
+const SECTOR_STROKES = [
+  'rgba(56,189,248,0.44)',
+  'rgba(168,85,247,0.42)',
+  'rgba(34,197,94,0.42)'
+] as const
 
-interface ObservedWorldBounds {
-  trackId: number
-  minX?: number
-  maxX?: number
-  minZ?: number
-  maxZ?: number
-}
-
-type Point = { x: number; y: number }
-type Projector = (p: { worldX?: number; worldZ?: number }) => Point | null
-
-function parseTrackSvg(raw?: string): ParsedTrackSvg | null {
-  if (!raw || typeof DOMParser === 'undefined') return null
-  const doc = new DOMParser().parseFromString(raw, 'image/svg+xml')
-  const svg = doc.documentElement
-  if (!svg || svg.tagName.toLowerCase() !== 'svg') return null
-
-  const viewBox = svg.getAttribute('viewBox') ?? inferViewBox(svg) ?? '0 0 100 100'
-  const paths = Array.from(svg.querySelectorAll('path'))
-    .map((path) => path.getAttribute('d') ?? '')
-    .filter(Boolean)
+function buildGeometry(trackMap: CalibratedTrackMap): TrackGeometry {
+  const cumulative = cumulativeDistances(trackMap.fusedLine)
+  const totalLength = cumulative[cumulative.length - 1] ?? 0
   return {
-    viewBox,
-    inner: svg.innerHTML,
-    probePath: pickLongestPath(paths)
+    bounds: trackMap.bounds,
+    viewBox: viewBoxWithPadding(trackMap.bounds, 42),
+    fused: trackMap.fusedLine,
+    cumulative,
+    totalLength,
+    fusedPoints: pointsAttr(trackMap.fusedLine),
+    pitPoints: trackMap.pitLine?.length ? pointsAttr(trackMap.pitLine) : null,
+    sectorPoints: [trackMap.sector1Line, trackMap.sector2Line, trackMap.sector3Line]
+      .filter((line): line is TrackPoint[] => Boolean(line?.length))
+      .map(pointsAttr),
+    start: point(trackMap.fusedLine[0] ?? [0, 0])
   }
 }
 
-function inferViewBox(svg: Element): string | null {
-  const width = parseFloat(svg.getAttribute('width') ?? '')
-  const height = parseFloat(svg.getAttribute('height') ?? '')
-  return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0 ? `0 0 ${width} ${height}` : null
-}
-
-function pickLongestPath(paths: string[]): string {
-  return paths.reduce((best, path) => (path.length > best.length ? path : best), '')
-}
-
-function markerSize(viewBox: string): number {
-  const [, , w, h] = viewBox.split(/[\s,]+/).map(Number)
-  const base = Math.min(w || 100, h || 100)
-  return Math.max(0.8, base * 0.009)
-}
-
-function buildWorldProjector(
-  trackId: number,
-  positions: Array<{ lapDistancePct: number; worldX?: number; worldZ?: number }>,
-  pathBox: Rect | null,
-  pointAt: (t: number) => Point | null,
-  boundsRef: React.MutableRefObject<ObservedWorldBounds>
-): Projector | null {
-  if (!pathBox || pathBox.width <= 0 || pathBox.height <= 0) return null
-  if (boundsRef.current.trackId !== trackId) boundsRef.current = { trackId }
-  const bounds = boundsRef.current
-
-  for (const p of positions) {
-    if (!isFiniteNumber(p.worldX) || !isFiniteNumber(p.worldZ)) continue
-    bounds.minX = bounds.minX == null ? p.worldX : Math.min(bounds.minX, p.worldX)
-    bounds.maxX = bounds.maxX == null ? p.worldX : Math.max(bounds.maxX, p.worldX)
-    bounds.minZ = bounds.minZ == null ? p.worldZ : Math.min(bounds.minZ, p.worldZ)
-    bounds.maxZ = bounds.maxZ == null ? p.worldZ : Math.max(bounds.maxZ, p.worldZ)
+function pointForPosition(
+  p: { lapDistancePct: number; worldX?: number; worldZ?: number },
+  geometry: TrackGeometry
+): { x: number; y: number } | null {
+  if (isFiniteNumber(p.worldX) && isFiniteNumber(p.worldZ) && withinExpandedBounds(p.worldX, p.worldZ, geometry.bounds)) {
+    return { x: p.worldX, y: p.worldZ }
   }
-
-  if (!isFiniteNumber(bounds.minX) || !isFiniteNumber(bounds.maxX) || !isFiniteNumber(bounds.minZ) || !isFiniteNumber(bounds.maxZ)) return null
-  const worldWidth = bounds.maxX - bounds.minX
-  const worldDepth = bounds.maxZ - bounds.minZ
-  if (worldWidth < 20 || worldDepth < 20) return null
-
-  const calibratedBounds: Required<ObservedWorldBounds> = {
-    trackId: bounds.trackId,
-    minX: bounds.minX,
-    maxX: bounds.maxX,
-    minZ: bounds.minZ,
-    maxZ: bounds.maxZ
-  }
-  const candidates = makeProjectors(calibratedBounds, pathBox)
-  const scored = candidates
-    .map((project) => ({ project, score: scoreProjector(project, positions, pointAt) }))
-    .filter((x) => Number.isFinite(x.score))
-    .sort((a, b) => a.score - b.score)
-  return scored[0]?.project ?? candidates[0] ?? null
+  return pointAtLapFraction(geometry, p.lapDistancePct)
 }
 
-function makeProjectors(bounds: Required<ObservedWorldBounds>, box: Rect): Projector[] {
-  const variants: Projector[] = []
-  for (const swap of [false, true]) {
-    for (const invertX of [false, true]) {
-      for (const invertY of [false, true]) {
-        variants.push((p) => {
-          if (!isFiniteNumber(p.worldX) || !isFiniteNumber(p.worldZ)) return null
-          const axisX = swap ? p.worldZ : p.worldX
-          const axisY = swap ? p.worldX : p.worldZ
-          const minX = swap ? bounds.minZ : bounds.minX
-          const maxX = swap ? bounds.maxZ : bounds.maxX
-          const minY = swap ? bounds.minX : bounds.minZ
-          const maxY = swap ? bounds.maxX : bounds.maxZ
-          return {
-            x: mapAxis(axisX, minX, maxX, box.x, box.x + box.width, invertX),
-            y: mapAxis(axisY, minY, maxY, box.y, box.y + box.height, invertY)
-          }
-        })
-      }
-    }
+function pointAtLapFraction(geometry: TrackGeometry, lapDistancePct: number): { x: number; y: number } | null {
+  if (geometry.fused.length === 0 || geometry.totalLength <= 0) return null
+  const target = clamp01(lapDistancePct) * geometry.totalLength
+  let lo = 0
+  let hi = geometry.cumulative.length - 1
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2)
+    if (geometry.cumulative[mid] < target) lo = mid + 1
+    else hi = mid
   }
-  return variants
+  const idx = Math.max(1, lo)
+  const prevLen = geometry.cumulative[idx - 1] ?? 0
+  const nextLen = geometry.cumulative[idx] ?? prevLen
+  const a = geometry.fused[idx - 1] ?? geometry.fused[0]
+  const b = geometry.fused[idx] ?? a
+  const t = nextLen > prevLen ? (target - prevLen) / (nextLen - prevLen) : 0
+  return {
+    x: a[0] + (b[0] - a[0]) * t,
+    y: a[1] + (b[1] - a[1]) * t
+  }
 }
 
-function scoreProjector(
-  project: Projector,
-  positions: Array<{ lapDistancePct: number; worldX?: number; worldZ?: number }>,
-  pointAt: (t: number) => Point | null
-): number {
-  let score = 0
-  let count = 0
-  for (const p of positions) {
-    const projected = project(p)
-    const expected = pointAt(p.lapDistancePct)
-    if (!projected || !expected) continue
-    const dx = projected.x - expected.x
-    const dy = projected.y - expected.y
-    score += dx * dx + dy * dy
-    count++
+function cumulativeDistances(points: TrackPoint[]): number[] {
+  const distances: number[] = []
+  let total = 0
+  for (let i = 0; i < points.length; i++) {
+    if (i > 0) total += distance(points[i - 1], points[i])
+    distances.push(total)
   }
-  return count >= 3 ? score / count : Infinity
+  return distances
 }
 
-function mapAxis(v: number, inMin: number, inMax: number, outMin: number, outMax: number, invert: boolean): number {
-  const t = (v - inMin) / Math.max(1e-6, inMax - inMin)
-  const u = invert ? 1 - t : t
-  return outMin + u * (outMax - outMin)
+function viewBoxWithPadding(bounds: TrackBounds, padding: number): string {
+  const [minX, minY, maxX, maxY] = bounds
+  return `${minX - padding} ${minY - padding} ${maxX - minX + padding * 2} ${maxY - minY + padding * 2}`
+}
+
+function markerSize(bounds: TrackBounds): number {
+  const [, , maxX, maxY] = bounds
+  const [minX, minY] = bounds
+  return Math.max(3, Math.min(maxX - minX, maxY - minY) * 0.007)
+}
+
+function pointsAttr(points: TrackPoint[]): string {
+  return points.map((p) => `${p[0]},${p[1]}`).join(' ')
+}
+
+function withinExpandedBounds(x: number, y: number, bounds: TrackBounds): boolean {
+  const [minX, minY, maxX, maxY] = bounds
+  const padX = (maxX - minX) * 0.18
+  const padY = (maxY - minY) * 0.18
+  return x >= minX - padX && x <= maxX + padX && y >= minY - padY && y <= maxY + padY
+}
+
+function distance(a: TrackPoint, b: TrackPoint): number {
+  return Math.hypot(b[0] - a[0], b[1] - a[1])
+}
+
+function point(p: TrackPoint): { x: number; y: number } {
+  return { x: p[0], y: p[1] }
+}
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v))
 }
 
 function isFiniteNumber(v: unknown): v is number {
@@ -282,6 +253,6 @@ function isFiniteNumber(v: unknown): v is number {
 }
 
 function fallbackPointAt(t: number): { x: number; y: number } {
-  const a = Math.max(0, Math.min(1, t)) * 2 * Math.PI - Math.PI / 2
+  const a = clamp01(t) * 2 * Math.PI - Math.PI / 2
   return { x: 50 + Math.cos(a) * 38, y: 50 + Math.sin(a) * 38 }
 }

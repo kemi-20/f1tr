@@ -26,6 +26,7 @@ Thumbs.db
 .env.local
 .env.*.local
 .origin/
+.mimocode/
 
 # Test artifacts
 coverage/
@@ -35,13 +36,14 @@ build/icon-src.png
 build/make-ico.mjs
 release/
 
+# temporary / research / agent output files
+.tmp/
+
 # CLAUDE-FABLE-5.md
 CLAUDE-FABLE-5.md
 
 # agent-only reference doc (NOT for public repo)
 README_for_agent.md
-# screenshot test output
-tests/shots/
-
-# stray downloaded installers
+# tests
 tests/*.exe
+tests/shots/

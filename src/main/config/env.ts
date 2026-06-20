@@ -90,16 +90,23 @@ export function loadSecrets(): Secrets {
     logger.warn(`No .env found. Tried: ${tried.join(', ')}`)
   }
 
-  // camelCase secret key -> the exact .env variable name
-  const ENV_KEYS: Record<keyof typeof fromProcess, string> = {
+  // camelCase secret key -> the exact .env variable name.
+  const ENV_KEYS: Record<keyof typeof fromProcess, string | string[]> = {
     aiBaseURL: 'AI_API_BASE_URL',
     aiKey: 'AI_API_KEY',
-    aiModel: 'AI_MODEL',
+    aiModel: ['AI_API_MODEL', 'AI_MODEL'],
     mimoBaseURL: 'MIMO_API_BASE_URL',
     mimoKey: 'MIMO_API_KEY'
   }
-  const get = (k: keyof typeof fromProcess, fallback: string): string =>
-    fromProcess[k] || fileEnv[ENV_KEYS[k]] || fallback
+  const get = (k: keyof typeof fromProcess, fallback: string): string => {
+    if (fromProcess[k]) return fromProcess[k]
+    const fileKey = ENV_KEYS[k]
+    const keys = Array.isArray(fileKey) ? fileKey : [fileKey]
+    for (const key of keys) {
+      if (fileEnv[key]) return fileEnv[key]
+    }
+    return fallback
+  }
 
   cached = {
     aiBaseURL: normalizeURL(get('aiBaseURL', '')),
@@ -112,22 +119,23 @@ export function loadSecrets(): Secrets {
 }
 
 /** Ensure baseURL has a scheme and ends with /v1 for the chat-completions path.
- *  If the URL already contains /vN somewhere in the path, strip any trailing segments
+ *  If the URL already contains /vN anywhere in the path, strip trailing segments
  *  (e.g., /chat/completions) and keep only the base + /vN. */
 export function normalizeURL(u: string): string {
   if (!u) return u
   let url = u.trim()
   if (!/^https?:\/\//.test(url)) {
-    // tp- keys use the CN host; otherwise assume https
     url = 'https://' + url
   }
   url = url.replace(/\/+$/, '')
-  // if URL already has /vN somewhere, use that as the base
-  const versionMatch = url.match(/^(https?:\/\/[^/]+\/[^/]*\/v\d+)(?:\/.*)?$/)
-  if (versionMatch) return versionMatch[1]
   // strip known suffixes like /chat/completions
-  const suffixMatch = url.match(/^(https?:\/\/[^/]+)\/chat\/completions.*$/)
-  if (suffixMatch) url = suffixMatch[1]
+  url = url.replace(/\/chat\/completions.*$/, '')
+  // if URL already contains /vN anywhere, use that as the base
+  const m = url.match(/(\/v\d+)/)
+  if (m) {
+    const idx = url.indexOf(m[1]) + m[1].length
+    return url.slice(0, idx)
+  }
   return url + '/v1'
 }
 

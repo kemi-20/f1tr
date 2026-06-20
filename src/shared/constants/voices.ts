@@ -49,7 +49,7 @@ export const LANGUAGE_PROFILE: Record<LanguageMode, LanguageProfile> = {
     promptLang: 'zh-CN', // Chinese body, English F1 terms + callsigns
     speak: 'zh with English terms (DRS, ERS, box, box box, push, out lap)',
     defaultVoice: 'mimo_default',
-    voices: [...VOICE_CATALOG.zh, ...VOICE_CATALOG.en],
+    voices: [...VOICE_CATALOG.zh, ...VOICE_CATALOG.en.filter((v) => !VOICE_CATALOG.zh.some((z) => z.id === v.id))],
     direction: '冷静果断，遇到技术术语保留英文原词'
   }
 }

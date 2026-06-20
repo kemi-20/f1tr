@@ -43,9 +43,14 @@ export function registerIpc(): void {
     if (!client) return { ok: false, message: 'No MIMO_API_BASE_URL/MIMO_API_KEY in .env.' }
     try {
       let got = false
-      await client.synthesize('test', 'Mia', 'test', () => {
+      const TIMEOUT_MS = 15_000
+      const synthesis = client.synthesize('test', 'Mia', 'test', () => {
         got = true
       })
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`TTS test timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
+      )
+      await Promise.race([synthesis, timeout])
       return { ok: got, message: got ? 'TTS reachable, audio received.' : 'TTS responded but no audio chunk.' }
     } catch (err) {
       return { ok: false, message: `TTS error: ${(err as Error)?.message ?? err}` }

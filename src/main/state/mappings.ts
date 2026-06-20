@@ -88,11 +88,12 @@ function mapDryCompoundForTrack(compound: DryCompound, trackId?: number): TyreCo
 
 /** Safety car status -> flags, per F1 spec enum.
  *  0=none, 1=full SC, 2=VSC, 3=formation lap, 4=VSC ending, 5=racing resumed. */
-export function decodeSafetyCar(status: number): { sc: boolean; vsc: boolean; formation: boolean } {
+export function decodeSafetyCar(status: number): { sc: boolean; vsc: boolean; formation: boolean; resumed: boolean } {
   return {
     sc: status === 1,
     vsc: status === 2,
-    formation: status === 3
+    formation: status === 3,
+    resumed: status === 5
   }
 }
 

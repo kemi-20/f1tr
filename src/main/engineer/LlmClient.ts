@@ -73,7 +73,7 @@ export class LlmClient implements EngineerBackend {
       return !!content || !!res.usage
     } catch (err) {
       logger.warn('LLM ping failed:', (err as Error)?.message ?? err)
-      throw err
+      return false
     }
   }
 

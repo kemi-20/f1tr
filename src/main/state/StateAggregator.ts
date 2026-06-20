@@ -19,6 +19,7 @@ export class StateAggregator {
   public state: RaceState = emptyRaceState()
   private lastSessionUID = ''
   private prevSC = 0
+  private _prevRedFlagCount = 0
   private lastEventBucket = new Set<string>()
 
   getState(): RaceState {
@@ -63,16 +64,29 @@ export class StateAggregator {
     const decoded = decodeSafetyCar(scStatus)
     s.isSafetyCar = decoded.sc
     s.isVirtualSafetyCar = decoded.vsc
-    // red flag: check m_numRedFlagPeriods in the session packet
-    s.isRedFlag = (p.m_numRedFlagPeriods ?? 0) > 0
+    // red flag: m_numRedFlagPeriods is cumulative; detect rising edge to latch,
+    // then clear only when we see a definitive "racing resumed" signal.
+    const redCount = p.m_numRedFlagPeriods ?? 0
+    if (redCount > (this._prevRedFlagCount ?? 0)) {
+      s.isRedFlag = true
+      this._prevRedFlagCount = redCount
+      if (!this.isDupe('redFlag', uid))
+        this.pushEvent('redFlag', `Red flag #${redCount}`, undefined)
+    } else if (decoded.resumed) {
+      s.isRedFlag = false
+      this._prevRedFlagCount = redCount
+    } else {
+      s.isRedFlag = this.state.session.isRedFlag
+      this._prevRedFlagCount = Math.max(this._prevRedFlagCount ?? 0, redCount)
+    }
     s.safetyCarPhase = scStatus
     if (scStatus !== this.prevSC) {
       if (decoded.sc && !this.isDupe('sc', uid)) this.pushEvent('safetyCar', 'Safety Car deployed')
       else if (decoded.vsc && !this.isDupe('vsc', uid)) this.pushEvent('vsc', 'Virtual Safety Car')
       else if (decoded.formation && !this.isDupe('formation', uid)) this.pushEvent('safetyCar', 'Formation lap')
-      // SC/VSC ended: prev was active, now it's not
+      // SC/VSC ended: prev was active, now scStatus is 0 (none) or 5 (racing resumed)
       const prevDecoded = decodeSafetyCar(this.prevSC)
-      if ((prevDecoded.sc || prevDecoded.vsc) && !decoded.sc && !decoded.vsc && !decoded.formation) {
+      if ((prevDecoded.sc || prevDecoded.vsc) && (scStatus === 0 || decoded.resumed)) {
         if (!this.isDupe('sc-ended', uid)) this.pushEvent('safetyCar', 'SC/VSC ended — green flag')
       }
       this.prevSC = scStatus
@@ -127,10 +141,12 @@ export class StateAggregator {
       // position 0 = invalid in F1 spec
       r.position = d.m_carPosition > 0 ? d.m_carPosition : r.position
       r.lap = numOr(d.m_currentLapNum, r.lap)
-      // lapDistancePct: use track length (metres) not total distance (cumulative).
-      // F1 25's m_lapDistance is distance into current lap; m_totalDistance is cumulative.
-      const trackLen = this.state.session.trackLengthM || d.m_totalDistance || 1
-      r.lapDistancePct = clamp01((d.m_lapDistance ?? 0) / Math.max(1, trackLen))
+      // lapDistancePct: use track length from session packet. If not yet available,
+      // keep the previous value (don't fall back to m_totalDistance — it's cumulative).
+      const trackLen = this.state.session.trackLengthM
+      if (trackLen > 0) {
+        r.lapDistancePct = clamp01((d.m_lapDistance ?? 0) / Math.max(1, trackLen))
+      }
       // F1 25 (format 2024/2025) emits gap as TWO fields: m_deltaToCarInFrontMSPart + m_deltaToCarInFrontMinutesPart.
       // The combined m_deltaToCarInFrontInMS only exists in the 2023 branch. Combine both defensively.
       r.deltaToCarInFrontS = readGapS(d)
@@ -171,8 +187,10 @@ export class StateAggregator {
       pl.position = pld.m_carPosition > 0 ? pld.m_carPosition : pl.position
       pl.lap = numOr(pld.m_currentLapNum, pl.lap)
       this.state.session.currentLap = numOr(pld.m_currentLapNum, this.state.session.currentLap)
-      const pldTrackLen = this.state.session.trackLengthM || pld.m_totalDistance || 1
-      pl.lapDistancePct = clamp01((pld.m_lapDistance ?? 0) / Math.max(1, pldTrackLen))
+      const pldTrackLen = this.state.session.trackLengthM
+      if (pldTrackLen > 0) {
+        pl.lapDistancePct = clamp01((pld.m_lapDistance ?? 0) / Math.max(1, pldTrackLen))
+      }
       pl.currentLapTimeS = msToS(pld.m_currentLapTimeInMs)
       pl.lastLapTimeS = msToS(pld.m_lastLapTimeInMs)
       pl.pitStatus = numOr(pld.m_pitStatus, pl.pitStatus)
@@ -190,20 +208,23 @@ export class StateAggregator {
     let playerIdxInSorted = sorted.findIndex((r) => r.position > playerPos)
     if (playerIdxInSorted === -1) playerIdxInSorted = sorted.length // player is last
     if (sorted.length > 0) {
-      // walk UP (cars ahead): accumulate deltaToCarBehindS — each car's gap to the
-      // car behind it, which chains back toward the player.
+      // walk UP (cars ahead): seed the first car ahead with the player's own
+      // deltaToCarInFrontS (gap from player to it). Then chain car-to-car
+      // deltaToCarBehindS for further ahead cars.
       let cumAhead = 0
       for (let i = playerIdxInSorted - 1; i >= 0; i--) {
-        const gap = sorted[i].deltaToCarBehindS
+        const gap = i === playerIdxInSorted - 1
+          ? this.state.rivals[this.state.player.carIndex]?.deltaToCarInFrontS ?? null
+          : sorted[i].deltaToCarBehindS
         if (gap != null) cumAhead += gap
-        sorted[i].gapToPlayerS = cumAhead > 0 ? cumAhead : null
+        sorted[i].gapToPlayerS = cumAhead >= 0 ? cumAhead : null
       }
       // walk DOWN (cars behind): accumulate their deltaToCarInFrontS (negative)
       let cumBehind = 0
       for (let i = playerIdxInSorted; i < sorted.length; i++) {
         const gap = sorted[i].deltaToCarInFrontS
         if (gap != null) cumBehind += gap
-        sorted[i].gapToPlayerS = cumBehind > 0 ? -cumBehind : null
+        sorted[i].gapToPlayerS = cumBehind >= 0 ? -cumBehind : null
       }
     }
     for (const r of sorted) {
@@ -533,8 +554,11 @@ function readGapS(d: AnyParsedPacket): number | null {
     return d.m_deltaToCarInFrontInMS / 1000
   }
   // split (2024/2025) form
-  const minPart = typeof d.m_deltaToCarInFrontMinutesPart === 'number' ? d.m_deltaToCarInFrontMinutesPart : 0
-  const msPart = typeof d.m_deltaToCarInFrontMSPart === 'number' ? d.m_deltaToCarInFrontMSPart : 0
+  const hasMinPart = typeof d.m_deltaToCarInFrontMinutesPart === 'number'
+  const hasMsPart = typeof d.m_deltaToCarInFrontMSPart === 'number'
+  if (!hasMinPart && !hasMsPart) return null
+  const minPart = hasMinPart ? d.m_deltaToCarInFrontMinutesPart : 0
+  const msPart = hasMsPart ? d.m_deltaToCarInFrontMSPart : 0
   const totalMs = minPart * 60000 + msPart
   return totalMs >= 0 ? totalMs / 1000 : null
 }
@@ -548,8 +572,8 @@ function finiteOrNull(v: unknown): number | null {
 }
 function rivalStatus(driverStatus: number, resultStatus: number): RivalState['status'] {
   if (resultStatus === 3) return 'finished'
-  // resultStatus 4=DSQ, 5=not classified, 6=retired
-  if (resultStatus === 4 || resultStatus === 5 || resultStatus === 6 || driverStatus === 4) return 'retired'
+  // resultStatus 4=DSQ, 5=not classified, 6=retired — driverStatus 4=on track (not retired)
+  if (resultStatus === 4 || resultStatus === 5 || resultStatus === 6) return 'retired'
   if (driverStatus === 0 || driverStatus === 7) return 'inGarage'
   return 'running'
 }

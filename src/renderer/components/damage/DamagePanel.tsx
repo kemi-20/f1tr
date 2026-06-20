@@ -36,8 +36,11 @@ export function DamagePanel(): React.ReactElement {
           <div className="my-2 border-t border-white/[0.05]" />
           <div className="flex flex-col gap-1.5">
             <DamageBar label="ICE" value={1 - pu.engine} />
-            <DamageBar label="Box" value={1 - pu.gearbox} />
+            <DamageBar label="Turbo" value={1 - pu.turbo} />
             <DamageBar label="MGU-H" value={1 - pu.mguh} />
+            <DamageBar label="ES" value={1 - pu.es} />
+            <DamageBar label="CE" value={1 - pu.ce} />
+            <DamageBar label="Box" value={1 - pu.gearbox} />
             <DamageBar label="Exh" value={1 - pu.exhaust} />
           </div>
         </>
