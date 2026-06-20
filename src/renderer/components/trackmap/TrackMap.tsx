@@ -159,7 +159,7 @@ function buildGeometry(trackMap: CalibratedTrackMap): TrackGeometry {
   const totalLength = cumulative[cumulative.length - 1] ?? 0
   return {
     bounds: trackMap.bounds,
-    viewBox: viewBoxWithPadding(trackMap.bounds, 42),
+    viewBox: viewBoxWithTrackMargin(trackMap.bounds),
     fused: trackMap.fusedLine,
     cumulative,
     totalLength,
@@ -214,9 +214,13 @@ function cumulativeDistances(points: TrackPoint[]): number[] {
   return distances
 }
 
-function viewBoxWithPadding(bounds: TrackBounds, padding: number): string {
+function viewBoxWithTrackMargin(bounds: TrackBounds): string {
   const [minX, minY, maxX, maxY] = bounds
-  return `${minX - padding} ${minY - padding} ${maxX - minX + padding * 2} ${maxY - minY + padding * 2}`
+  const width = maxX - minX
+  const height = maxY - minY
+  const padX = Math.max(90, width * 0.18)
+  const padY = Math.max(90, height * 0.18)
+  return `${minX - padX} ${minY - padY} ${width + padX * 2} ${height + padY * 2}`
 }
 
 function markerSize(bounds: TrackBounds): number {

@@ -65,7 +65,7 @@ export class AudioPipeline {
     if (this.preemptOnHigh && this.higherThan(priority, this.current.priority)) {
       const preemptedId = this.current.id
       logger.info(`AudioPipeline preempt: [${priority}] > [${this.current.priority}]`)
-      Sender.send('audio:end', { utteranceId: preemptedId })
+      Sender.send('audio:end', { utteranceId: preemptedId, reason: 'preempt' })
       this.client?.cancel()
       this.queue = this.queue.filter((r) => r.priority !== 'low' && r.priority !== 'normal') // drop superseded low/normal
       this.queue.unshift(req) // new request runs next
@@ -89,7 +89,7 @@ export class AudioPipeline {
   cancelAll(): void {
     this.client?.cancel()
     if (this.current) {
-      Sender.send('audio:end', { utteranceId: this.current.id })
+      Sender.send('audio:end', { utteranceId: this.current.id, reason: 'cancel' })
     }
     this.queue = []
     this.current = null
@@ -103,21 +103,26 @@ export class AudioPipeline {
     this.current = req
     Sender.send('audio:start', { utteranceId: req.id, priority: req.priority })
     this.seq = 0
+    let samplesSent = 0
+    let completed = false
     try {
       await this.client.synthesize(
         req.text,
         req.voice,
         req.direction,
         (base64Pcm16) => {
+          samplesSent += pcm16Samples(base64Pcm16)
           Sender.send('audio:chunk', { utteranceId: req.id, seq: this.seq++, base64Pcm16 })
         },
         undefined
       )
-      Sender.send('audio:end', { utteranceId: req.id })
+      completed = true
+      Sender.send('audio:end', { utteranceId: req.id, reason: 'complete' })
+      await sleep(playbackHoldMs(samplesSent))
     } catch (err) {
       logger.error('AudioPipeline synthesis failed:', (err as Error)?.message ?? err)
       // on abort/error, still notify renderer so it stops playing the old utterance
-      Sender.send('audio:end', { utteranceId: req.id })
+      Sender.send('audio:end', { utteranceId: req.id, reason: completed ? 'complete' : 'error' })
       // graceful: the renderer still shows the text advice; just no audio
     } finally {
       this.current = null
@@ -138,4 +143,17 @@ export class AudioPipeline {
   private priorityRank(p: Priority): number {
     return p === 'critical' ? 4 : p === 'high' ? 3 : p === 'normal' ? 2 : 1
   }
+}
+
+function pcm16Samples(base64Pcm16: string): number {
+  return Math.floor((base64Pcm16.length * 3 / 4) / 2)
+}
+
+function playbackHoldMs(samples: number): number {
+  if (samples <= 0) return 0
+  return Math.min(60_000, Math.ceil((samples / 24_000) * 1000) + 160)
+}
+
+function sleep(ms: number): Promise<void> {
+  return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve()
 }

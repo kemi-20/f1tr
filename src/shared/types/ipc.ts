@@ -13,7 +13,7 @@ export const IPC = {
   STATUS: 'engineer:status', // 'idle'|'listening'|'thinking'|'speaking'|'error'
   AUDIO_START: 'audio:start', // { utteranceId, priority }
   AUDIO_CHUNK: 'audio:chunk', // { utteranceId, seq, base64Pcm16 }
-  AUDIO_END: 'audio:end', // { utteranceId }
+  AUDIO_END: 'audio:end', // { utteranceId, reason }
   SESSION_META: 'session:meta', // format detected, track changed
   HEALTH: 'health', // packet watchdog, API errors
 
@@ -67,6 +67,11 @@ export interface AudioChunk {
   utteranceId: string
   seq: number
   base64Pcm16: string
+}
+
+export interface AudioEnd {
+  utteranceId: string
+  reason: 'complete' | 'cancel' | 'error' | 'preempt'
 }
 
 export interface SessionMeta {

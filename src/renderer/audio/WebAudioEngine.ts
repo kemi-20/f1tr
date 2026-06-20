@@ -1,5 +1,5 @@
 import { api } from '../ipc/ipcClient'
-import type { AudioChunk, AudioStart } from '@shared/index'
+import type { AudioChunk, AudioEnd, AudioStart } from '@shared/index'
 
 /**
  * WebAudioEngine — renderer-side playback for MiMo PCM16 streams.
@@ -173,9 +173,11 @@ export function wireAudioIpc(): () => void {
     }
   }))
   offs.push(api.on('audio:chunk', (p) => WebAudioEngine.onChunk(p as AudioChunk)))
-  offs.push(api.on('audio:end', () => {
-    // Stop all active sources — covers both per-utterance end and cancelAll
-    WebAudioEngine.stopAll()
+  offs.push(api.on('audio:end', (p) => {
+    const end = p as AudioEnd
+    if (end.reason !== 'complete') {
+      WebAudioEngine.stopAll()
+    }
   }))
   return () => offs.forEach((off) => off())
 }
