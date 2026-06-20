@@ -14,6 +14,7 @@ export class DigestBuilder {
     const w = state.weather
     const p = state.player
     const sc = s.isRedFlag ? 'red' : s.isSafetyCar ? 'sc' : s.isVirtualSafetyCar ? 'vsc' : 'none'
+    const drsBlockedByWeather = w.isRaining || w.weatherCode >= 3 || w.wetness >= 0.08
 
     const playerRivals = this.rivalsAroundPlayer(state, 4)
 
@@ -43,7 +44,7 @@ export class DigestBuilder {
         fuel: p.fuelRemainingKg != null ? `${p.fuelRemainingKg.toFixed(1)}kg` : '--',
         pits: p.pitStopCount,
         ers: fmtPct(p.ersPercent),
-        drs: p.drsActive ? 'active' : p.drsAllowed ? 'available' : 'no',
+        drs: drsBlockedByWeather ? 'disabled by rain/wet track' : p.drsActive ? 'active' : p.drsAllowed ? 'available' : 'no',
         tyre: {
           compound: p.tyres.compound,
           age: `${p.tyres.ageLaps}L`,
@@ -159,9 +160,10 @@ export class DigestBuilder {
   }
 
   private weatherExpected(w: RaceState['weather']): string {
-    if (w.rainPercentage > 50 || w.isRaining) return 'wet'
+    if (w.weatherCode >= 3 || w.isRaining) return 'raining/wet'
+    if (w.wetness > 0.3) return 'drying wet track'
+    if (w.wetness > 0.08) return 'damp track'
     if (w.rainPercentage > 25) return 'changeable'
-    if (w.wetness > 0.3) return 'drying'
     return 'dry'
   }
 

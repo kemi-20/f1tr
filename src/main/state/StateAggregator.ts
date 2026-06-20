@@ -103,19 +103,23 @@ export class StateAggregator {
     w.airTempC = p.m_airTemperature ?? w.airTempC
     w.trackTempC = p.m_trackTemperature ?? w.trackTempC
     w.weatherCode = p.m_weather ?? w.weatherCode
-    w.wetness = clamp01((p.m_trackWetness ?? 0) / 100)
-    const rainPct = p.m_weatherForecastSamples?.[0]?.m_rainPercentage ?? w.rainPercentage
+    w.wetness = clamp01((p.m_trackWetness ?? w.wetness * 100) / 100)
     const forecast = p.m_weatherForecastSamples?.[0]
-    const wasRaining = w.rainPercentage > 30
-    w.rainPercentage = rainPct ?? w.rainPercentage
+    const forecastRainPct = forecast?.m_rainPercentage
+    const wasRaining = w.isRaining
+    const currentRainCode = isRainWeatherCode(w.weatherCode)
+    const wetTrack = w.wetness >= 0.08
+    w.rainPercentage = currentRainCode
+      ? Math.max(60, forecastRainPct ?? w.rainPercentage)
+      : (forecastRainPct ?? w.rainPercentage)
     w.predictedCode = forecast?.m_weather ?? w.predictedCode
     w.predictedWetness = clamp01((forecast?.m_rainPercentage ?? w.predictedWetness * 100) / 100)
     w.rainOnset = false
-    const nowRaining = w.rainPercentage > 30
+    const nowRaining = currentRainCode || wetTrack
     w.isRaining = nowRaining
     w.rainOnset = !wasRaining && nowRaining
-    if (!wasRaining && nowRaining && rainPct > 0 && !this.isDupe('rain', uid)) {
-      this.pushEvent('weatherChange', 'Rain detected')
+    if (!wasRaining && nowRaining && !this.isDupe('rain', uid)) {
+      this.pushEvent('weatherChange', currentRainCode ? 'Rain detected' : 'Wet track detected')
     }
 
     if (sessionChanged) {
@@ -398,22 +402,23 @@ export class StateAggregator {
     const d = (p.m_eventDetails ?? {}) as Record<string, number>
     const uid = h.m_sessionUID.toString()
     const vIdx = d.vehicleIdx ?? -1
+    const driver = this.driverLabel(vIdx)
     switch (code) {
       case 'FTLP':
-        if (!this.isDupe(`ftlp-${vIdx}`, uid)) this.pushEvent('fastestLap', `Fastest lap by car ${vIdx}`, vIdx)
+        if (!this.isDupe(`ftlp-${vIdx}`, uid)) this.pushEvent('fastestLap', `Fastest lap by ${driver}`, vIdx)
         break
       case 'RTMT':
         // RTMT = Retirement (car carries vehicleIdx). SEND = SessionEnded, NOT retirement.
-        if (!this.isDupe(`retire-${vIdx}`, uid)) this.pushEvent('retirement', `Car ${vIdx} retired`, vIdx)
+        if (!this.isDupe(`retire-${vIdx}`, uid)) this.pushEvent('retirement', `${driver} retired`, vIdx)
         break
       case 'OVTK':
-        if (!this.isDupe(`ovtk-${vIdx}`, uid)) this.pushEvent('overtake', `Car ${vIdx} overtook`, vIdx)
+        if (!this.isDupe(`ovtk-${vIdx}`, uid)) this.pushEvent('overtake', `${driver} overtook`, vIdx)
         break
       case 'COLL':
-        if (!this.isDupe(`coll-${vIdx}`, uid)) this.pushEvent('collision', `Collision involving car ${vIdx}`, vIdx)
+        if (!this.isDupe(`coll-${vIdx}`, uid)) this.pushEvent('collision', `Collision involving ${driver}`, vIdx)
         break
       case 'SPIN':
-        if (!this.isDupe(`spin-${vIdx}`, uid)) this.pushEvent('spin', `Car ${vIdx} spun`, vIdx)
+        if (!this.isDupe(`spin-${vIdx}`, uid)) this.pushEvent('spin', `${driver} spun`, vIdx)
         break
       case 'DRSE':
         if (vIdx === this.state.player.carIndex) logger.debug('DRS enabled')
@@ -441,11 +446,11 @@ export class StateAggregator {
         if (!this.isDupe('sessionEnded', uid)) this.pushEvent('sessionEnded', 'Session ended', vIdx)
         break
       case 'PENA':
-        if (vIdx === this.state.player.carIndex && !this.isDupe(`pen-${vIdx}`, uid))
-          this.pushEvent('penalty', `Penalty for car ${vIdx}`, vIdx)
+        if (!this.isDupe(`pen-${vIdx}`, uid))
+          this.pushEvent('penalty', `Penalty for ${driver}`, vIdx)
         break
       case 'RCWN':
-        if (!this.isDupe(`win-${vIdx}`, uid)) this.pushEvent('raceWinner', `Car ${vIdx} wins`, vIdx)
+        if (!this.isDupe(`win-${vIdx}`, uid)) this.pushEvent('raceWinner', `${driver} wins`, vIdx)
         break
       default:
         break
@@ -501,6 +506,11 @@ export class StateAggregator {
       }
     }
     return this.state.rivals[carIndex]
+  }
+
+  private driverLabel(carIndex: number): string {
+    if (carIndex === this.state.player.carIndex) return this.state.rivals[carIndex]?.name || 'player'
+    return this.state.rivals[carIndex]?.name || `driver #${carIndex}`
   }
 
   private pushEvent(type: RecentEvent['type'], text: string, carIndex?: number): void {
@@ -580,6 +590,10 @@ function normPctTo01(v: number | undefined | null): number {
 }
 function finiteOrNull(v: unknown): number | null {
   return typeof v === 'number' && isFinite(v) ? v : null
+}
+function isRainWeatherCode(code: number): boolean {
+  // F1 weather enum: 0 clear, 1 light cloud, 2 overcast, 3 light rain, 4 heavy rain, 5 storm.
+  return code >= 3
 }
 function rivalStatus(driverStatus: number, resultStatus: number): RivalState['status'] {
   if (resultStatus === 3) return 'finished'

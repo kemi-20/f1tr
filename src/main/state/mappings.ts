@@ -112,8 +112,8 @@ const SESSION_TYPES: Record<number, string> = {
   11: 'Practice',
   12: 'Qualifying',
   13: 'Race',
-  14: 'Race 2',
-  15: 'Race 3',
+  14: 'Race',
+  15: 'Race',
   16: 'Time Trial'
 }
 

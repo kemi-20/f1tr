@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useRaceStore } from '../../store'
-import { getTrack, fmtGap, compoundLabel } from '@shared/index'
+import { getTrack } from '@shared/index'
 import { CALIBRATED_TRACK_MAPS, type CalibratedTrackMap, type TrackBounds, type TrackPoint } from './trackMapAssets'
 
 /**
@@ -15,12 +15,6 @@ export function TrackMap(): React.ReactElement {
   const positions = race?.trackPositions ?? []
   const trackMap = CALIBRATED_TRACK_MAPS[trackId]
   const geometry = useMemo(() => (trackMap ? buildGeometry(trackMap) : null), [trackMap])
-  const rivals = race ? Object.values(race.rivals) : []
-  const playerPos = race?.player.position ?? 0
-  const sorted = [...rivals].sort((a, b) => a.position - b.position)
-  const playerIndex = sorted.findIndex((r) => r.position === playerPos)
-  const start = Math.max(0, (playerIndex >= 0 ? playerIndex : 0) - 2)
-  const raceWindow = sorted.slice(start, start + 6)
   const marker = geometry ? markerSize(geometry.bounds) : 1
 
   return (
@@ -91,13 +85,20 @@ export function TrackMap(): React.ReactElement {
               return (
                 <g key={p.carIndex}>
                   {isP && (
-                    <circle cx={pt.x} cy={pt.y} r={marker * 2.2} fill="none" stroke={colour} strokeWidth={marker * 0.38}>
-                      <animate attributeName="r" values={`${marker * 1.8};${marker * 3.2};${marker * 1.8}`} dur="1.6s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="0.9;0;0.9" dur="1.6s" repeatCount="indefinite" />
-                    </circle>
+                    <>
+                      <circle cx={pt.x} cy={pt.y} r={marker * 2.9} fill="none" stroke="#FFE600" strokeWidth={marker * 0.32}>
+                        <animate attributeName="r" values={`${marker * 2.4};${marker * 3.7};${marker * 2.4}`} dur="1.4s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="1;0.25;1" dur="1.4s" repeatCount="indefinite" />
+                      </circle>
+                      <circle cx={pt.x} cy={pt.y} r={marker * 2.05} fill="none" stroke="#FFE600" strokeWidth={marker * 0.34} />
+                    </>
                   )}
-                  <circle cx={pt.x} cy={pt.y} r={isP ? marker * 1.45 : marker * 1.08} fill="rgba(0,0,0,0.86)" />
-                  <circle cx={pt.x} cy={pt.y} r={isP ? marker * 1.18 : marker * 0.84} fill={colour} stroke="rgba(255,255,255,0.82)" strokeWidth={marker * 0.18} />
+                  <circle cx={pt.x} cy={pt.y} r={isP ? marker * 1.62 : marker * 1.2} fill={colour} stroke="rgba(0,0,0,0.95)" strokeWidth={marker * 0.42} />
+                  <circle cx={pt.x - marker * 0.3} cy={pt.y - marker * 0.3} r={marker * 0.28} fill="rgba(255,255,255,0.65)">
+                    {isP && (
+                      <animate attributeName="opacity" values="0.9;0;0.9" dur="1.6s" repeatCount="indefinite" />
+                    )}
+                  </circle>
                 </g>
               )
             })}
@@ -111,8 +112,8 @@ export function TrackMap(): React.ReactElement {
               const colour = teamColorForCar(race?.rivals[p.carIndex]?.team)
               return (
                 <g key={p.carIndex}>
-                  <circle cx={pt.x} cy={pt.y} r={p.isPlayer ? 2.7 : 2.1} fill="rgba(0,0,0,0.86)" />
-                  <circle cx={pt.x} cy={pt.y} r={p.isPlayer ? 2.2 : 1.7} fill={colour} stroke="rgba(255,255,255,0.82)" strokeWidth="0.35" />
+                  {p.isPlayer && <circle cx={pt.x} cy={pt.y} r="4.4" fill="none" stroke="#FFE600" strokeWidth="0.9" />}
+                  <circle cx={pt.x} cy={pt.y} r={p.isPlayer ? 2.7 : 2.1} fill={colour} stroke="rgba(0,0,0,0.95)" strokeWidth="0.9" />
                 </g>
               )
             })}
@@ -120,24 +121,6 @@ export function TrackMap(): React.ReactElement {
         )}
         <div className="absolute bottom-1 right-2 text-[8px] text-white/25">
           {race?.weather.isRaining ? 'wet' : 'dry'} · {Math.round(race?.weather.trackTempC ?? 0)}°
-        </div>
-      </div>
-
-      <div className="mt-2 shrink-0 border-t border-white/[0.05] pt-2">
-        <div className="mb-1 label">Track order</div>
-        <div className="flex flex-col gap-0.5">
-          {raceWindow.length === 0 && <div className="text-[10px] text-white/25">等待车手数据…</div>}
-          {raceWindow.map((r) => {
-            const isP = r.position === playerPos
-            return (
-              <div key={r.carIndex} className={`flex items-center gap-2 rounded px-1.5 py-0.5 text-[10px] ${isP ? 'bg-accent-carbon/10' : ''}`}>
-                <span className="num-mono w-5 text-white/50">{r.position}</span>
-                <span className="w-20 truncate text-white/70">{r.name || `car${r.carIndex}`}</span>
-                <span className="num-mono w-14 text-right text-white/40">{fmtGap(r.gapToPlayerS)}</span>
-                <span className="text-white/30">{compoundLabel(r.tyreCompound)}</span>
-              </div>
-            )
-          })}
         </div>
       </div>
     </div>
@@ -226,8 +209,8 @@ function viewBoxWithTrackMargin(bounds: TrackBounds): string {
   const [minX, minY, maxX, maxY] = bounds
   const width = maxX - minX
   const height = maxY - minY
-  const padX = Math.max(130, width * 0.3)
-  const padY = Math.max(130, height * 0.3)
+  const padX = Math.max(55, width * 0.1)
+  const padY = Math.max(55, height * 0.1)
   return `${minX - padX} ${minY - padY} ${width + padX * 2} ${height + padY * 2}`
 }
 

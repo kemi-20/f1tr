@@ -17,13 +17,12 @@ function DamageBar({ label, value }: { label: string; value: number }): React.Re
 export function DamagePanel(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const dmg = race?.player.damage
-  const pu = race?.player.powerUnit
 
   return (
     <div className="glass p-4">
       <div className="mb-2 flex items-center justify-between">
         <span className="label">Damage</span>
-        <span className="text-[9px] text-white/30">body · power unit</span>
+        <span className="text-[9px] text-white/30">body</span>
       </div>
       <div className="flex flex-col gap-1.5">
         <DamageBar label="F-Wing L" value={dmg?.frontLeftWing ?? 0} />
@@ -31,20 +30,6 @@ export function DamagePanel(): React.ReactElement {
         <DamageBar label="R-Wing" value={dmg?.rearWing ?? 0} />
         <DamageBar label="Floor" value={dmg?.floor ?? 0} />
       </div>
-      {pu && (
-        <>
-          <div className="my-2 border-t border-white/[0.05]" />
-          <div className="flex flex-col gap-1.5">
-            <DamageBar label="ICE" value={1 - pu.engine} />
-            <DamageBar label="Turbo" value={1 - pu.turbo} />
-            <DamageBar label="MGU-H" value={1 - pu.mguh} />
-            <DamageBar label="ES" value={1 - pu.es} />
-            <DamageBar label="CE" value={1 - pu.ce} />
-            <DamageBar label="Box" value={1 - pu.gearbox} />
-            <DamageBar label="Exh" value={1 - pu.exhaust} />
-          </div>
-        </>
-      )}
     </div>
   )
 }

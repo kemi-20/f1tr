@@ -12,6 +12,10 @@ export function TopStrip(): React.ReactElement {
   const player = race?.player
 
   const sc = session?.isSafetyCar ? 'SC' : session?.isVirtualSafetyCar ? 'VSC' : session?.isRedFlag ? 'RED' : null
+  const isPractice = session ? isPracticeSession(session.sessionType, session.sessionTypeLabel) : false
+  const lapText = isPractice
+    ? String(session?.currentLap ?? 0)
+    : `${session?.currentLap ?? 0}${session?.totalLaps ? `/${session.totalLaps}` : ''}`
 
   const timeLeft = session?.sessionTimeLeftS
   const tl = timeLeft != null ? Math.max(0, timeLeft) : null
@@ -36,11 +40,16 @@ export function TopStrip(): React.ReactElement {
         <div className="h-8 w-px bg-white/[0.08]" />
         <div>
           <div className="num-display text-lg font-bold text-white">
-            {session?.currentLap ?? 0}
-            {session?.totalLaps ? <span className="text-sm text-white/40">/{session.totalLaps}</span> : null}
+            {lapText.includes('/') ? (
+              <>
+                {lapText.split('/')[0]}
+                <span className="text-sm text-white/40">/{lapText.split('/')[1]}</span>
+              </>
+            ) : (
+              lapText
+            )}
           </div>
-          {/* practice sessions have no lap limit; show time-remaining instead */}
-          <div className="label">{session?.totalLaps ? 'lap' : 'lap · practice'}</div>
+          <div className="label">{isPractice ? 'laps run' : 'lap'}</div>
         </div>
         <div>
           <div className="num-mono text-lg font-medium text-white">{timeLeftStr}</div>
@@ -107,4 +116,8 @@ export function TopStrip(): React.ReactElement {
       )}
     </div>
   )
+}
+
+function isPracticeSession(sessionType: number, label: string): boolean {
+  return [1, 2, 3, 4, 11].includes(sessionType) || /practice|^p[123]$/i.test(label)
 }

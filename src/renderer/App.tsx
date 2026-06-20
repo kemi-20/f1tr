@@ -29,7 +29,7 @@ export function App(): React.ReactElement {
       <div className="grid flex-1 grid-cols-12 gap-3 overflow-hidden">
         {/* left column: HUD + tyres + damage */}
         <div className="col-span-3 flex flex-col gap-3 overflow-hidden">
-          <div className="min-h-[340px] flex-1">
+          <div className="min-h-[320px] flex-1">
             <DriverHud />
           </div>
           <TyreGrid />
