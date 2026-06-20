@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { fmtLapTime, fmtGap, fmtPct, compoundLabel, tempScale } from '../src/shared/util/format'
+import { normalizeURL } from '../src/main/config/env'
 
 describe('format helpers', () => {
   it('formats lap times', () => {
@@ -32,5 +33,15 @@ describe('format helpers', () => {
     expect(tempScale(95)).toBeGreaterThan(0.4)
     expect(tempScale(95)).toBeLessThan(0.6)
     expect(tempScale(null)).toBe(0.5)
+  })
+})
+
+describe('normalizeURL', () => {
+  it('keeps version suffixes such as v1beta intact', () => {
+    expect(normalizeURL('api.example.com/v1beta/chat/completions')).toBe('https://api.example.com/v1beta')
+  })
+
+  it('keeps plain v1 URLs as the API base', () => {
+    expect(normalizeURL('https://api.example.com/v1/chat/completions')).toBe('https://api.example.com/v1')
   })
 })

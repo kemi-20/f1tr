@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { DigestBuilder } from '../src/main/engineer/DigestBuilder'
+import { StateAggregator } from '../src/main/state/StateAggregator'
 import { emptyRaceState } from '../src/main/state/defaults'
 import type { TriggerFiring } from '../src/shared/types/triggers'
 import type { RaceState } from '../src/shared/types/state'
@@ -56,6 +57,51 @@ const firing: TriggerFiring = {
   ts: Date.now()
 }
 
+const header = {
+  m_packetFormat: 2025,
+  m_gameYear: 2025,
+  m_sessionUID: 123n,
+  m_overallFrameIdentifier: 1,
+  m_playerCarIndex: 2
+}
+
+function sessionPacket(safetyCarStatus: number): Record<string, unknown> {
+  return {
+    m_header: header,
+    m_sessionType: 13,
+    m_trackId: 16,
+    m_totalLaps: 71,
+    m_sessionTimeLeft: 3600,
+    m_sessionDuration: 5400,
+    m_pitSpeedLimit: 80,
+    m_trackLength: 4294,
+    m_safetyCarStatus: safetyCarStatus,
+    m_numRedFlagPeriods: 0,
+    m_airTemperature: 24,
+    m_trackTemperature: 34,
+    m_trackWetness: 0,
+    m_weatherForecastSamples: [{ m_rainPercentage: 5, m_weather: 0 }]
+  }
+}
+
+function lap(position: number, gapToFront: number | null): Record<string, unknown> {
+  return {
+    m_carPosition: position,
+    m_currentLapNum: 10,
+    m_lapDistance: 1000,
+    m_deltaToCarInFrontMSPart: gapToFront == null ? 0 : Math.round(gapToFront * 1000),
+    m_deltaToCarInFrontMinutesPart: 0,
+    m_numPitStops: 0,
+    m_pitStatus: 0,
+    m_penalties: 0,
+    m_lastLapTimeInMs: 90_000,
+    m_currentLapTimeInMs: 30_000,
+    m_gridPosition: position,
+    m_resultStatus: 2,
+    m_driverStatus: 4
+  }
+}
+
 describe('DigestBuilder', () => {
   it('builds a digest and renders compact text', () => {
     const db = new DigestBuilder()
@@ -84,5 +130,35 @@ describe('DigestBuilder', () => {
     const text = db.toText(db.build(makeState(), firing))
     expect(text).toContain('SAINZ')
     expect(text).toContain('NORRIS')
+  })
+})
+
+describe('StateAggregator gap and safety-car events', () => {
+  it('does not double-count the player-to-front gap when walking cars ahead', () => {
+    const agg = new StateAggregator()
+    agg.onSession(sessionPacket(0) as never)
+    agg.onLapData({
+      m_header: header,
+      m_lapData: [
+        lap(1, null),
+        lap(2, 1.2),
+        lap(3, 0.8),
+        lap(4, 0.5)
+      ]
+    } as never)
+
+    expect(agg.state.rivals[2].gapToPlayerS).toBe(0)
+    expect(agg.state.rivals[1].gapToPlayerS).toBeCloseTo(0.8)
+    expect(agg.state.rivals[0].gapToPlayerS).toBeCloseTo(2.0)
+    expect(agg.state.rivals[3].gapToPlayerS).toBeCloseTo(-0.5)
+  })
+
+  it('emits green-flag event after VSC ending status transitions to racing resumed', () => {
+    const agg = new StateAggregator()
+    agg.onSession(sessionPacket(2) as never)
+    agg.onSession(sessionPacket(4) as never)
+    agg.onSession(sessionPacket(5) as never)
+
+    expect(agg.state.recentEvents.map((ev) => ev.text)).toContain('SC/VSC ended — green flag')
   })
 })

@@ -96,8 +96,9 @@ app.whenReady().then(() => {
   engineer.setLanguage(cfg.language.mode)
   engineer.setVoice(cfg.language.voice, cfg.language.direction)
   engineer.setEngineerStyle(cfg.language.engineerStyle)
+  engineer.setMemoryTurns(cfg.advanced.memoryTurns)
 
-  telemetry = new TelemetryService(cfg.telemetry.port, cfg.triggers, (firing) => {
+  telemetry = new TelemetryService(cfg.telemetry.port, cfg.triggers, cfg.telemetry.rendererPaintHz, (firing) => {
     // fire on the main event loop — serialize through the engineer's queue
     const state = telemetry!.aggregator.getState()
     engineer!.enqueue(state, firing)

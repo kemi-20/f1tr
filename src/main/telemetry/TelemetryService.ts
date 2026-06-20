@@ -30,17 +30,22 @@ export class TelemetryService {
   constructor(
     port = 20777,
     triggerConfig: TriggerConfig,
+    rendererPaintHz = 12,
     onFiring: (f: TriggerFiring) => void
   ) {
     this.aggregator = new StateAggregator()
     this.receiver = new UdpReceiver(port)
     this.triggers = new TriggerEngine(triggerConfig, onFiring)
-    this.emitter = new SnapshotEmitter(this.aggregator, () => ({
-      packetsReceived: this.receiver.packetsReceived,
-      packetsDropped: this.receiver.packetsDropped,
-      lastPacketMs: this.receiver.lastPacketMs,
-      format: this.receiver.currentFormat
-    }))
+    this.emitter = new SnapshotEmitter(
+      this.aggregator,
+      () => ({
+        packetsReceived: this.receiver.packetsReceived,
+        packetsDropped: this.receiver.packetsDropped,
+        lastPacketMs: this.receiver.lastPacketMs,
+        format: this.receiver.currentFormat
+      }),
+      rendererPaintHz
+    )
 
     // bind every reducer to its packet event (PACKETS values are strings)
     const P = PACKETS as unknown as Record<string, string>
@@ -102,6 +107,7 @@ export class TelemetryService {
 
   private tick(): void {
     const state = this.aggregator.getState()
+    state.flashbackActive = this.triggers.isFlashbackActive()
     this.triggers.evaluate(state)
     this.drainEvents()
   }
@@ -124,6 +130,7 @@ export class TelemetryService {
     const frame = p.m_header.m_overallFrameIdentifier
     if (this.lastSessionUID === uid && frame < this.lastOverallFrame - 5) {
       this.triggers.noteFlashback()
+      this.aggregator.state.flashbackActive = true
     }
     this.lastOverallFrame = frame
     this.lastSessionUID = uid
@@ -145,5 +152,9 @@ export class TelemetryService {
 
   packetsReceived(): number {
     return this.receiver.packetsReceived
+  }
+
+  setRendererPaintHz(hz: number): void {
+    this.emitter.setRendererPaintHz(hz)
   }
 }

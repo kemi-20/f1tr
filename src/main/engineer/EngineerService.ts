@@ -45,6 +45,10 @@ export class EngineerService {
     this.direction = getEngineerSkill(style).ttsDirection
   }
 
+  setMemoryTurns(maxTurns: number): void {
+    this.memory.setMaxTurns(maxTurns)
+  }
+
   setVoice(voice: string, direction: string): void {
     this.voice = voice
     this.direction = direction

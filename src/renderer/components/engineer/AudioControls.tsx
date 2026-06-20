@@ -18,6 +18,8 @@ export function AudioControls(): React.ReactElement {
     setPaused(cfg.audio.pause)
     WebAudioEngine.setMuted(cfg.audio.muted)
     WebAudioEngine.setVolume(cfg.audio.volume)
+    if (cfg.audio.pause) WebAudioEngine.pause()
+    else WebAudioEngine.resume()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg?.audio.muted, cfg?.audio.volume, cfg?.audio.pause])
 

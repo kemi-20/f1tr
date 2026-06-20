@@ -18,16 +18,9 @@ export interface TriggerConfig {
   tyreHotC: number
   tyreColdC: number
   defendGapS: number
-  defendClosingS: number
   attackGapS: number
-  pitWindowLeadLaps: number
   lowFuelKg: number
-  lowFuelLapMultiplier: number
-  ersLowPct: number
-  stintEndLapRatio: number
   positionChangeDelta: number
-  damageWingThreshold: number
-  damageSuspThreshold: number
   rainImminentPct: number
   heartbeatIntervalS: number
   globalMinGapS: number

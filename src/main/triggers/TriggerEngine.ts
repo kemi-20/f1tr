@@ -89,6 +89,10 @@ export class TriggerEngine {
     return Date.now() < this.flashbackUntilMs
   }
 
+  isFlashbackActive(): boolean {
+    return this.inFlashback()
+  }
+
   /** Called externally when a flashback is detected (frame id regressed). */
   noteFlashback(): void {
     this.flashbackUntilMs = Date.now() + 3000
@@ -304,8 +308,6 @@ function classifyKind(ruleId: string): 'heartbeat' | 'event' | 'threshold' {
     'red_flag',
     'fastest_lap',
     'penalty',
-    'position_gain',
-    'position_loss',
     'race_winner'
   ])
   if (EVENT_RULES.has(ruleId)) return 'event'

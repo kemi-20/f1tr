@@ -25,8 +25,15 @@ export class ConversationMemory {
   private recentTurns: { user: string; assistant: string }[] = []
 
   constructor(
-    private readonly maxTurns = 6
+    private maxTurns = 6
   ) {}
+
+  setMaxTurns(maxTurns: number): void {
+    this.maxTurns = Math.max(0, Math.min(20, Math.round(maxTurns)))
+    if (this.recentTurns.length > this.maxTurns) {
+      this.recentTurns = this.recentTurns.slice(-this.maxTurns)
+    }
+  }
 
   setLanguage(mode: LanguageMode): void {
     if (this.mode !== mode) {

@@ -3,8 +3,6 @@ import { Sender } from '../ipc/sender'
 import { logger } from '../logging/Logger'
 import type { SnapshotPayload, RaceState, HealthPayload } from '@shared/index'
 
-const SNAPSHOT_HZ = 12
-const PAINT_HZ = 2
 const HEALTH_HZ = 2
 
 /**
@@ -19,13 +17,36 @@ export class SnapshotEmitter {
   private paintTimer: NodeJS.Timeout | null = null
   private healthTimer: NodeJS.Timeout | null = null
   private lastPaintJson = ''
+  private running = false
+  private snapshotHz = 12
+  private paintHz = 12
 
   constructor(
     private aggregator: StateAggregator,
-    private getStats: () => { packetsReceived: number; packetsDropped: number; lastPacketMs: number; format: number | null }
-  ) {}
+    private getStats: () => { packetsReceived: number; packetsDropped: number; lastPacketMs: number; format: number | null },
+    rendererPaintHz = 12
+  ) {
+    this.setRendererPaintHz(rendererPaintHz)
+  }
+
+  setRendererPaintHz(hz: number): void {
+    const next = clampHz(hz)
+    if (next === this.paintHz && next === this.snapshotHz) return
+    this.snapshotHz = next
+    this.paintHz = next
+    if (this.running) {
+      this.stopTimers()
+      this.startTimers()
+    }
+  }
 
   start(): void {
+    if (this.running) return
+    this.running = true
+    this.startTimers()
+  }
+
+  private startTimers(): void {
     const snapshot = (): void => {
       const s = this.aggregator.state
       const p = s.player
@@ -57,6 +78,10 @@ export class SnapshotEmitter {
       const stats = this.getStats()
       const now = Date.now()
       const waiting = stats.lastPacketMs === 0 || now - stats.lastPacketMs > 3000
+      const state = this.aggregator.state
+      state.lastPacketMs = stats.lastPacketMs
+      state.packetsReceived = stats.packetsReceived
+      state.packetsDropped = stats.packetsDropped
       const payload: HealthPayload = {
         connected: !waiting,
         waiting,
@@ -68,16 +93,26 @@ export class SnapshotEmitter {
       Sender.send('health', payload)
     }
 
-    this.snapshotTimer = setInterval(snapshot, 1000 / SNAPSHOT_HZ)
-    this.paintTimer = setInterval(paint, 1000 / PAINT_HZ)
+    this.snapshotTimer = setInterval(snapshot, 1000 / this.snapshotHz)
+    this.paintTimer = setInterval(paint, 1000 / this.paintHz)
     this.healthTimer = setInterval(health, 1000 / HEALTH_HZ)
-    logger.info(`SnapshotEmitter started (snapshot ${SNAPSHOT_HZ}Hz, paint ${PAINT_HZ}Hz, health ${HEALTH_HZ}Hz)`)
+    logger.info(`SnapshotEmitter started (snapshot ${this.snapshotHz}Hz, paint ${this.paintHz}Hz, health ${HEALTH_HZ}Hz)`)
   }
 
   stop(): void {
+    this.stopTimers()
+    this.running = false
+  }
+
+  private stopTimers(): void {
     for (const t of [this.snapshotTimer, this.paintTimer, this.healthTimer]) {
       if (t) clearInterval(t)
     }
     this.snapshotTimer = this.paintTimer = this.healthTimer = null
   }
+}
+
+function clampHz(hz: number): number {
+  if (!Number.isFinite(hz)) return 12
+  return Math.max(2, Math.min(60, Math.round(hz)))
 }

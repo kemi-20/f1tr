@@ -19,6 +19,7 @@ export class StateAggregator {
   public state: RaceState = emptyRaceState()
   private lastSessionUID = ''
   private prevSC = 0
+  private scActive = false
   private _prevRedFlagCount = 0
   private lastEventBucket = new Set<string>()
 
@@ -34,6 +35,7 @@ export class StateAggregator {
     this.lastSessionUID = ''
     this.lastEventBucket.clear()
     this.prevSC = 0
+    this.scActive = false
   }
 
   // ───────────────────────── reducers ─────────────────────────
@@ -80,14 +82,18 @@ export class StateAggregator {
       this._prevRedFlagCount = Math.max(this._prevRedFlagCount ?? 0, redCount)
     }
     s.safetyCarPhase = scStatus
+    if (decoded.sc || decoded.vsc || scStatus === 4) {
+      this.scActive = true
+    }
     if (scStatus !== this.prevSC) {
       if (decoded.sc && !this.isDupe('sc', uid)) this.pushEvent('safetyCar', 'Safety Car deployed')
       else if (decoded.vsc && !this.isDupe('vsc', uid)) this.pushEvent('vsc', 'Virtual Safety Car')
       else if (decoded.formation && !this.isDupe('formation', uid)) this.pushEvent('safetyCar', 'Formation lap')
-      // SC/VSC ended: prev was active, now scStatus is 0 (none) or 5 (racing resumed)
-      const prevDecoded = decodeSafetyCar(this.prevSC)
-      if ((prevDecoded.sc || prevDecoded.vsc) && (scStatus === 0 || decoded.resumed)) {
+      // SC/VSC may pass through status 4 (VSC ending), so keep a latched active
+      // flag instead of relying only on the immediately previous enum value.
+      if (this.scActive && (scStatus === 0 || decoded.resumed)) {
         if (!this.isDupe('sc-ended', uid)) this.pushEvent('safetyCar', 'SC/VSC ended — green flag')
+        this.scActive = false
       }
       this.prevSC = scStatus
     }
@@ -99,8 +105,11 @@ export class StateAggregator {
     w.weatherCode = p.m_weather ?? w.weatherCode
     w.wetness = clamp01((p.m_trackWetness ?? 0) / 100)
     const rainPct = p.m_weatherForecastSamples?.[0]?.m_rainPercentage ?? w.rainPercentage
+    const forecast = p.m_weatherForecastSamples?.[0]
     const wasRaining = w.rainPercentage > 30
     w.rainPercentage = rainPct ?? w.rainPercentage
+    w.predictedCode = forecast?.m_weather ?? w.predictedCode
+    w.predictedWetness = clamp01((forecast?.m_rainPercentage ?? w.predictedWetness * 100) / 100)
     w.rainOnset = false
     const nowRaining = w.rainPercentage > 30
     w.isRaining = nowRaining
@@ -132,6 +141,7 @@ export class StateAggregator {
     const h = p.m_header as PacketHeader
     const arr = (p.m_lapData ?? []) as AnyParsedPacket[]
     const playerIdx = h.m_playerCarIndex
+    this.state.player.carIndex = playerIdx
     const positions: TrackPosition[] = []
 
     for (let i = 0; i < arr.length; i++) {
@@ -201,27 +211,28 @@ export class StateAggregator {
       pl.onTrack = (pld.m_driverStatus ?? 1) >= 1 && (pld.m_driverStatus ?? 1) <= 4
     }
 
-    // gap-to-player via cumulative walk from the player's position in the sorted order.
-    // The player is NOT in rivals[] — so we find where they would sit and walk from there.
     const playerPos = this.state.player.position
-    // find the insertion index: first car with position > playerPos means player sits before them
-    let playerIdxInSorted = sorted.findIndex((r) => r.position > playerPos)
-    if (playerIdxInSorted === -1) playerIdxInSorted = sorted.length // player is last
-    if (sorted.length > 0) {
-      // walk UP (cars ahead): seed the first car ahead with the player's own
-      // deltaToCarInFrontS (gap from player to it). Then chain car-to-car
-      // deltaToCarBehindS for further ahead cars.
+    const playerCarIndex = this.state.player.carIndex
+    const playerIdxInSorted = sorted.findIndex((r) => r.carIndex === playerCarIndex || r.position === playerPos)
+    if (playerIdxInSorted >= 0) {
+      const playerRival = sorted[playerIdxInSorted]
+      playerRival.gapToPlayerS = 0
+
+      // Walk UP from the player. The first car ahead uses the player's own
+      // delta-to-front; cars further ahead use the closer car's chained gap.
       let cumAhead = 0
       for (let i = playerIdxInSorted - 1; i >= 0; i--) {
         const gap = i === playerIdxInSorted - 1
-          ? this.state.rivals[this.state.player.carIndex]?.deltaToCarInFrontS ?? null
+          ? playerRival.deltaToCarInFrontS
           : sorted[i].deltaToCarBehindS
         if (gap != null) cumAhead += gap
         sorted[i].gapToPlayerS = cumAhead >= 0 ? cumAhead : null
       }
-      // walk DOWN (cars behind): accumulate their deltaToCarInFrontS (negative)
+
+      // Walk DOWN from the player. Each trailing car's delta-to-front is its gap
+      // to the car immediately ahead in the running order.
       let cumBehind = 0
-      for (let i = playerIdxInSorted; i < sorted.length; i++) {
+      for (let i = playerIdxInSorted + 1; i < sorted.length; i++) {
         const gap = sorted[i].deltaToCarInFrontS
         if (gap != null) cumBehind += gap
         sorted[i].gapToPlayerS = cumBehind >= 0 ? -cumBehind : null

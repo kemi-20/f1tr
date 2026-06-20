@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from 'react'
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import { useConfigStore } from '../store'
 import { api } from '../ipc/ipcClient'
 import {
@@ -26,6 +26,15 @@ export function SettingsModal(): ReactElement | null {
   const open = useConfigStore((s) => s.settingsOpen)
   const close = useConfigStore((s) => s.closeSettings)
   const [tab, setTab] = useState<TabId>('llm')
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') close()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [close, open])
 
   if (!open) return null
 

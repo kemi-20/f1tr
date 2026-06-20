@@ -136,7 +136,11 @@ class WebAudioEngineImpl {
   }
 
   resume(): void {
-    void this.ctx?.resume()
+    if (!this.ctx) return
+    this.stopAll()
+    void this.ctx.resume().then(() => {
+      if (this.ctx) this.nextStart = this.ctx.currentTime
+    })
   }
 
   get isStarted(): boolean {
@@ -161,10 +165,12 @@ export function wireAudioIpc(): () => void {
   offs.push(api.on('audio:start', (p) => {
     const start = p as AudioStart
     WebAudioEngine.ensure()
-    // always stop previous sources to avoid overlap; the AudioPipeline handles
-    // preempt logic upstream (cancel + queue reorder)
-    WebAudioEngine.stopAll()
-    WebAudioEngine.setActiveUtterance(start.utteranceId)
+    if (start.priority === 'high' || start.priority === 'critical') {
+      WebAudioEngine.preempt(start)
+    } else {
+      WebAudioEngine.stopAll()
+      WebAudioEngine.setActiveUtterance(start.utteranceId)
+    }
   }))
   offs.push(api.on('audio:chunk', (p) => WebAudioEngine.onChunk(p as AudioChunk)))
   offs.push(api.on('audio:end', () => {

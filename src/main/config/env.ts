@@ -130,8 +130,8 @@ export function normalizeURL(u: string): string {
   url = url.replace(/\/+$/, '')
   // strip known suffixes like /chat/completions
   url = url.replace(/\/chat\/completions.*$/, '')
-  // if URL already contains /vN anywhere, use that as the base
-  const m = url.match(/(\/v\d+)/)
+  // if URL already contains a version path segment, use that as the base
+  const m = url.match(/(\/v\d+[a-zA-Z]*)(?:\/|$)/)
   if (m) {
     const idx = url.indexOf(m[1]) + m[1].length
     return url.slice(0, idx)

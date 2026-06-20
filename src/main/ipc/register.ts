@@ -16,8 +16,22 @@ export function registerIpc(): void {
 
   ipcMain.handle('config:set', async (_e, patch) => {
     const cfg = ConfigStore.patch(patch)
-    if (patch.llm || patch.language) await wireLlm(cfg)
-    if (patch.tts || patch.audio || patch.language || patch.advanced) await wireTts(cfg)
+    const rewires: Promise<void>[] = []
+    if (patch.llm || patch.language || patch.advanced) rewires.push(wireLlm(cfg))
+    if (patch.tts || patch.audio || patch.language || patch.advanced) rewires.push(wireTts(cfg))
+    const results = await Promise.allSettled(rewires)
+    for (const result of results) {
+      if (result.status === 'rejected') logger.error('config:set service rewire failed:', result.reason)
+    }
+    if (patch.triggers) {
+      getTelemetry()?.triggers.setConfig(cfg.triggers)
+    }
+    if (patch.telemetry?.rendererPaintHz != null) {
+      getTelemetry()?.setRendererPaintHz(cfg.telemetry.rendererPaintHz)
+    }
+    if (patch.advanced?.memoryTurns != null) {
+      getEngineer()?.setMemoryTurns(cfg.advanced.memoryTurns)
+    }
     if (patch.language) {
       const eng = getEngineer()
       eng?.setLanguage(cfg.language.mode)
