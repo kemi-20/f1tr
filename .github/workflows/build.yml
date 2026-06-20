@@ -72,5 +72,5 @@ jobs:
           SETUP=$(find release -name "*Setup*.exe" | head -1)
           echo "portable=$PORTABLE  setup=$SETUP"
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG" --generate-notes \
+            --title "$TAG" --notes-file .github/release-notes.md \
             "$PORTABLE" "$SETUP"
