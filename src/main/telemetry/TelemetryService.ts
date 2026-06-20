@@ -45,9 +45,17 @@ export class TelemetryService {
     // bind every reducer to its packet event (PACKETS values are strings)
     const P = PACKETS as unknown as Record<string, string>
     this.receiver.on(P.session, (p) => {
+      const prevUid = this.aggregator.getState().session.sessionUID
+      const newUid = (p.m_header as { m_sessionUID: bigint }).m_sessionUID.toString()
       this.aggregator.onSession(p)
+      // reset state on session change to avoid stale rivals/data
+      if (prevUid && prevUid !== newUid) {
+        logger.info(`Session changed: ${prevUid} -> ${newUid}, resetting state`)
+        this.aggregator.reset(this.receiver.currentFormat ?? 2025)
+      }
       this.maybeEmitSessionMeta()
     })
+    this.receiver.on(P.motion, (p) => this.aggregator.onMotion(p))
     this.receiver.on(P.participants, (p) => this.aggregator.onParticipants(p))
     this.receiver.on(P.lapData, (p) => {
       this.aggregator.onLapData(p)

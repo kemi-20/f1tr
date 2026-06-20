@@ -185,6 +185,9 @@ export interface TrackPosition {
   lapDistancePct: number
   speedKmh: number
   isPlayer: boolean
+  worldX?: number
+  worldY?: number
+  worldZ?: number
 }
 
 export interface RaceState {

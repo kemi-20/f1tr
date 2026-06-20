@@ -92,17 +92,39 @@ class WebAudioEngineImpl {
 
   setVolume(v: number): void {
     this.volume = v
-    if (this.master && !this.muted) this.master.gain.value = v
+    if (this.master && !this.muted) {
+      const now = this.ctx?.currentTime ?? 0
+      this.master.gain.cancelScheduledValues(now)
+      this.master.gain.setValueAtTime(v, now)
+    }
   }
 
   setMuted(m: boolean): void {
     this.muted = m
-    if (this.master) this.master.gain.value = m ? 0 : this.volume
+    if (this.master) {
+      const now = this.ctx?.currentTime ?? 0
+      this.master.gain.cancelScheduledValues(now)
+      this.master.gain.setValueAtTime(m ? 0 : this.volume, now)
+    }
   }
 
   /** Mark which utterance's chunks may play; chunks from any other id are dropped. */
   setActiveUtterance(id: string): void {
     this.activeUtteranceId = id
+  }
+
+  /** Stop all currently-scheduled audio sources immediately. Used on audio:end and
+   *  non-preempt audio:start to avoid overlapping playback. */
+  stopAll(): void {
+    this.active.forEach((s) => {
+      try {
+        s.stop()
+      } catch {
+        /* already stopped */
+      }
+    })
+    this.active.clear()
+    if (this.ctx) this.nextStart = this.ctx.currentTime
   }
 
   pause(): void {
@@ -138,12 +160,16 @@ export function wireAudioIpc(): () => void {
     if (start.priority === 'preempt') {
       WebAudioEngine.preempt(start)
     } else {
+      // normal start: stop any currently-playing audio from a previous utterance
+      // to avoid overlapping playback when messages fire in quick succession
+      WebAudioEngine.stopAll()
       WebAudioEngine.setActiveUtterance(start.utteranceId)
     }
   }))
   offs.push(api.on('audio:chunk', (p) => WebAudioEngine.onChunk(p as AudioChunk)))
   offs.push(api.on('audio:end', () => {
-    /* per-utterance end; scheduling handles itself */
+    // Stop all active sources — covers both per-utterance end and cancelAll
+    WebAudioEngine.stopAll()
   }))
   return () => offs.forEach((off) => off())
 }

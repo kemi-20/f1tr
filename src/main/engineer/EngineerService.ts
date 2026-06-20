@@ -27,6 +27,7 @@ export class EngineerService {
   private inFlight: Promise<void> | null = null
   private pending: { state: RaceState; firing: TriggerFiring } | null = null
   private onSpeak: (text: string, firing: TriggerFiring, voice: string, direction: string) => void = () => {}
+  private idleTimer: NodeJS.Timeout | null = null
 
   /** P3 injects the real LLM backend here; null = stub mode. */
   setBackend(b: EngineerBackend | null): void {
@@ -64,12 +65,19 @@ export class EngineerService {
    * while one is in flight, it replaces the pending one (last-wins coalescing).
    */
   enqueue(state: RaceState, firing: TriggerFiring): void {
-    // if nothing in flight, run immediately; otherwise stash as pending (coalesce)
     if (!this.inFlight) {
       void this.run(state, firing)
     } else {
-      this.pending = { state, firing }
+      // only replace pending if the new firing has >= priority (don't let low-pri
+      // overwrite a queued high-pri like safety car)
+      if (!this.pending || this.prioRank(firing.priority) >= this.prioRank(this.pending.firing.priority)) {
+        this.pending = { state, firing }
+      }
     }
+  }
+
+  private prioRank(p: TriggerFiring['priority']): number {
+    return p === 'critical' ? 4 : p === 'high' ? 3 : p === 'normal' ? 2 : 1
   }
 
   private async run(state: RaceState, firing: TriggerFiring): Promise<void> {
@@ -89,9 +97,18 @@ export class EngineerService {
   /** Abort any in-flight work (Stop button / high-priority preempt). */
   cancel(): void {
     this.pending = null
+    this.clearIdleTimer()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const llm = this.llm as any
     llm?.cancel?.()
+  }
+
+  /** Clear the idle-settle timer to prevent a stale 'idle' status firing during a new request. */
+  private clearIdleTimer(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer)
+      this.idleTimer = null
+    }
   }
 
   /** True if a real LLM backend is wired (vs stub advice). */
@@ -133,18 +150,20 @@ export class EngineerService {
       Sender.send('engineer:status', { status: 'speaking' })
       logger.info(`engineer advice [${firing.reasonCode}] stub=${!this.llm}: ${text.slice(0, 80)}`)
       if (text) this.onSpeak(text, firing, this.voice, this.direction)
-      // settle to idle after the (approx) speaking window; clearing the UI cursor
-      setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 6000)
+      // settle to idle after the (approx) speaking window; clear any previous timer first
+      this.clearIdleTimer()
+      this.idleTimer = setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 6000)
     } catch (err) {
       if (this.isAbort(err)) {
-        // cancelled/preempted — do NOT commit partial text or enqueue TTS; reset to idle
         logger.info('engineer advice aborted')
+        this.clearIdleTimer()
         Sender.send('engineer:status', { status: 'idle' })
         return
       }
       logger.error('engineer advice failed:', (err as Error)?.message ?? err)
       Sender.send('engineer:status', { status: 'error' })
-      setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 4000)
+      this.clearIdleTimer()
+      this.idleTimer = setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 4000)
     }
   }
 

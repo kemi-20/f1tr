@@ -73,9 +73,6 @@ function createWindow(): void {
   }
 }
 
-// ensure store is initialized
-ConfigStore.getAll()
-
 // Remove the default File/Window/Help menu bar entirely — this is a full-screen
 // race-engineer cockpit, the OS menu is noise.
 Menu.setApplicationMenu(null)

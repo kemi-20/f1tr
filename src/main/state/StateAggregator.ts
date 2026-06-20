@@ -32,6 +32,7 @@ export class StateAggregator {
     this.state.recentEvents = prevErrors
     this.lastSessionUID = ''
     this.lastEventBucket.clear()
+    this.prevSC = 0
   }
 
   // ───────────────────────── reducers ─────────────────────────
@@ -62,6 +63,8 @@ export class StateAggregator {
     const decoded = decodeSafetyCar(scStatus)
     s.isSafetyCar = decoded.sc
     s.isVirtualSafetyCar = decoded.vsc
+    // red flag: check m_numRedFlagPeriods in the session packet
+    s.isRedFlag = (p.m_numRedFlagPeriods ?? 0) > 0
     s.safetyCarPhase = scStatus
     if (scStatus !== this.prevSC) {
       if (decoded.sc && !this.isDupe('sc', uid)) this.pushEvent('safetyCar', 'Safety Car deployed')
@@ -137,7 +140,8 @@ export class StateAggregator {
         carIndex: i,
         lapDistancePct: r.lapDistancePct,
         speedKmh: i === playerIdx ? this.state.player.speedKmh : 0,
-        isPlayer: i === playerIdx
+        isPlayer: i === playerIdx,
+        ...this.trackWorldPosition(i)
       })
     }
 
@@ -227,6 +231,41 @@ export class StateAggregator {
     for (const tp of this.state.trackPositions) {
       const td = arr[tp.carIndex]
       if (td) tp.speedKmh = td.m_speed ?? tp.speedKmh
+    }
+  }
+
+  onMotion(p: AnyParsedPacket): void {
+    const h = p.m_header as PacketHeader
+    const arr = (p.m_carMotionData ?? []) as AnyParsedPacket[]
+    const byCar = new Map(this.state.trackPositions.map((tp) => [tp.carIndex, tp]))
+    for (let i = 0; i < arr.length; i++) {
+      const motion = arr[i]
+      if (!motion) continue
+      const worldX = finiteOrNull(motion.m_worldPositionX)
+      const worldY = finiteOrNull(motion.m_worldPositionY)
+      const worldZ = finiteOrNull(motion.m_worldPositionZ)
+      if (worldX == null || worldZ == null) continue
+
+      const existing = byCar.get(i)
+      if (existing) {
+        existing.worldX = worldX
+        existing.worldY = worldY ?? existing.worldY
+        existing.worldZ = worldZ
+        existing.isPlayer = i === h.m_playerCarIndex
+      } else {
+        const r = this.ensureRival(i)
+        const tp = {
+          carIndex: i,
+          lapDistancePct: r.lapDistancePct,
+          speedKmh: i === h.m_playerCarIndex ? this.state.player.speedKmh : 0,
+          isPlayer: i === h.m_playerCarIndex,
+          worldX,
+          ...(worldY != null ? { worldY } : {}),
+          worldZ
+        }
+        this.state.trackPositions.push(tp)
+        byCar.set(i, tp)
+      }
     }
   }
 
@@ -412,6 +451,16 @@ export class StateAggregator {
     }
     return false
   }
+
+  private trackWorldPosition(carIndex: number): Partial<TrackPosition> {
+    const existing = this.state.trackPositions.find((tp) => tp.carIndex === carIndex)
+    if (!existing) return {}
+    return {
+      ...(existing.worldX != null ? { worldX: existing.worldX } : {}),
+      ...(existing.worldY != null ? { worldY: existing.worldY } : {}),
+      ...(existing.worldZ != null ? { worldZ: existing.worldZ } : {})
+    }
+  }
 }
 
 function clamp01(x: number): number {
@@ -458,9 +507,13 @@ function normPctTo01(v: number | undefined | null): number {
   if (v == null || !isFinite(v)) return 0
   return Math.max(0, Math.min(1, v / 100))
 }
+function finiteOrNull(v: unknown): number | null {
+  return typeof v === 'number' && isFinite(v) ? v : null
+}
 function rivalStatus(driverStatus: number, resultStatus: number): RivalState['status'] {
   if (resultStatus === 3) return 'finished'
-  if (resultStatus === 4 || driverStatus === 4) return 'retired'
+  // resultStatus 4=DSQ, 5=not classified, 6=retired
+  if (resultStatus === 4 || resultStatus === 5 || resultStatus === 6 || driverStatus === 4) return 'retired'
   if (driverStatus === 0 || driverStatus === 7) return 'inGarage'
   return 'running'
 }

@@ -259,6 +259,11 @@ export class TriggerEngine {
     reasonCode: string,
     reason: string
   ): void {
+    // suppressLastLapLowPriority: on the final lap, block non-critical triggers
+    if (this.config.suppressLastLapLowPriority && priority !== 'critical') {
+      const totalLaps = state.session.totalLaps
+      if (totalLaps != null && totalLaps > 0 && state.player.lap >= totalLaps) return
+    }
     // heartbeat is rate-limited by its own interval (in evalHeartbeat) + the global gap;
     // it should NOT additionally suffer the 45s per-rule cooldown.
     if (!this.cooldown.canFire(ruleId, priority, state.player.lap)) return

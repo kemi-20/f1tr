@@ -13,16 +13,22 @@ export function TrackMap(): React.ReactElement {
   const track = getTrack(trackId)
   const positions = race?.trackPositions ?? []
   const pathRef = useRef<SVGPathElement>(null)
+  const worldBoundsRef = useRef<ObservedWorldBounds>({ trackId: -1 })
   const [pathLen, setPathLen] = useState(0)
+  const [pathBox, setPathBox] = useState<Rect | null>(null)
   const trackSvg = useMemo(() => parseTrackSvg(TRACK_SVG_RAW[trackId]), [trackId])
 
   useEffect(() => {
     setPathLen(0)
+    setPathBox(null)
     if (!pathRef.current) return
     try {
       setPathLen(pathRef.current.getTotalLength())
+      const box = pathRef.current.getBBox()
+      setPathBox({ x: box.x, y: box.y, width: box.width, height: box.height })
     } catch {
       setPathLen(0)
+      setPathBox(null)
     }
   }, [trackSvg?.probePath, track?.path])
 
@@ -45,6 +51,7 @@ export function TrackMap(): React.ReactElement {
   const viewBox = trackSvg?.viewBox ?? '0 0 100 100'
   const probePath = trackSvg?.probePath ?? track?.path ?? ''
   const marker = markerSize(viewBox)
+  const worldProjector = buildWorldProjector(trackId, positions, pathBox, pointAt, worldBoundsRef)
 
   return (
     <div className="glass relative flex h-full flex-col p-4">
@@ -82,7 +89,7 @@ export function TrackMap(): React.ReactElement {
 
           {/* car dots — positioned on the track path */}
           {positions.map((p) => {
-            const pt = hasTrackPath ? pointAt(p.lapDistancePct) : fallbackPointAt(p.lapDistancePct)
+            const pt = worldProjector?.(p) ?? (hasTrackPath ? pointAt(p.lapDistancePct) : fallbackPointAt(p.lapDistancePct))
             if (!pt) return null
             const isP = p.isPlayer
             return (
@@ -131,6 +138,24 @@ interface ParsedTrackSvg {
   probePath: string
 }
 
+interface Rect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface ObservedWorldBounds {
+  trackId: number
+  minX?: number
+  maxX?: number
+  minZ?: number
+  maxZ?: number
+}
+
+type Point = { x: number; y: number }
+type Projector = (p: { worldX?: number; worldZ?: number }) => Point | null
+
 function parseTrackSvg(raw?: string): ParsedTrackSvg | null {
   if (!raw || typeof DOMParser === 'undefined') return null
   const doc = new DOMParser().parseFromString(raw, 'image/svg+xml')
@@ -162,6 +187,98 @@ function markerSize(viewBox: string): number {
   const [, , w, h] = viewBox.split(/[\s,]+/).map(Number)
   const base = Math.min(w || 100, h || 100)
   return Math.max(0.8, base * 0.009)
+}
+
+function buildWorldProjector(
+  trackId: number,
+  positions: Array<{ lapDistancePct: number; worldX?: number; worldZ?: number }>,
+  pathBox: Rect | null,
+  pointAt: (t: number) => Point | null,
+  boundsRef: React.MutableRefObject<ObservedWorldBounds>
+): Projector | null {
+  if (!pathBox || pathBox.width <= 0 || pathBox.height <= 0) return null
+  if (boundsRef.current.trackId !== trackId) boundsRef.current = { trackId }
+  const bounds = boundsRef.current
+
+  for (const p of positions) {
+    if (!isFiniteNumber(p.worldX) || !isFiniteNumber(p.worldZ)) continue
+    bounds.minX = bounds.minX == null ? p.worldX : Math.min(bounds.minX, p.worldX)
+    bounds.maxX = bounds.maxX == null ? p.worldX : Math.max(bounds.maxX, p.worldX)
+    bounds.minZ = bounds.minZ == null ? p.worldZ : Math.min(bounds.minZ, p.worldZ)
+    bounds.maxZ = bounds.maxZ == null ? p.worldZ : Math.max(bounds.maxZ, p.worldZ)
+  }
+
+  if (!isFiniteNumber(bounds.minX) || !isFiniteNumber(bounds.maxX) || !isFiniteNumber(bounds.minZ) || !isFiniteNumber(bounds.maxZ)) return null
+  const worldWidth = bounds.maxX - bounds.minX
+  const worldDepth = bounds.maxZ - bounds.minZ
+  if (worldWidth < 20 || worldDepth < 20) return null
+
+  const calibratedBounds: Required<ObservedWorldBounds> = {
+    trackId: bounds.trackId,
+    minX: bounds.minX,
+    maxX: bounds.maxX,
+    minZ: bounds.minZ,
+    maxZ: bounds.maxZ
+  }
+  const candidates = makeProjectors(calibratedBounds, pathBox)
+  const scored = candidates
+    .map((project) => ({ project, score: scoreProjector(project, positions, pointAt) }))
+    .filter((x) => Number.isFinite(x.score))
+    .sort((a, b) => a.score - b.score)
+  return scored[0]?.project ?? candidates[0] ?? null
+}
+
+function makeProjectors(bounds: Required<ObservedWorldBounds>, box: Rect): Projector[] {
+  const variants: Projector[] = []
+  for (const swap of [false, true]) {
+    for (const invertX of [false, true]) {
+      for (const invertY of [false, true]) {
+        variants.push((p) => {
+          if (!isFiniteNumber(p.worldX) || !isFiniteNumber(p.worldZ)) return null
+          const axisX = swap ? p.worldZ : p.worldX
+          const axisY = swap ? p.worldX : p.worldZ
+          const minX = swap ? bounds.minZ : bounds.minX
+          const maxX = swap ? bounds.maxZ : bounds.maxX
+          const minY = swap ? bounds.minX : bounds.minZ
+          const maxY = swap ? bounds.maxX : bounds.maxZ
+          return {
+            x: mapAxis(axisX, minX, maxX, box.x, box.x + box.width, invertX),
+            y: mapAxis(axisY, minY, maxY, box.y, box.y + box.height, invertY)
+          }
+        })
+      }
+    }
+  }
+  return variants
+}
+
+function scoreProjector(
+  project: Projector,
+  positions: Array<{ lapDistancePct: number; worldX?: number; worldZ?: number }>,
+  pointAt: (t: number) => Point | null
+): number {
+  let score = 0
+  let count = 0
+  for (const p of positions) {
+    const projected = project(p)
+    const expected = pointAt(p.lapDistancePct)
+    if (!projected || !expected) continue
+    const dx = projected.x - expected.x
+    const dy = projected.y - expected.y
+    score += dx * dx + dy * dy
+    count++
+  }
+  return count >= 3 ? score / count : Infinity
+}
+
+function mapAxis(v: number, inMin: number, inMax: number, outMin: number, outMax: number, invert: boolean): number {
+  const t = (v - inMin) / Math.max(1e-6, inMax - inMin)
+  const u = invert ? 1 - t : t
+  return outMin + u * (outMax - outMin)
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v)
 }
 
 function fallbackPointAt(t: number): { x: number; y: number } {

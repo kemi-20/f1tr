@@ -50,6 +50,8 @@ export class MiMoTtsClient {
     signal?: AbortSignal
   ): Promise<void> {
     if (!this.ready) throw new Error('MiMo TTS not configured (missing MIMO_API_BASE_URL/MIMO_API_KEY)')
+    // if an already-aborted signal was passed, bail immediately
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
 
     const url = this.config.baseURL.replace(/\/+$/, '') + '/chat/completions'
     const body = {
