@@ -205,7 +205,7 @@ export interface EngineerBackend {
 export function manualFiring(prompt?: string): TriggerFiring {
   return {
     ruleId: 'manual',
-    kind: 'event',
+    kind: 'manual',
     priority: 'normal',
     reasonCode: 'manual',
     reason: prompt || 'Driver is asking for an update.',

@@ -1,3 +1,5 @@
+import type { TriggerFiring } from './triggers'
+
 /**
  * IPC channel definitions and message shapes.
  * Two frequencies protect the renderer from 60Hz packet flooding:
@@ -53,8 +55,7 @@ export interface EngineerToken {
 export interface EngineerAdvice {
   id: string
   text: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  firing?: any
+  firing?: TriggerFiring
   ts: number
 }
 

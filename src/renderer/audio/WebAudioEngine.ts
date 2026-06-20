@@ -15,6 +15,7 @@ class WebAudioEngineImpl {
   private nextStart = 0
   private active = new Set<AudioBufferSourceNode>()
   private muted = false
+  private paused = false
   private volume = 1
   private started = false
   /** id of the utterance currently allowed to play; chunks from any other id are dropped
@@ -30,6 +31,7 @@ class WebAudioEngineImpl {
     this.master.connect(this.ctx.destination)
     this.nextStart = this.ctx.currentTime
     this.started = true
+    if (this.paused) void this.ctx.suspend()
   }
 
   private base64ToBytes(b64: string): Uint8Array {
@@ -132,10 +134,12 @@ class WebAudioEngineImpl {
   }
 
   pause(): void {
+    this.paused = true
     void this.ctx?.suspend()
   }
 
   resume(): void {
+    this.paused = false
     if (!this.ctx) return
     this.stopAll()
     void this.ctx.resume().then(() => {

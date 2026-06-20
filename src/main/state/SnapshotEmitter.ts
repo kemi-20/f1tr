@@ -78,10 +78,7 @@ export class SnapshotEmitter {
       const stats = this.getStats()
       const now = Date.now()
       const waiting = stats.lastPacketMs === 0 || now - stats.lastPacketMs > 3000
-      const state = this.aggregator.state
-      state.lastPacketMs = stats.lastPacketMs
-      state.packetsReceived = stats.packetsReceived
-      state.packetsDropped = stats.packetsDropped
+      this.aggregator.setHealthStats(stats)
       const payload: HealthPayload = {
         connected: !waiting,
         waiting,

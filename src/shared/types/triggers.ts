@@ -1,6 +1,6 @@
 import type { Priority } from './audio'
 
-export type TriggerKind = 'event' | 'threshold' | 'heartbeat'
+export type TriggerKind = 'event' | 'threshold' | 'heartbeat' | 'manual'
 
 export interface TriggerFiring {
   ruleId: string

@@ -86,8 +86,8 @@ export class DigestBuilder {
     const sectorLabel = d.player.position.sector >= 0 ? `S${d.player.position.sector + 1}` : '?'
     lines.push(
       `PLAYER: ${d.player.pos} • Lap ${d.player.position.lapPct}% (sector ${sectorLabel})` +
-        (d.player.gapAhead ? ` • ${d.player.gapAhead} to car ahead` : '') +
-        (d.player.gapBehind ? ` • ${d.player.gapBehind} to car behind` : '') +
+        (d.player.gapAhead ? ` • ahead ${d.player.gapAhead}` : '') +
+        (d.player.gapBehind ? ` • behind ${d.player.gapBehind}` : '') +
         ` • last ${d.player.lastLap} best ${d.player.bestLap} • fuel ${d.player.fuel} • pits ${d.player.pits}` +
         ` • ERS ${d.player.ers} • DRS ${d.player.drs}`
     )
@@ -133,7 +133,7 @@ export class DigestBuilder {
           : r.pitStatus === 2
             ? 'in pit'
             : r.deltaToCarBehindS != null && Math.abs(r.deltaToCarBehindS) < 0.8
-              ? 'pressuring'
+              ? 'under pressure'
               : undefined
     }))
   }

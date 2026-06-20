@@ -107,7 +107,7 @@ export class TelemetryService {
 
   private tick(): void {
     const state = this.aggregator.getState()
-    state.flashbackActive = this.triggers.isFlashbackActive()
+    this.aggregator.setFlashbackActive(this.triggers.isFlashbackActive())
     this.triggers.evaluate(state)
     this.drainEvents()
   }
@@ -130,7 +130,7 @@ export class TelemetryService {
     const frame = p.m_header.m_overallFrameIdentifier
     if (this.lastSessionUID === uid && frame < this.lastOverallFrame - 5) {
       this.triggers.noteFlashback()
-      this.aggregator.state.flashbackActive = true
+      this.aggregator.setFlashbackActive(true)
     }
     this.lastOverallFrame = frame
     this.lastSessionUID = uid
@@ -156,5 +156,9 @@ export class TelemetryService {
 
   setRendererPaintHz(hz: number): void {
     this.emitter.setRendererPaintHz(hz)
+  }
+
+  setPort(port: number): void {
+    this.receiver.setPort(port)
   }
 }

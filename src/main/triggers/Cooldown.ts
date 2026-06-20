@@ -1,4 +1,5 @@
 import type { TriggerConfig } from '@shared/index'
+import type { Priority } from '@shared/types/audio'
 
 /**
  * Cooldown — enforces per-rule and global minimum gaps, plus first-lap suppression.
@@ -7,7 +8,7 @@ import type { TriggerConfig } from '@shared/index'
 export class Cooldown {
   private byRule = new Map<string, number>() // ruleId -> next allowed ms
   private globalNext = 0
-  private lastPriority: 'critical' | 'high' | 'normal' | 'low' = 'normal'
+  private lastPriority: Priority = 'normal'
 
   constructor(private config: TriggerConfig) {}
 
@@ -21,7 +22,7 @@ export class Cooldown {
   }
 
   /** True if a rule may fire now (respects per-rule + global + first-lap suppression). */
-  canFire(ruleId: string, priority: 'critical' | 'high' | 'normal' | 'low', currentLap: number): boolean {
+  canFire(ruleId: string, priority: Priority, currentLap: number): boolean {
     const now = Date.now()
     // first-lap suppression: only critical allowed (covers "don't talk during the start")
     if (this.config.suppressFirstLap && currentLap === 1 && priority !== 'critical') return false
@@ -30,7 +31,7 @@ export class Cooldown {
   }
 
   /** Record that a rule fired; sets its cooldown + the global gap. */
-  recordFire(ruleId: string, priority: 'critical' | 'high' | 'normal' | 'low'): void {
+  recordFire(ruleId: string, priority: Priority): void {
     const now = Date.now()
     // heartbeat is paced only by its own interval + the global gap (no 45s per-rule lock)
     if (ruleId !== 'heartbeat') {
@@ -40,7 +41,7 @@ export class Cooldown {
     this.lastPriority = priority
   }
 
-  get currentPriority(): 'critical' | 'high' | 'normal' | 'low' {
+  get currentPriority(): Priority {
     return this.lastPriority
   }
 

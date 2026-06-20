@@ -31,7 +31,7 @@ export class ConversationMemory {
   setMaxTurns(maxTurns: number): void {
     this.maxTurns = Math.max(0, Math.min(20, Math.round(maxTurns)))
     if (this.recentTurns.length > this.maxTurns) {
-      this.recentTurns = this.recentTurns.slice(-this.maxTurns)
+      this.recentTurns = this.maxTurns === 0 ? [] : this.recentTurns.slice(-this.maxTurns)
     }
   }
 
@@ -76,7 +76,7 @@ export class ConversationMemory {
   pushTurn(userDigest: string, assistantReply: string): void {
     this.recentTurns.push({ user: userDigest, assistant: assistantReply })
     if (this.recentTurns.length > this.maxTurns) {
-      this.recentTurns = this.recentTurns.slice(-this.maxTurns)
+      this.recentTurns = this.maxTurns === 0 ? [] : this.recentTurns.slice(-this.maxTurns)
     }
   }
 

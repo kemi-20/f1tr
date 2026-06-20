@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { api } from '../ipc/ipcClient'
 import { useConfigStore, useEngineerStore, useHealthStore, useRaceStore, useTelemetryStore } from '../store'
 import { wireAudioIpc } from '../audio/WebAudioEngine'
-import type { RaceState, HealthPayload } from '@shared/index'
+import type { EngineerAdvice, EngineerStatus, EngineerToken, HealthPayload, RaceState, SnapshotPayload } from '@shared/index'
 
 /**
  * Boot provider: loads config, subscribes to all main->renderer IPC streams,
@@ -17,31 +17,31 @@ export function IpcProvider({ children }: { children: React.ReactNode }): React.
     const offAudio = wireAudioIpc()
 
     const offs = [
-      api.on('telemetry:snapshot', (p) => setSnapshot(p as never)),
+      api.on('telemetry:snapshot', (p) => setSnapshot(p as SnapshotPayload)),
       api.on('state:paint', (p) => useRaceStore.getState().setRace(p as RaceState)),
       api.on('health', (p) => {
         const h = p as HealthPayload
         useHealthStore.getState().set({ ...h })
       }),
       api.on('engineer:text', (p) => {
-        const { id, delta } = p as { id: string; delta: string }
+        const { id, delta } = p as EngineerToken
         const st = useEngineerStore.getState()
         if (st.streamingId !== id) st.startStream(id)
         st.appendDelta(delta)
       }),
       api.on('engineer:advice', (p) => {
-        const { id, text } = p as { id: string; text: string }
+        const { id, text } = p as EngineerAdvice
         useEngineerStore.getState().commit(id, text)
       }),
       api.on('engineer:status', (p) => {
         // main sends { status: 'thinking'|'speaking'|'error'... } — unwrap to the string union
-        const payload = p as { status?: string } | string
-        const status = (typeof payload === 'string' ? payload : payload?.status ?? 'idle') as never
+        const payload = p as { status?: EngineerStatus }
+        const status: EngineerStatus = payload.status ?? 'idle'
         const st = useEngineerStore.getState()
         st.setStatus(status)
         // on error/abort, drop the partial streaming bubble so an old-language
         // response doesn't stick after settings changes or Stop.
-        if ((status as string) === 'error' || (status as string) === 'idle') st.clearStream()
+        if (status === 'error' || status === 'idle') st.clearStream()
       })
     ]
     return () => {

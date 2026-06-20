@@ -167,7 +167,12 @@ function pointForPosition(
   p: { lapDistancePct: number; worldX?: number; worldZ?: number },
   geometry: TrackGeometry
 ): { x: number; y: number } | null {
-  if (isFiniteNumber(p.worldX) && isFiniteNumber(p.worldZ) && withinExpandedBounds(p.worldX, p.worldZ, geometry.bounds)) {
+  if (
+    isFiniteNumber(p.worldX) &&
+    isFiniteNumber(p.worldZ) &&
+    withinExpandedBounds(p.worldX, p.worldZ, geometry.bounds) &&
+    isNearTrackLine(p.worldX, p.worldZ, geometry)
+  ) {
     return { x: p.worldX, y: p.worldZ }
   }
   return pointAtLapFraction(geometry, p.lapDistancePct)
@@ -229,6 +234,36 @@ function withinExpandedBounds(x: number, y: number, bounds: TrackBounds): boolea
   const padX = (maxX - minX) * 0.18
   const padY = (maxY - minY) * 0.18
   return x >= minX - padX && x <= maxX + padX && y >= minY - padY && y <= maxY + padY
+}
+
+function isNearTrackLine(x: number, y: number, geometry: TrackGeometry): boolean {
+  if (geometry.fused.length < 2) return false
+  const [minX, minY, maxX, maxY] = geometry.bounds
+  const shortestSide = Math.min(maxX - minX, maxY - minY)
+  const tolerance = Math.max(22, shortestSide * 0.045)
+  const toleranceSq = tolerance * tolerance
+
+  for (let i = 1; i < geometry.fused.length; i++) {
+    if (distanceToSegmentSq(x, y, geometry.fused[i - 1], geometry.fused[i]) <= toleranceSq) {
+      return true
+    }
+  }
+  return false
+}
+
+function distanceToSegmentSq(x: number, y: number, a: TrackPoint, b: TrackPoint): number {
+  const ax = a[0]
+  const ay = a[1]
+  const bx = b[0]
+  const by = b[1]
+  const dx = bx - ax
+  const dy = by - ay
+  const lenSq = dx * dx + dy * dy
+  if (lenSq === 0) return (x - ax) * (x - ax) + (y - ay) * (y - ay)
+  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / lenSq))
+  const px = ax + t * dx
+  const py = ay + t * dy
+  return (x - px) * (x - px) + (y - py) * (y - py)
 }
 
 function distance(a: TrackPoint, b: TrackPoint): number {

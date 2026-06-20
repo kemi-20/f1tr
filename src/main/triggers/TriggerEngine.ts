@@ -106,6 +106,7 @@ export class TriggerEngine {
     this.fuelLowActive = false
     this.lastPosition = 0
     this.lastLap = 0
+    this.lastHeartbeatMs = Date.now()
     logger.info('flashback detected — triggers suppressed for 3s, states reset')
   }
 

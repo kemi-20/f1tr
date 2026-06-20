@@ -75,8 +75,6 @@ export interface PlayerCarState {
   currentLapTimeS: number | null
   lastLapTimeS: number | null
   bestLapTimeS: number | null
-  sectors: (number | null)[]
-  sectorSplitDelta: (number | null)[] // vs best
   speedKmh: number
   gear: number
   rpm: number
@@ -88,7 +86,6 @@ export interface PlayerCarState {
   revLightsPercent: number
   fuelRemainingKg: number | null
   fuelMix: 0 | 1 | 2 | 3
-  fuelTargetDeltaS: number | null
   pitStatus: number
   pitTimerS: number | null
   pitStopCount: number
@@ -121,7 +118,7 @@ export interface RivalState {
   tyreCompound: TyreCompound
   resultStatus: number
   status: 'running' | 'retired' | 'finished' | 'inGarage' | 'unknown'
-  relationToPlayer: 'ahead' | 'behind' | 'leader' | 'lapped' | 'lapping' | 'same'
+  relationToPlayer: 'ahead' | 'behind' | 'same'
 }
 
 export interface WeatherState {

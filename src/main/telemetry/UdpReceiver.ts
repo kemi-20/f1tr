@@ -44,7 +44,7 @@ export class UdpReceiver {
   public lastPacketMs = 0
   public currentFormat: PacketFormat | null = null
 
-  constructor(private readonly port = 20777) {}
+  constructor(private port = 20777) {}
 
   /** Register a reducer for a packet event name (one of the PACKETS keys). */
   on(name: string, cb: (p: AnyParsedPacket) => void): void {
@@ -60,6 +60,19 @@ export class UdpReceiver {
       logger.info(`UDP receiver started on port ${this.port} (0.0.0.0)`)
     })
     this.running = true
+  }
+
+  setPort(port: number): void {
+    const next = normalizePort(port, this.port)
+    if (next === this.port) return
+    const wasRunning = this.running
+    if (wasRunning) this.stop()
+    this.port = next
+    this.packetsReceived = 0
+    this.packetsDropped = 0
+    this.lastPacketMs = 0
+    this.currentFormat = null
+    if (wasRunning) this.start()
   }
 
   private handleMessage(msg: Buffer): void {
@@ -135,3 +148,7 @@ export class UdpReceiver {
 }
 
 export { PACKETS }
+
+function normalizePort(port: number, fallback: number): number {
+  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : fallback
+}

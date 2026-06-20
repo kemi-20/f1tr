@@ -43,7 +43,6 @@ interface EngineerMessage {
   id: string
   text: string
   ts: number
-  priority?: string
 }
 
 interface EngineerState {

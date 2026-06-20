@@ -34,6 +34,9 @@ export function registerIpc(): void {
     if (patch.telemetry?.rendererPaintHz != null) {
       getTelemetry()?.setRendererPaintHz(cfg.telemetry.rendererPaintHz)
     }
+    if (patch.telemetry?.port != null) {
+      getTelemetry()?.setPort(cfg.telemetry.port)
+    }
     if (patch.advanced?.memoryTurns != null) {
       getEngineer()?.setMemoryTurns(cfg.advanced.memoryTurns)
     }

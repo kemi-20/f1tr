@@ -27,6 +27,16 @@ export class StateAggregator {
     return this.state
   }
 
+  setFlashbackActive(active: boolean): void {
+    this.state.flashbackActive = active
+  }
+
+  setHealthStats(stats: { lastPacketMs: number; packetsReceived: number; packetsDropped: number }): void {
+    this.state.lastPacketMs = stats.lastPacketMs
+    this.state.packetsReceived = stats.packetsReceived
+    this.state.packetsDropped = stats.packetsDropped
+  }
+
   /** Reset racing state when session changes (keeps nothing — memory is handled elsewhere). */
   reset(format: PacketFormat): void {
     const prevErrors = this.state.recentEvents
@@ -36,6 +46,7 @@ export class StateAggregator {
     this.lastEventBucket.clear()
     this.prevSC = 0
     this.scActive = false
+    this._prevRedFlagCount = 0
   }
 
   // ───────────────────────── reducers ─────────────────────────
@@ -83,7 +94,7 @@ export class StateAggregator {
       this._prevRedFlagCount = Math.max(this._prevRedFlagCount ?? 0, redCount)
     }
     s.safetyCarPhase = scStatus
-    if (decoded.sc || decoded.vsc || scStatus === 4) {
+    if (decoded.sc || decoded.vsc) {
       this.scActive = true
     }
     if (scStatus !== this.prevSC) {
@@ -227,21 +238,29 @@ export class StateAggregator {
       // Walk UP from the player. The first car ahead uses the player's own
       // delta-to-front; cars further ahead use the closer car's chained gap.
       let cumAhead = 0
+      let validAhead = false
       for (let i = playerIdxInSorted - 1; i >= 0; i--) {
         const gap = i === playerIdxInSorted - 1
           ? playerRival.deltaToCarInFrontS
           : sorted[i].deltaToCarBehindS
-        if (gap != null) cumAhead += gap
-        sorted[i].gapToPlayerS = cumAhead >= 0 ? cumAhead : null
+        if (gap != null) {
+          cumAhead += gap
+          validAhead = true
+        }
+        sorted[i].gapToPlayerS = validAhead && cumAhead >= 0 ? cumAhead : null
       }
 
       // Walk DOWN from the player. Each trailing car's delta-to-front is its gap
       // to the car immediately ahead in the running order.
       let cumBehind = 0
+      let validBehind = false
       for (let i = playerIdxInSorted + 1; i < sorted.length; i++) {
         const gap = sorted[i].deltaToCarInFrontS
-        if (gap != null) cumBehind += gap
-        sorted[i].gapToPlayerS = cumBehind >= 0 ? -cumBehind : null
+        if (gap != null) {
+          cumBehind += gap
+          validBehind = true
+        }
+        sorted[i].gapToPlayerS = validBehind && cumBehind >= 0 ? -cumBehind : null
       }
     }
     for (const r of sorted) {
@@ -474,7 +493,8 @@ export class StateAggregator {
         (min, l) => Math.min(min, l.m_lapTimeInMS > 0 ? l.m_lapTimeInMS : Infinity),
         Infinity
       )
-      r.bestLapTimeS = best === Infinity ? null : best / 1000
+      const packetBestS = best === Infinity ? null : best / 1000
+      r.bestLapTimeS = minNullable(r.bestLapTimeS, packetBestS)
     }
     if (carIdx === this.state.player.carIndex && r.bestLapTimeS != null) {
       this.state.player.bestLapTimeS = r.bestLapTimeS
@@ -595,6 +615,11 @@ function normPctTo01(v: number | undefined | null): number {
 }
 function finiteOrNull(v: unknown): number | null {
   return typeof v === 'number' && isFinite(v) ? v : null
+}
+function minNullable(a: number | null, b: number | null): number | null {
+  if (a == null) return b
+  if (b == null) return a
+  return Math.min(a, b)
 }
 function isRainWeatherCode(code: number): boolean {
   // F1 weather enum: 0 clear, 1 light cloud, 2 overcast, 3 light rain, 4 heavy rain, 5 storm.

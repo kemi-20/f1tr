@@ -23,6 +23,7 @@ export class AudioPipeline {
   private seq = 0
   private preemptOnHigh = true
   private maxQueueDepth = 3
+  private endedUtterances = new Set<string>()
 
   setClient(client: MiMoTtsClient | null): void {
     this.client = client
@@ -65,16 +66,16 @@ export class AudioPipeline {
     if (this.preemptOnHigh && this.higherThan(priority, this.current.priority)) {
       const preemptedId = this.current.id
       logger.info(`AudioPipeline preempt: [${priority}] > [${this.current.priority}]`)
-      Sender.send('audio:end', { utteranceId: preemptedId, reason: 'preempt' })
+      this.endOnce(preemptedId, 'preempt')
       this.client?.cancel()
-      this.queue = this.queue.filter((r) => r.priority !== 'low' && r.priority !== 'normal') // drop superseded low/normal
-      this.queue.unshift(req) // new request runs next
+      this.queue = this.queue.filter((r) => this.priorityRank(r.priority) >= this.priorityRank(priority))
+      this.insertQueued(req)
       // current.play loop will see current=null on its next iteration after cancel resolves
       return
     }
 
     // otherwise queue (drop lowest if over depth)
-    this.queue.push(req)
+    this.insertQueued(req)
     if (this.queue.length > this.maxQueueDepth) {
       // evict the lowest-priority queued item
       let worst = 0
@@ -89,7 +90,7 @@ export class AudioPipeline {
   cancelAll(): void {
     this.client?.cancel()
     if (this.current) {
-      Sender.send('audio:end', { utteranceId: this.current.id, reason: 'cancel' })
+      this.endOnce(this.current.id, 'cancel')
     }
     this.queue = []
     this.current = null
@@ -101,6 +102,7 @@ export class AudioPipeline {
       return
     }
     this.current = req
+    this.endedUtterances.delete(req.id)
     Sender.send('audio:start', { utteranceId: req.id, priority: req.priority })
     this.seq = 0
     let samplesSent = 0
@@ -117,12 +119,12 @@ export class AudioPipeline {
         undefined
       )
       completed = true
-      Sender.send('audio:end', { utteranceId: req.id, reason: 'complete' })
+      this.endOnce(req.id, 'complete')
       await sleep(playbackHoldMs(samplesSent))
     } catch (err) {
       logger.error('AudioPipeline synthesis failed:', (err as Error)?.message ?? err)
       // on abort/error, still notify renderer so it stops playing the old utterance
-      Sender.send('audio:end', { utteranceId: req.id, reason: completed ? 'complete' : 'error' })
+      this.endOnce(req.id, completed ? 'complete' : 'error')
       // graceful: the renderer still shows the text advice; just no audio
     } finally {
       this.current = null
@@ -138,6 +140,22 @@ export class AudioPipeline {
 
   private higherThan(a: Priority, b: Priority): boolean {
     return this.priorityRank(a) > this.priorityRank(b)
+  }
+
+  private insertQueued(req: SynthRequest): void {
+    const rank = this.priorityRank(req.priority)
+    const idx = this.queue.findIndex((queued) => this.priorityRank(queued.priority) < rank)
+    if (idx === -1) this.queue.push(req)
+    else this.queue.splice(idx, 0, req)
+  }
+
+  private endOnce(utteranceId: string, reason: 'complete' | 'cancel' | 'error' | 'preempt'): void {
+    if (this.endedUtterances.has(utteranceId)) return
+    this.endedUtterances.add(utteranceId)
+    if (this.endedUtterances.size > 32) {
+      this.endedUtterances = new Set(Array.from(this.endedUtterances).slice(-16))
+    }
+    Sender.send('audio:end', { utteranceId, reason })
   }
 
   private priorityRank(p: Priority): number {
