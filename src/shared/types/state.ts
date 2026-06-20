@@ -116,6 +116,7 @@ export interface RivalState {
   pitStatus: number
   penaltiesS: number
   tyreCompound: TyreCompound
+  tyreWearAvg: number | null // 0..100 average from CarDamage m_tyresWear
   resultStatus: number
   status: 'running' | 'retired' | 'finished' | 'inGarage' | 'unknown'
   relationToPlayer: 'ahead' | 'behind' | 'same'

@@ -85,7 +85,7 @@ export const TYRE_TEMP_WINDOW: Record<string, [number, number]> = {
   soft: [85, 105],
   medium: [85, 105],
   hard: [85, 105],
-  inter: [70, 85],
+  inter: [60, 85],
   wet: [60, 80],
   unknown: [85, 105]
 }
@@ -94,7 +94,7 @@ export function tyreTempWindow(compound: string | undefined): [number, number] {
   return TYRE_TEMP_WINDOW[compound ?? 'unknown'] ?? [85, 100]
 }
 
-/** Classification of current surface temp vs the compound's ideal window. */
+/** Classification of current tyre temp vs the compound's ideal window. */
 export function tempStatus(
   c: number | null | undefined,
   compound: string | undefined
@@ -103,5 +103,5 @@ export function tempStatus(
   const [lo, hi] = tyreTempWindow(compound)
   if (c < lo) return { status: 'cold', color: '#3B82F6' }
   if (c > hi) return { status: 'hot', color: '#FF3B3B' }
-  return { status: 'ideal', color: '#2DD4BF' }
+  return { status: 'ideal', color: compound === 'inter' ? '#22C55E' : '#2DD4BF' }
 }

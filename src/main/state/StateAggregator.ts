@@ -367,6 +367,12 @@ export class StateAggregator {
     const h = p.m_header as PacketHeader
     const idx = h.m_playerCarIndex
     const arr = (p.m_carDamageData ?? []) as AnyParsedPacket[]
+    for (let i = 0; i < arr.length; i++) {
+      const carDamage = arr[i]
+      if (!carDamage) continue
+      this.ensureRival(i).tyreWearAvg = averagePct((carDamage.m_tyresWear ?? []) as number[])
+    }
+
     const d = arr[idx]
     if (!d) return
     const pl = this.state.player
@@ -525,6 +531,7 @@ export class StateAggregator {
         pitStatus: 0,
         penaltiesS: 0,
         tyreCompound: 'unknown',
+        tyreWearAvg: null,
         resultStatus: 0,
         status: 'running',
         relationToPlayer: 'same'
@@ -578,6 +585,12 @@ function numOr(v: number | undefined | null, fallback: number): number {
 function clampPct(x: number): number {
   if (!isFinite(x)) return 0
   return Math.max(0, Math.min(100, x))
+}
+function averagePct(values: number[]): number | null {
+  if (values.length === 0) return null
+  const finite = values.map((v) => clampPct(v)).filter((v) => isFinite(v))
+  if (finite.length === 0) return null
+  return finite.reduce((sum, v) => sum + v, 0) / finite.length
 }
 function clamp01Pct(x: number): number {
   return clamp01(x / 100)

@@ -12,7 +12,7 @@ const COMPOUND_COLOR: Record<string, string> = {
   soft: '#FF3B3B',
   medium: '#FFB020',
   hard: '#E6EDF6',
-  inter: '#2DD4BF',
+  inter: '#22C55E',
   wet: '#3B82F6',
   unknown: '#666'
 }
@@ -37,7 +37,7 @@ function TyreCard({ corner, label, compound, rawId }: { corner: keyof Corners; l
   return (
     <div className="glass-flat p-3">
       <div className="flex items-center justify-between">
-        <span className="label text-[9px]">{label}</span>
+        <span className="label text-[11px]">{label} · <span className="num-mono text-white/70">{remainingPct}%</span></span>
         <div className="flex items-center gap-1">
           <span
             className="h-3 w-3 rounded-full"
@@ -51,9 +51,6 @@ function TyreCard({ corner, label, compound, rawId }: { corner: keyof Corners; l
       {/* wear bar: remaining life. full=100% (no wear), empty=0% (fully worn).
           colour = inner tyre temperature status (cold/ideal/hot). */}
       <div className="mt-1">
-        <div className="flex justify-between text-[8px] text-white/35">
-          <span>remaining</span><span className="num-mono">{remainingPct}%</span>
-        </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.05]">
           <div
             className="h-full rounded-full transition-[width] duration-300"
