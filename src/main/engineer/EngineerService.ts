@@ -155,6 +155,12 @@ export class EngineerService {
       // Driver ASK is an explicit radio call, so always speak the answer.
       // Auto triggers still let the model choose NOW vs HOLD.
       const shouldSpeak = isManual || isNow || (!isHold && firing.priority === 'critical')
+      // Skip sending empty advice (e.g. model returned only a tool call with no text)
+      if (!cleanText) {
+        Sender.send('engineer:status', { status: 'idle' })
+        this.clearIdleTimer()
+        return
+      }
 
       Sender.send('engineer:advice', {
         id,
@@ -183,7 +189,7 @@ export class EngineerService {
   }
 
   private isAbort(err: unknown): boolean {
-    return err instanceof Error && (err.name === 'AbortError' || /abort/i.test(err.message))
+    return err instanceof Error && err.name === 'AbortError'
   }
 
   /** For the stub path, stream tokens to mimic the LLM (local, synchronous chunking). */

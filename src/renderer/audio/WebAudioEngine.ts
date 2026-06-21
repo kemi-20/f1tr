@@ -84,11 +84,13 @@ class WebAudioEngineImpl {
     g.linearRampToValueAtTime(0.0001, now + 0.08) // 80ms fade
     const gen = ++this.preemptGeneration
     setTimeout(() => {
-      if (gen !== this.preemptGeneration) return
+      // Always stop old sources regardless of generation — the fade-out must complete
       oldSources.forEach((s) => {
         try { s.stop() } catch { /* already stopped */ }
       })
       oldSources.clear()
+      // Only restore gain if this callback is still current (not invalidated by volume/mute change)
+      if (gen !== this.preemptGeneration) return
       // only reset nextStart if no new chunks arrived during the fade
       if (this.active.size === 0) {
         this.nextStart = this.ctx!.currentTime
@@ -135,6 +137,7 @@ class WebAudioEngineImpl {
       }
     })
     this.active.clear()
+    this.activeUtteranceId = null
     if (this.ctx) this.nextStart = this.ctx.currentTime
   }
 
@@ -158,6 +161,10 @@ class WebAudioEngineImpl {
 
   get contextState(): AudioContextState | 'none' {
     return this.ctx?.state ?? 'none'
+  }
+
+  get currentUtteranceId(): string | null {
+    return this.activeUtteranceId
   }
 
   resumeContext(): void {
@@ -184,7 +191,9 @@ export function wireAudioIpc(): () => void {
   offs.push(api.on('audio:chunk', (p) => WebAudioEngine.onChunk(p as AudioChunk)))
   offs.push(api.on('audio:end', (p) => {
     const end = p as AudioEnd
-    if (end.reason !== 'complete') {
+    // Only stopAll if this end event is for the currently active utterance
+    // (prevents a stale end from killing a newer utterance's audio)
+    if (end.reason !== 'complete' && WebAudioEngine.currentUtteranceId === end.utteranceId) {
       WebAudioEngine.stopAll()
     }
   }))

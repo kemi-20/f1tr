@@ -40,10 +40,18 @@ export class TriggerEngine {
 
   /** Hot-reload config (from UI settings changes). Resets cooldown state so the new
    *  threshold values apply immediately instead of being held back by old timestamps. */
-  setConfig(config: TriggerConfig): void {
-    this.config = config
-    this.cooldown.setConfig(config)
-  }
+ setConfig(config: TriggerConfig): void {
+   this.config = config
+   this.cooldown.setConfig(config)
+    // reset hysteresis flags so new thresholds take effect immediately
+    this.tyreWearLevel = 0
+    this.tyreHotActive = false
+    this.tyreColdActive = false
+    this.defendActive = false
+    this.attackActive = false
+    this.rainImminentActive = false
+    this.fuelLowActive = false
+ }
 
   /** Called when the aggregator has updated state (throttled, e.g. once per tick). */
   evaluate(state: RaceState): void {

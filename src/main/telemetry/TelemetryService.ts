@@ -184,5 +184,10 @@ export class TelemetryService {
   setPort(port: number): void {
     this.receiver.setPort(port)
     this.aggregator.reset(this.receiver.currentFormat ?? 2025)
+    this.lastOverallFrame = 0
+    this.lastSessionUID = ''
+    this.lastTrackId = -1
+    this.lastMetaFormat = null
+    this.pendingEvents = []
   }
 }

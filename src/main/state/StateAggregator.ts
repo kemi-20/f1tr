@@ -114,7 +114,13 @@ export class StateAggregator {
     w.airTempC = p.m_airTemperature ?? w.airTempC
     w.trackTempC = p.m_trackTemperature ?? w.trackTempC
     w.weatherCode = p.m_weather ?? w.weatherCode
-    w.wetness = clamp01((p.m_trackWetness ?? w.wetness * 100) / 100)
+    // m_trackWetness may not exist in all parser versions; derive from weather code as fallback
+    const rawWetness = typeof p.m_trackWetness === 'number' ? p.m_trackWetness : null
+    if (rawWetness != null) {
+      w.wetness = clamp01(rawWetness / 100)
+    } else if (isRainWeatherCode(w.weatherCode)) {
+      w.wetness = Math.max(w.wetness, w.weatherCode >= 4 ? 0.7 : 0.3)
+    }
     const forecast = p.m_weatherForecastSamples?.[0]
     const forecastRainPct = forecast?.m_rainPercentage
     const wasRaining = w.isRaining
@@ -245,6 +251,8 @@ export class StateAggregator {
         if (gap != null) {
           cumAhead += gap
           validAhead = true
+        } else {
+          validAhead = false
         }
         sorted[i].gapToPlayerS = validAhead && cumAhead >= 0 ? cumAhead : null
       }
@@ -258,6 +266,8 @@ export class StateAggregator {
         if (gap != null) {
           cumBehind += gap
           validBehind = true
+        } else {
+          validBehind = false
         }
         sorted[i].gapToPlayerS = validBehind && cumBehind >= 0 ? -cumBehind : null
       }
@@ -587,7 +597,7 @@ function clampPct(x: number): number {
 }
 function averagePct(values: number[]): number | null {
   if (values.length === 0) return null
-  const finite = values.map((v) => clampPct(v)).filter((v) => isFinite(v))
+  const finite = values.filter((v) => typeof v === 'number' && isFinite(v)).map((v) => clampPct(v))
   if (finite.length === 0) return null
   return finite.reduce((sum, v) => sum + v, 0) / finite.length
 }
