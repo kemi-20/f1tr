@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../../ipc/ipcClient'
-import { useEngineerStore } from '../../store'
+import { useEngineerStore, useConfigStore, useHealthStore } from '../../store'
 import { StatusPills } from './StatusPills'
 import { AudioControls } from './AudioControls'
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder'
@@ -10,8 +10,29 @@ export function EngineerPanel(): React.ReactElement {
   const streamingId = useEngineerStore((s) => s.streamingId)
   const streamingText = useEngineerStore((s) => s.streamingText)
   const status = useEngineerStore((s) => s.status)
+  const hotkey = useConfigStore((s) => s.config?.hotkeys.pushToTalk ?? 'Space')
   const [draft, setDraft] = useState('')
   const { state: recState, toggle: toggleRec } = useVoiceRecorder()
+
+  // Global hotkey listener: pressing the configured key (default Space) toggles
+  // voice recording, same as clicking Speak. Only active when UDP is fresh
+  // (connected or disconnected < 2 min). Ignored while typing in an input/textarea.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.code !== hotkey) return
+      // don't intercept when focused on a text input
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      // check UDP freshness: lastPacketMs within 2 minutes
+      const { lastPacketMs } = useHealthStore.getState()
+      if (lastPacketMs === 0) return // never received packets
+      if (Date.now() - lastPacketMs > 120_000) return // stale > 2min
+      e.preventDefault()
+      toggleRec()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [hotkey, toggleRec])
 
   const busy = (status === 'thinking' || status === 'speaking') && recState !== 'transcribing'
 

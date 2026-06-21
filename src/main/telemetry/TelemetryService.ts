@@ -26,6 +26,10 @@ export class TelemetryService {
   private lastSessionUID = ''
   private lastTrackId = -1
   private running = false
+  private udpStale = false
+  private onUdpStale?: () => void
+  private onUdpResume?: () => void
+  private readonly STALE_MS = 120_000 // 2 minutes
 
   constructor(
     port = 20777,
@@ -105,8 +109,27 @@ export class TelemetryService {
     this.running = true
   }
 
+  setUdpCallbacks(onStale: () => void, onResume: () => void): void {
+    this.onUdpStale = onStale
+    this.onUdpResume = onResume
+  }
+
   private tick(): void {
     const state = this.aggregator.getState()
+    const now = Date.now()
+    const lastPacket = this.receiver.lastPacketMs
+    const stale = lastPacket > 0 && now - lastPacket > this.STALE_MS
+    if (stale && !this.udpStale) {
+      this.udpStale = true
+      logger.warn('UDP stale > 2min — pausing engineer')
+      this.onUdpStale?.()
+    } else if (!stale && this.udpStale) {
+      this.udpStale = false
+      logger.info('UDP resumed — resuming engineer')
+      this.onUdpResume?.()
+    }
+    if (this.udpStale) return // skip trigger evaluation while stale
+
     this.aggregator.setFlashbackActive(this.triggers.isFlashbackActive())
     this.triggers.evaluate(state)
     this.drainEvents()

@@ -106,6 +106,13 @@ app.whenReady().then(() => {
   setTelemetry(telemetry)
   telemetry.start()
 
+  // UDP staleness watchdog: if no packets for 2 minutes, cancel the engineer
+  // and suppress triggers until packets resume.
+  telemetry.setUdpCallbacks(
+    () => { engineer?.cancel(); logger.info('Engineer paused (UDP stale)') },
+    () => { logger.info('Engineer resumed (UDP reconnected)') }
+  )
+
   // wire the real LLM + TTS backends (P3/P5) if secrets are present
   wireLlm(cfg).catch((err) => {
     logger.error('Failed to wire LLM backend:', (err as Error)?.message ?? err)

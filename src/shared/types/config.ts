@@ -57,6 +57,9 @@ export interface AppConfig {
     glassmorphism: boolean
     reduceMotion: boolean
   }
+  hotkeys: {
+    pushToTalk: string // KeyboardEvent.code, e.g. 'Space', 'KeyA'
+  }
   advanced: {
     maxQueueDepth: number
     memoryTurns: number
@@ -90,8 +93,9 @@ export const DEFAULT_CONFIG: AppConfig = {
     suppressLastLapLowPriority: false
   },
   audio: { muted: false, volume: 1, pause: false, preemptOnHigh: true },
-  ui: { theme: 'midnight', accent: '#00D2BE', glassmorphism: true, reduceMotion: false },
-  advanced: { maxQueueDepth: 3, memoryTurns: 6 }
+ ui: { theme: 'midnight', accent: '#00D2BE', glassmorphism: true, reduceMotion: false },
+  hotkeys: { pushToTalk: 'Space' },
+ advanced: { maxQueueDepth: 3, memoryTurns: 6 }
 }
 
 /** Deep-merge a partial config patch over defaults (shallow per-section). */

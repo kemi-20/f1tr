@@ -11,15 +11,17 @@ import { TtsTab } from './TtsTab'
 import { VoiceLanguageTab } from './VoiceLanguageTab'
 import { TelemetryTab } from './TelemetryTab'
 import { AudioThemeTab } from './AudioThemeTab'
+import { HotkeyTab } from './HotkeyTab'
 
-type TabId = 'llm' | 'tts' | 'voice' | 'telemetry' | 'audio'
+type TabId = 'llm' | 'tts' | 'voice' | 'telemetry' | 'audio' | 'hotkey'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'llm', label: 'AI / LLM' },
   { id: 'tts', label: 'TTS · MiMo' },
   { id: 'voice', label: '语音 · 语言' },
   { id: 'telemetry', label: '遥测 · 触发' },
-  { id: 'audio', label: '音频 · 主题' }
+  { id: 'audio', label: '音频 · 主题' },
+  { id: 'hotkey', label: '快捷键' }
 ]
 
 export function SettingsModal(): ReactElement | null {
@@ -85,6 +87,7 @@ export function SettingsModal(): ReactElement | null {
           {tab === 'voice' && <VoiceLanguageTab />}
           {tab === 'telemetry' && <TelemetryTab />}
           {tab === 'audio' && <AudioThemeTab />}
+          {tab === 'hotkey' && <HotkeyTab />}
         </div>
 
         <div className="border-t border-white/[0.06] px-5 py-3 text-right">
