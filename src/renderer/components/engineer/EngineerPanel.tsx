@@ -3,6 +3,7 @@ import { api } from '../../ipc/ipcClient'
 import { useEngineerStore } from '../../store'
 import { StatusPills } from './StatusPills'
 import { AudioControls } from './AudioControls'
+import { useVoiceRecorder } from '../../hooks/useVoiceRecorder'
 
 export function EngineerPanel(): React.ReactElement {
   const messages = useEngineerStore((s) => s.messages)
@@ -10,8 +11,9 @@ export function EngineerPanel(): React.ReactElement {
   const streamingText = useEngineerStore((s) => s.streamingText)
   const status = useEngineerStore((s) => s.status)
   const [draft, setDraft] = useState('')
+  const { state: recState, toggle: toggleRec } = useVoiceRecorder()
 
-  const busy = status === 'thinking' || status === 'speaking'
+  const busy = (status === 'thinking' || status === 'speaking') && recState !== 'transcribing'
 
   const sendManual = (): void => {
     void api.ask(draft.trim() || undefined)
@@ -73,10 +75,18 @@ export function EngineerPanel(): React.ReactElement {
           Ask
         </button>
         <button
-          onClick={() => api.cancel()}
-          className="rounded-lg border border-accent-racing/40 px-3 py-2 text-xs font-bold uppercase tracking-wide text-accent-racing transition hover:bg-accent-racing/10"
+          onClick={toggleRec}
+          disabled={recState === 'transcribing'}
+          className={`rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-wide transition disabled:opacity-40 ${
+            recState === 'recording'
+              ? 'animate-pulse bg-accent-racing text-white hover:brightness-110'
+              : recState === 'transcribing'
+                ? 'border border-white/10 text-white/40'
+                : 'border border-accent-carbon/40 text-accent-carbon hover:bg-accent-carbon/10'
+          }`}
+          title={recState === 'recording' ? '点击停止录音' : recState === 'transcribing' ? '转写中…' : '语音输入'}
         >
-          Stop
+          {recState === 'recording' ? '● 录音中' : recState === 'transcribing' ? '转写中…' : 'Speak'}
         </button>
       </div>
 

@@ -14,6 +14,7 @@ export class DigestBuilder {
     const w = state.weather
     const p = state.player
     const sc = s.isRedFlag ? 'red' : s.isSafetyCar ? 'sc' : s.isVirtualSafetyCar ? 'vsc' : 'none'
+    const raceSession = this.isRaceSession(state)
     const drsBlockedByWeather = w.isRaining || w.weatherCode >= 3 || w.wetness >= 0.08
 
     const playerRivals = this.rivalsAroundPlayer(state, 4)
@@ -44,7 +45,15 @@ export class DigestBuilder {
         fuel: p.fuelRemainingKg != null ? `${p.fuelRemainingKg.toFixed(1)}kg` : '--',
         pits: p.pitStopCount,
         ers: fmtPct(p.ersPercent),
-        drs: drsBlockedByWeather ? 'disabled by rain/wet track' : p.drsActive ? 'active' : p.drsAllowed ? 'available' : 'no',
+        drs: raceSession
+          ? drsBlockedByWeather
+            ? 'disabled by rain/wet track'
+            : p.drsActive
+              ? 'active'
+              : p.drsAllowed
+                ? 'available'
+                : 'no'
+          : '',
         position: {
           lapPct: Math.round(p.lapDistancePct * 100),
           sector: p.currentSector
@@ -89,7 +98,8 @@ export class DigestBuilder {
         (d.player.gapAhead ? ` • ahead ${d.player.gapAhead}` : '') +
         (d.player.gapBehind ? ` • behind ${d.player.gapBehind}` : '') +
         ` • last ${d.player.lastLap} best ${d.player.bestLap} • fuel ${d.player.fuel} • pits ${d.player.pits}` +
-        ` • ERS ${d.player.ers} • DRS ${d.player.drs}`
+        ` • ERS ${d.player.ers}` +
+        (d.player.drs ? ` • DRS ${d.player.drs}` : '')
     )
     lines.push(
       `  TYRE: ${d.player.tyre.compound} ${d.player.tyre.age} • wear ${d.player.tyre.wear}` +
@@ -182,5 +192,10 @@ export class DigestBuilder {
 
   private fmtDamage(v: number): string {
     return `${Math.round(v * 100)}%`
+  }
+
+  private isRaceSession(state: RaceState): boolean {
+    const { sessionType, sessionTypeLabel } = state.session
+    return [13, 14, 15].includes(sessionType) || /^race$/i.test(sessionTypeLabel)
   }
 }

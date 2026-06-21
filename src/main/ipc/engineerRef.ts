@@ -1,5 +1,6 @@
 import type { EngineerService } from '../engineer/EngineerService'
 import type { LlmClient } from '../engineer/LlmClient'
+import { MiMoVisionClient } from '../engineer/MiMoVisionClient'
 import type { AppConfig } from '@shared/index'
 import { ConfigStore } from '../config/ConfigStore'
 import { normalizeURL } from '../config/env'
@@ -41,9 +42,18 @@ export async function wireLlm(cfg: AppConfig): Promise<void> {
   }
   const model = cfg.llm.model || 'deepseek-v4-flash'
   llm = new LlmClient(
-    { baseURL, apiKey, model, temperature: cfg.llm.temperature, maxTokens: cfg.llm.maxTokens },
-    svc.memory
+    { baseURL, apiKey, model, temperature: cfg.llm.temperature, maxTokens: cfg.llm.maxTokens, visionSupported: cfg.llm.visionSupported },
+    svc.memory,
+    buildVisionClient(cfg)
   )
   svc.setBackend(llm)
-  logger.info(`LLM backend ready: ${baseURL} model=${model}`)
+  logger.info(`LLM backend ready: ${baseURL} model=${model} vision=${cfg.llm.visionSupported}`)
+}
+
+/** Build a MiMo vision client from the TTS config (same base URL + key). */
+function buildVisionClient(cfg: AppConfig): MiMoVisionClient | null {
+  const baseURL = normalizeURL(cfg.tts.baseURL)
+  const apiKey = ConfigStore.ttsKey()
+  if (!baseURL || !apiKey) return null
+  return new MiMoVisionClient({ baseURL, apiKey, model: 'mimo-v2.5' })
 }

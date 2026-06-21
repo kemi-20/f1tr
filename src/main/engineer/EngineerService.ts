@@ -150,8 +150,10 @@ export class EngineerService {
       const isNow = /^【NOW】/i.test(text)
       const isHold = /^【HOLD】/i.test(text)
       const cleanText = text.replace(/^【(NOW|HOLD)】/i, '').trim()
-      // speak if NOW, or if no prefix + critical; HOLD skips TTS
-      const shouldSpeak = isNow || (!isHold && firing.priority === 'critical')
+      const isManual = firing.reasonCode === 'manual'
+      // Driver ASK is an explicit radio call, so always speak the answer.
+      // Auto triggers still let the model choose NOW vs HOLD.
+      const shouldSpeak = isManual || isNow || (!isHold && firing.priority === 'critical')
 
       Sender.send('engineer:advice', {
         id,

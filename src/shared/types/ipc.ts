@@ -27,6 +27,7 @@ export const IPC = {
   TEST_UDP: 'config:test:udp',
   ASK: 'engineer:request', // manual trigger
   CANCEL: 'engineer:cancel',
+  VOICE: 'engineer:voice', // voice → ASR → driver message
   AUDIO_MUTE: 'audio:mute',
   AUDIO_VOL: 'audio:volume',
   AUDIO_PAUSE: 'audio:pause'
@@ -100,6 +101,7 @@ export interface ApiSurface {
   testUdp: () => Promise<{ ok: boolean; message: string }>
   ask: (text?: string) => Promise<void>
   cancel: () => Promise<void>
+  transcribe: (base64Audio: string, format: string) => Promise<{ ok: boolean; text?: string; message?: string }>
   setMute: (muted: boolean) => Promise<void>
   setVolume: (vol: number) => Promise<void>
   setPause: (pause: boolean) => Promise<void>

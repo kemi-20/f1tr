@@ -4,6 +4,7 @@ import { logger } from '../logging/Logger'
 import { getTelemetry } from './telemetryRef'
 import { getEngineer, getLlm, wireLlm } from './engineerRef'
 import { getAudio, getTtsClient, wireTts } from './ttsRef'
+import { getAsrClient } from './ttsRef'
 import { manualFiring } from '../engineer/EngineerService'
 
 /**
@@ -105,6 +106,22 @@ export function registerIpc(): void {
     getAudio()?.cancelAll()
     getTtsClient()?.cancel()
     logger.info('engineer:cancel requested')
+  })
+
+  ipcMain.handle('engineer:voice', async (_e, base64Audio: string, format: string) => {
+    const asr = getAsrClient()
+    if (!asr) return { ok: false, message: 'MiMo ASR not configured (check TTS base URL / API key).' }
+    try {
+      const text = await asr.transcribe(base64Audio, format)
+      const svc = getTelemetry()
+      const eng = getEngineer()
+      if (!svc || !eng) return { ok: false, message: 'Engineer service not ready.' }
+      const state = svc.aggregator.getState()
+      eng.enqueue(state, manualFiring(text))
+      return { ok: true, text }
+    } catch (err) {
+      return { ok: false, message: `ASR error: ${(err as Error)?.message ?? err}` }
+    }
   })
 
   ipcMain.handle('audio:mute', async (_e, muted: boolean) => {

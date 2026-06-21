@@ -1,6 +1,6 @@
 {
   "name": "f1tr",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "F1 25 AI Race Engineer — UDP telemetry, LLM engineer, MiMo TTS voice, premium cockpit UI",
   "main": "out/main/index.js",
   "author": "",

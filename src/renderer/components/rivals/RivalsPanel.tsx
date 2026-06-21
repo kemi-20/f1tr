@@ -6,19 +6,21 @@ function Row({
   r,
   isPlayer,
   timingMode,
-  playerLap
+  playerLap,
+  playerLapDistancePct
 }: {
   r: RivalState
   isPlayer: boolean
   timingMode: boolean
   playerLap: number
+  playerLapDistancePct: number
 }): React.ReactElement {
   const tyreColor =
     { soft: '#FF3B3B', medium: '#FFB020', hard: '#E6EDF6', inter: '#22C55E', wet: '#3B82F6', unknown: '#666' }[r.tyreCompound] ?? '#666'
   const statusIcon =
     r.status === 'retired' ? 'DNF' : r.status === 'inGarage' ? 'IN' : r.status === 'finished' ? '🏁' : r.pitStatus === 2 ? 'PIT' : ''
-  const lapDiff = r.lap - playerLap
-  const lapDiffText = lapDiff > 0 ? `+${lapDiff}` : `${lapDiff}`
+  const lapDiff = playerLap + playerLapDistancePct - (r.lap + r.lapDistancePct)
+  const lapDiffText = fmtLapDelta(lapDiff)
   const wearText = r.tyreWearAvg != null ? `${Math.round(r.tyreWearAvg)}%` : '--'
 
   return (
@@ -39,7 +41,9 @@ function Row({
           {wearText}
         </span>
       )}
-      <span className="num-mono w-5 text-center text-white/30">{timingMode ? lapDiffText : r.pitStopCount}</span>
+      <span className={`num-mono text-center text-white/30 ${timingMode ? 'w-12' : 'w-5'}`}>
+        {timingMode ? lapDiffText : r.pitStopCount}
+      </span>
       {r.penaltiesS > 0 && <span className="chip bg-accent-racing/15 text-accent-racing">{r.penaltiesS}s</span>}
       {statusIcon && <span className="ml-auto chip bg-white/[0.06] text-white/50">{statusIcon}</span>}
     </div>
@@ -52,6 +56,7 @@ export function RivalsPanel(): React.ReactElement {
   const playerIdx = race?.player.carIndex ?? -1
   const timingMode = race ? isTimingSession(race) : false
   const playerLap = race?.player.lap ?? 0
+  const playerLapDistancePct = race?.player.lapDistancePct ?? 0
 
   const sorted = rivals
     .filter((r) => r.position > 0)
@@ -77,6 +82,7 @@ export function RivalsPanel(): React.ReactElement {
               isPlayer={r.carIndex === playerIdx}
               timingMode={timingMode}
               playerLap={playerLap}
+              playerLapDistancePct={playerLapDistancePct}
             />
           ))}
         </div>
@@ -88,4 +94,11 @@ export function RivalsPanel(): React.ReactElement {
 function isTimingSession(race: RaceState): boolean {
   const { sessionType, sessionTypeLabel } = race.session
   return [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12].includes(sessionType) || /practice|qual|^p[123]$|^q[123]$|^osq$/i.test(sessionTypeLabel)
+}
+
+function fmtLapDelta(deltaLaps: number): string {
+  if (!isFinite(deltaLaps)) return '--'
+  if (Math.abs(deltaLaps) < 0.0005) return '0.000'
+  const sign = deltaLaps > 0 ? '+' : '-'
+  return `${sign}${Math.abs(deltaLaps).toFixed(3)}`
 }

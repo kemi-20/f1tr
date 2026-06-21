@@ -1,6 +1,7 @@
 import type { AudioPipeline } from '../audio/AudioPipeline'
 import { ConfigStore } from '../config/ConfigStore'
 import { MiMoTtsClient } from '../tts/MiMoTtsClient'
+import { MiMoAsrClient } from '../engineer/MiMoAsrClient'
 import { normalizeURL } from '../config/env'
 import { logger } from '../logging/Logger'
 import type { AppConfig } from '@shared/index'
@@ -11,6 +12,7 @@ import type { AppConfig } from '@shared/index'
  */
 let pipeline: AudioPipeline | null = null
 let client: MiMoTtsClient | null = null
+let asrClient: MiMoAsrClient | null = null
 
 export function setAudio(p: AudioPipeline | null): void {
   pipeline = p
@@ -27,6 +29,9 @@ export function getAudio(): AudioPipeline | null {
 export function getTtsClient(): MiMoTtsClient | null {
   return client
 }
+export function getAsrClient(): MiMoAsrClient | null {
+  return asrClient
+}
 
 /** Build/rebuild the MiMo client from current config; inject into the pipeline.
  *  Effective key = UI override if set, else .env. URL normalized same as LLM. */
@@ -42,7 +47,8 @@ export async function wireTts(cfg: AppConfig): Promise<void> {
   }
   client = new MiMoTtsClient({ baseURL, apiKey, model: cfg.tts.model })
   pipeline.setClient(client)
+  asrClient = new MiMoAsrClient({ baseURL, apiKey, model: 'mimo-v2.5-asr' })
   pipeline.setPreemptOnHigh(cfg.audio.preemptOnHigh)
   pipeline.setMaxQueueDepth(cfg.advanced.maxQueueDepth)
-  logger.info(`TTS backend ready: ${baseURL}`)
+  logger.info(`TTS backend ready: ${baseURL} (TTS + ASR)`)
 }

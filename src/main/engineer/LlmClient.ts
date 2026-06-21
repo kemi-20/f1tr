@@ -4,6 +4,8 @@ import type { EngineerBackend } from './EngineerService'
 import type { Digest } from '@shared/types/digest'
 import type { TriggerFiring } from '@shared/types/triggers'
 import type { ConversationMemory } from './ConversationMemory'
+import type { MiMoVisionClient } from './MiMoVisionClient'
+import { captureF1Screenshot } from '../screenshot/ScreenshotService'
 import { logger } from '../logging/Logger'
 
 export interface LlmConfig {
@@ -12,6 +14,7 @@ export interface LlmConfig {
   model: string // e.g. deepseek-v4-flash
   temperature: number
   maxTokens: number
+  visionSupported: boolean // whether the configured model can accept image input
 }
 
 /**
@@ -30,7 +33,8 @@ export class LlmClient implements EngineerBackend {
 
   constructor(
     private config: LlmConfig,
-    private memory: ConversationMemory
+    private memory: ConversationMemory,
+    private visionClient: MiMoVisionClient | null = null
   ) {
     this.rebuildClient()
   }
@@ -94,74 +98,127 @@ export class LlmClient implements EngineerBackend {
     this.abort = new AbortController()
     void firing
 
-    // Build the layer-3 digest text (the fresh user turn). Includes trigger + manual prompt.
     const turn = this.renderDigestTurn(digest, digestText, manualPrompt)
-    const messages = this.memory.build(turn)
+    const messages: ChatCompletionMessageParam[] = this.memory.build(turn)
 
-    let text = ''
-    try {
-      // base typed params (keeps the streaming overload intact) + non-standard thinking field
-      const base = {
-        model: this.config.model,
-        messages,
-        temperature: this.config.temperature,
-        max_tokens: this.config.maxTokens,
-        stream: true as const,
-        stream_options: { include_usage: true }
+    // Tool: capture_screenshot — the AI can call this to see the game screen.
+    const tools = [{
+      type: 'function' as const,
+      function: {
+        name: 'capture_screenshot',
+        description: 'Capture a screenshot of the F1 25 game window. Use this when you need visual context beyond telemetry data (e.g., to see track position, weather effects, on-screen HUD, or damage details).',
+        parameters: { type: 'object' as const, properties: {}, required: [] as string[] }
       }
-      // DeepSeek v4 thinking defaults to ENABLED — emits a chain-of-thought BEFORE the answer,
-      // which wrecks voice latency and burns tokens. Disabled here. Non-standard field,
-      // ignored by OpenAI/Ollama.
-      const body = { ...base, thinking: { type: 'disabled' } }
-      const stream = (await this.client.chat.completions.create(
-        body as Parameters<typeof this.client.chat.completions.create>[0],
-        { signal: this.abort.signal }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      )) as any
+    }]
 
-      // watchdog: don't let a stalled stream hang the single-slot queue for minutes.
-      // Capture the controller locally so a new generate() starting before the timeout
-      // doesn't abort the wrong stream.
-      const controller = this.abort
-      const watchdog = setTimeout(
-        () => {
-          logger.warn('LLM stream watchdog (30s) — aborting')
-          controller?.abort()
-        },
-        30_000
-      )
+    let finalText = ''
+    const maxToolRounds = 3
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let usage: any = null
+    for (let round = 0; round <= maxToolRounds; round++) {
+      const isLastRound = round === maxToolRounds
+      let text = ''
       try {
-        for await (const part of stream) {
-          const delta = part.choices[0]?.delta?.content ?? ''
-          if (delta) {
-            text += delta
-            onDelta(delta)
-          }
-          // usage arrives in the final chunk (choices empty, usage populated)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if ((part as any).usage) usage = (part as any).usage
+        const base = {
+          model: this.config.model,
+          messages,
+          temperature: this.config.temperature,
+          max_tokens: this.config.maxTokens,
+          stream: true as const,
+          stream_options: { include_usage: true },
+          ...(isLastRound ? {} : { tools })
         }
-      } finally {
-        clearTimeout(watchdog)
-      }
+        const body = { ...base, thinking: { type: 'disabled' } }
+        const stream = (await this.client.chat.completions.create(
+          body as Parameters<typeof this.client.chat.completions.create>[0],
+          { signal: this.abort.signal }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        )) as any
 
-      if (usage) {
-        this.logUsage(usage)
-      }
-      // record into rolling memory as a user+assistant pair (proper chat alternation)
-      this.memory.pushTurn(turn, text || '(no response)')
-      return text
-    } catch (err) {
-      if (this.isAbort(err)) {
-        // abort = user cancelled / preempt. Re-throw so advise() knows it wasn't a normal
-        // completion and does NOT commit the truncated text as a finished spoken message.
-        logger.info('LLM stream aborted — not committing partial text')
+        const controller = this.abort
+        const watchdog = setTimeout(() => { logger.warn('LLM stream watchdog (30s) — aborting'); controller?.abort() }, 30_000)
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let usage: any = null
+        let finishReason: string | null = null
+        const toolCallAcc = new Map<number, { id: string; name: string; arguments: string }>()
+        try {
+          for await (const part of stream) {
+            const delta = part.choices[0]?.delta?.content ?? ''
+            if (delta) { text += delta; onDelta(delta) }
+            const tcDeltas = part.choices[0]?.delta?.tool_calls
+            if (tcDeltas) {
+              for (const tc of tcDeltas) {
+                const idx = tc.index ?? 0
+                if (!toolCallAcc.has(idx)) toolCallAcc.set(idx, { id: tc.id ?? '', name: tc.function?.name ?? '', arguments: '' })
+                const ex = toolCallAcc.get(idx)!
+                if (tc.id) ex.id = tc.id
+                if (tc.function?.name) ex.name = tc.function.name
+                if (tc.function?.arguments) ex.arguments += tc.function.arguments
+              }
+            }
+            if (part.choices[0]?.finish_reason) finishReason = part.choices[0].finish_reason as string
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if ((part as any).usage) usage = (part as any).usage
+          }
+        } finally {
+          clearTimeout(watchdog)
+        }
+        if (usage) this.logUsage(usage)
+
+        // If the model called a tool, execute it and continue the conversation
+        if (finishReason === 'tool_calls' && toolCallAcc.size > 0 && !isLastRound) {
+          messages.push({
+            role: 'assistant',
+            content: text || null,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            tool_calls: Array.from(toolCallAcc.values()).map((tc) => ({
+              id: tc.id, type: 'function' as const,
+              function: { name: tc.name, arguments: tc.arguments }
+            })) as any
+          } as ChatCompletionMessageParam)
+          for (const tc of Array.from(toolCallAcc.values())) {
+            if (tc.name === 'capture_screenshot') {
+              const toolResult = await this.executeScreenshotTool()
+              messages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult } as ChatCompletionMessageParam)
+            }
+          }
+          continue // next round — model responds after seeing the tool result
+        }
+        finalText = text
+        break
+      } catch (err) {
+        if (this.isAbort(err)) {
+          logger.info('LLM stream aborted — not committing partial text')
+          throw err
+        }
         throw err
       }
-      throw err
+    } // end tool-calling loop
+
+    this.memory.pushTurn(turn, finalText || '(no response)')
+    return finalText
+  }
+
+  /**
+   * Execute the capture_screenshot tool.
+   * - If the model supports vision: return image content (base64 PNG).
+   * - If not: send to MiMo mimo-v2.5 for text description, return that.
+   */
+  private async executeScreenshotTool(): Promise<string | unknown[]> {
+    const base64 = await captureF1Screenshot()
+    if (!base64) return 'Screenshot capture failed — no F1 25 window or screen found.'
+    if (this.config.visionSupported) {
+      return [
+        { type: 'text', text: 'Screenshot of the F1 25 game window:' },
+        { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}` } }
+      ]
+    }
+    if (!this.visionClient) return 'Screenshot captured but no MiMo vision client configured for image description.'
+    try {
+      const description = await this.visionClient.describeImage(base64)
+      return `MiMo vision description of the F1 25 screenshot:\n${description}`
+    } catch (err) {
+      return `Screenshot captured but MiMo vision description failed: ${(err as Error)?.message ?? err}`
     }
   }
 

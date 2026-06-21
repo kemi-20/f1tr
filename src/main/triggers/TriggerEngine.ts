@@ -172,6 +172,12 @@ export class TriggerEngine {
   }
 
   private evalDefendAttack(state: RaceState): void {
+    if (!isRaceSession(state)) {
+      this.defendActive = false
+      this.attackActive = false
+      return
+    }
+
     const playerPos = state.player.position
     const ahead = Object.values(state.rivals).find((r) => r.position === playerPos - 1)
     const behind = Object.values(state.rivals).find((r) => r.position === playerPos + 1)
@@ -318,6 +324,11 @@ function classifyKind(ruleId: string): 'heartbeat' | 'event' | 'threshold' {
 function minPositive(...values: number[]): number | null {
   const filtered = values.filter((v) => Number.isFinite(v) && v > 0)
   return filtered.length ? Math.min(...filtered) : null
+}
+
+function isRaceSession(state: RaceState): boolean {
+  const { sessionType, sessionTypeLabel } = state.session
+  return [13, 14, 15].includes(sessionType) || /^race$/i.test(sessionTypeLabel)
 }
 
 export { Cooldown }

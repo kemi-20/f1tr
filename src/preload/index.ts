@@ -9,6 +9,7 @@ const api: ApiSurface = {
   testUdp: () => ipcRenderer.invoke('config:test:udp'),
   ask: (text) => ipcRenderer.invoke('engineer:request', text),
   cancel: () => ipcRenderer.invoke('engineer:cancel'),
+  transcribe: (base64Audio, format) => ipcRenderer.invoke('engineer:voice', base64Audio, format),
   setMute: (muted) => ipcRenderer.invoke('audio:mute', muted),
   setVolume: (vol) => ipcRenderer.invoke('audio:volume', vol),
   setPause: (pause) => ipcRenderer.invoke('audio:pause', pause),
