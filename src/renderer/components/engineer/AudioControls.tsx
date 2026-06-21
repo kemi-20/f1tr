@@ -45,8 +45,7 @@ export function AudioControls(): React.ReactElement {
 
   const stop = (): void => {
     void api.cancel()
-    WebAudioEngine.pause()
-    setTimeout(() => WebAudioEngine.resume(), 100)
+    WebAudioEngine.stopAll()
   }
   const isSpeaking = status === 'speaking' || status === 'thinking'
 

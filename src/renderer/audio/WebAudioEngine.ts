@@ -18,6 +18,7 @@ class WebAudioEngineImpl {
   private paused = false
   private volume = 1
   private started = false
+  private preemptGeneration = 0
   /** id of the utterance currently allowed to play; chunks from any other id are dropped
    *  (e.g. after a preempt the old synthesis's late chunks must not keep sounding). */
   private activeUtteranceId: string | null = null
@@ -81,7 +82,9 @@ class WebAudioEngineImpl {
     g.cancelScheduledValues(now)
     g.setValueAtTime(Math.max(g.value, 0.0001), now)
     g.linearRampToValueAtTime(0.0001, now + 0.08) // 80ms fade
+    const gen = ++this.preemptGeneration
     setTimeout(() => {
+      if (gen !== this.preemptGeneration) return
       oldSources.forEach((s) => {
         try { s.stop() } catch { /* already stopped */ }
       })
@@ -97,6 +100,7 @@ class WebAudioEngineImpl {
   }
 
   setVolume(v: number): void {
+    this.preemptGeneration++
     this.volume = v
     if (this.master && !this.muted) {
       const now = this.ctx?.currentTime ?? 0
@@ -106,6 +110,7 @@ class WebAudioEngineImpl {
   }
 
   setMuted(m: boolean): void {
+    this.preemptGeneration++
     this.muted = m
     if (this.master) {
       const now = this.ctx?.currentTime ?? 0

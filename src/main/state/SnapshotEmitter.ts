@@ -19,7 +19,7 @@ export class SnapshotEmitter {
   private lastPaintJson = ''
   private running = false
   private snapshotHz = 12
-  private paintHz = 12
+  private paintHz = 2
 
   constructor(
     private aggregator: StateAggregator,
@@ -31,9 +31,8 @@ export class SnapshotEmitter {
 
   setRendererPaintHz(hz: number): void {
     const next = clampHz(hz)
-    if (next === this.paintHz && next === this.snapshotHz) return
+    if (next === this.snapshotHz) return
     this.snapshotHz = next
-    this.paintHz = next
     if (this.running) {
       this.stopTimers()
       this.startTimers()
@@ -98,6 +97,7 @@ export class SnapshotEmitter {
 
   stop(): void {
     this.stopTimers()
+    this.lastPaintJson = ''
     this.running = false
   }
 

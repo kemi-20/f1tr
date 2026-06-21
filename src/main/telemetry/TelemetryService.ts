@@ -183,5 +183,6 @@ export class TelemetryService {
 
   setPort(port: number): void {
     this.receiver.setPort(port)
+    this.aggregator.reset(this.receiver.currentFormat ?? 2025)
   }
 }

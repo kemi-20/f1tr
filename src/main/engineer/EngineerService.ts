@@ -135,6 +135,7 @@ export class EngineerService {
     // ensure the session prime (cached baseline) is built / current before any LLM call
     this.memory.primeIfNeeded(state)
 
+    this.clearIdleTimer()
     Sender.send('engineer:status', { status: 'thinking' })
     const emitDelta = createDeltaEmitter(firing, (delta) => {
       Sender.send('engineer:text', { id, delta })

@@ -90,7 +90,6 @@ export class StateAggregator {
       s.isRedFlag = false
       this._prevRedFlagCount = redCount
     } else {
-      s.isRedFlag = this.state.session.isRedFlag
       this._prevRedFlagCount = Math.max(this._prevRedFlagCount ?? 0, redCount)
     }
     s.safetyCarPhase = scStatus
@@ -265,7 +264,7 @@ export class StateAggregator {
     }
     for (const r of sorted) {
       r.relationToPlayer =
-        r.position < playerPos ? 'ahead' : r.position > playerPos ? 'behind' : 'same'
+        r.position > 0 && r.position < playerPos ? 'ahead' : r.position > playerPos ? 'behind' : 'same'
     }
   }
 
@@ -619,7 +618,7 @@ function readGapS(d: AnyParsedPacket): number | null {
   const minPart = hasMinPart ? d.m_deltaToCarInFrontMinutesPart : 0
   const msPart = hasMsPart ? d.m_deltaToCarInFrontMSPart : 0
   const totalMs = minPart * 60000 + msPart
-  return totalMs >= 0 ? totalMs / 1000 : null
+  return totalMs > 0 ? totalMs / 1000 : null
 }
 /** Convert a 0..100 percentage field (uint8 damage/wear) to 0..1, guarding NaN/undef. */
 function normPctTo01(v: number | undefined | null): number {
