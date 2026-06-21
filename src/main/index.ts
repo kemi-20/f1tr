@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell, Menu } from 'electron'
 import { join } from 'node:path'
+import { registerHotkey, unregisterHotkey } from './hotkey/GlobalHotkeyManager'
 import { logger } from './logging/Logger'
 import { ConfigStore } from './config/ConfigStore'
 import { registerIpc } from './ipc/register'
@@ -109,9 +110,25 @@ app.whenReady().then(() => {
   // UDP staleness watchdog: if no packets for 2 minutes, cancel the engineer
   // and suppress triggers until packets resume.
   telemetry.setUdpCallbacks(
-    () => { engineer?.cancel(); logger.info('Engineer paused (UDP stale)') },
-    () => { logger.info('Engineer resumed (UDP reconnected)') }
+    () => {
+      engineer?.cancel()
+      unregisterHotkey()
+      logger.info('Engineer paused (UDP stale)')
+    },
+    () => {
+      registerHotkey(cfg.hotkeys.pushToTalk)
+      logger.info('Engineer resumed (UDP reconnected)')
+    }
   )
+
+  // Register hotkey once first UDP packet arrives (poll until connected)
+  const hotkeyPoll = setInterval(() => {
+    if (telemetry?.packetsReceived() && telemetry.packetsReceived() > 0) {
+      registerHotkey(cfg.hotkeys.pushToTalk)
+      clearInterval(hotkeyPoll)
+    }
+  }, 2000)
+  setTimeout(() => clearInterval(hotkeyPoll), 300_000) // safety: stop after 5min
 
   // wire the real LLM + TTS backends (P3/P5) if secrets are present
   wireLlm(cfg).catch((err) => {
@@ -136,9 +153,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
-  telemetry?.stop()
-})
+  app.on('before-quit', () => {
+    telemetry?.stop()
+    unregisterHotkey()
+  })
 
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught exception:', err?.message ?? err, err?.stack ?? '')

@@ -28,6 +28,7 @@ export const IPC = {
   ASK: 'engineer:request', // manual trigger
   CANCEL: 'engineer:cancel',
   VOICE: 'engineer:voice', // voice → ASR → driver message
+  HOTKEY: 'hotkey:trigger', // global shortcut fired → renderer
   AUDIO_MUTE: 'audio:mute',
   AUDIO_VOL: 'audio:volume',
   AUDIO_PAUSE: 'audio:pause'

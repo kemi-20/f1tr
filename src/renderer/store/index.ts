@@ -55,6 +55,8 @@ interface EngineerState {
   appendDelta: (delta: string) => void
   commit: (id: string, text: string) => void
   clearStream: () => void
+  hotkeyTrigger: number
+  triggerHotkey: () => void
 }
 
 export const useEngineerStore = create<EngineerState>((set) => ({
@@ -62,6 +64,7 @@ export const useEngineerStore = create<EngineerState>((set) => ({
   messages: [],
   streamingId: null,
   streamingText: '',
+  hotkeyTrigger: 0,
   setStatus: (status) => set({ status }),
   startStream: (id) => set({ streamingId: id, streamingText: '', status: 'thinking' }),
   appendDelta: (delta) =>
@@ -73,7 +76,8 @@ export const useEngineerStore = create<EngineerState>((set) => ({
       streamingText: '',
       status: 'speaking'
     })),
-  clearStream: () => set({ streamingId: null, streamingText: '' })
+  clearStream: () => set({ streamingId: null, streamingText: '' }),
+  triggerHotkey: () => set((s) => ({ hotkeyTrigger: s.hotkeyTrigger + 1 })),
 }))
 
 /** Paint store — the slow (~2Hz) full-state projection from the aggregator. */

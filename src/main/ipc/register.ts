@@ -3,6 +3,7 @@ import { ConfigStore } from '../config/ConfigStore'
 import { logger } from '../logging/Logger'
 import { getTelemetry } from './telemetryRef'
 import { getEngineer, getLlm, wireLlm } from './engineerRef'
+import { registerHotkey } from '../hotkey/GlobalHotkeyManager'
 import { getAudio, getTtsClient, wireTts } from './ttsRef'
 import { getAsrClient } from './ttsRef'
 import { manualFiring } from '../engineer/EngineerService'
@@ -31,6 +32,12 @@ export function registerIpc(): void {
     }
     if (patch.triggers) {
       getTelemetry()?.triggers.setConfig(cfg.triggers)
+    }
+    if (patch.hotkeys?.pushToTalk) {
+      // re-register global hotkey if telemetry is active
+      if (getTelemetry()?.packetsReceived() && getTelemetry()!.packetsReceived() > 0) {
+        registerHotkey(cfg.hotkeys.pushToTalk)
+      }
     }
     if (patch.telemetry?.rendererPaintHz != null) {
       getTelemetry()?.setRendererPaintHz(cfg.telemetry.rendererPaintHz)

@@ -38,7 +38,7 @@ AI_API_BASE_URL=api.deepseek.com
 AI_API_KEY=sk-你的密钥
 AI_MODEL=deepseek-v4-flash
 
-# MiMo 语音
+# MiMo TTS & ASR
 MIMO_API_BASE_URL=api.xiaomimimo.com
 MIMO_API_KEY=sk-你的mimo密钥
 ```

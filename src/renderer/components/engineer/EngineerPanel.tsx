@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '../../ipc/ipcClient'
-import { useEngineerStore, useConfigStore, useHealthStore } from '../../store'
+import { useEngineerStore } from '../../store'
 import { StatusPills } from './StatusPills'
 import { AudioControls } from './AudioControls'
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder'
@@ -10,29 +10,18 @@ export function EngineerPanel(): React.ReactElement {
   const streamingId = useEngineerStore((s) => s.streamingId)
   const streamingText = useEngineerStore((s) => s.streamingText)
   const status = useEngineerStore((s) => s.status)
-  const hotkey = useConfigStore((s) => s.config?.hotkeys.pushToTalk ?? 'Space')
+  const hotkeyTrigger = useEngineerStore((s) => s.hotkeyTrigger)
   const [draft, setDraft] = useState('')
   const { state: recState, toggle: toggleRec } = useVoiceRecorder()
+  const toggleRef = useRef(toggleRec)
+  toggleRef.current = toggleRec
 
-  // Global hotkey listener: pressing the configured key (default Space) toggles
-  // voice recording, same as clicking Speak. Only active when UDP is fresh
-  // (connected or disconnected < 2 min). Ignored while typing in an input/textarea.
+  // Global hotkey: main process fires globalShortcut → IPC 'hotkey:trigger' →
+  // store increments hotkeyTrigger. We watch it here and toggle recording.
+  // The main process only registers the shortcut when UDP is fresh.
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.code !== hotkey) return
-      // don't intercept when focused on a text input
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
-      // check UDP freshness: lastPacketMs within 2 minutes
-      const { lastPacketMs } = useHealthStore.getState()
-      if (lastPacketMs === 0) return // never received packets
-      if (Date.now() - lastPacketMs > 120_000) return // stale > 2min
-      e.preventDefault()
-      toggleRec()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [hotkey, toggleRec])
+    if (hotkeyTrigger > 0) toggleRef.current()
+  }, [hotkeyTrigger])
 
   const busy = (status === 'thinking' || status === 'speaking') && recState !== 'transcribing'
 

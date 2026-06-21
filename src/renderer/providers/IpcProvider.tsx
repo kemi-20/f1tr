@@ -41,7 +41,10 @@ export function IpcProvider({ children }: { children: React.ReactNode }): React.
         st.setStatus(status)
         // on error/abort, drop the partial streaming bubble so an old-language
         // response doesn't stick after settings changes or Stop.
-        if (status === 'error' || status === 'idle') st.clearStream()
+       if (status === 'error' || status === 'idle') st.clearStream()
+      }),
+      api.on('hotkey:trigger', () => {
+        useEngineerStore.getState().triggerHotkey()
       })
     ]
     return () => {
