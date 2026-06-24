@@ -1,4 +1,4 @@
-// @ts-ignore
+// @ts-ignore - lamejs has no official types
 import lamejs from 'lamejs'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { api } from '../ipc/ipcClient'
@@ -7,11 +7,10 @@ import { useEngineerStore } from '../store'
 type RecorderState = 'idle' | 'recording' | 'transcribing'
 
 /**
- * useVoiceRecorder — records mic audio as 16kHz mono PCM and encodes to WAV
- * (MiMo ASR only accepts wav/mp3, not webm).
+ * useVoiceRecorder — records mic audio as 16kHz mono PCM and encodes to MP3.
  *
- * Flow: start → AudioContext captures PCM → stop → encode MP3 → base64 →
- * IPC to main → MiMo ASR (mimo-v2.5-asr) → text → enqueue as driver_message.
+ * Flow: start -> AudioContext captures PCM -> stop -> encode MP3 -> base64 ->
+ * IPC to main -> MiMo ASR (or direct to LLM if audioSupported) -> text -> driver_message.
  */
 export function useVoiceRecorder() {
   const [state, setState] = useState<RecorderState>('idle')
@@ -25,7 +24,7 @@ export function useVoiceRecorder() {
   const cleanup = useCallback(() => {
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null }
     if (processorRef.current) {
-      processorRef.current.disconnect()
+      try { processorRef.current.disconnect() } catch { /* noop */ }
       processorRef.current = null
     }
     if (streamRef.current) {
@@ -33,7 +32,7 @@ export function useVoiceRecorder() {
       streamRef.current = null
     }
     if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-      void audioCtxRef.current.close()
+      void audioCtxRef.current.close().catch(() => {})
     }
     audioCtxRef.current = null
   }, [])
@@ -46,22 +45,25 @@ export function useVoiceRecorder() {
         audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true }
       })
       streamRef.current = stream
-      // 16kHz mono — ASR doesn't need more, keeps base64 small
       const ctx = new AudioContext({ sampleRate: 16000 })
       audioCtxRef.current = ctx
       const source = ctx.createMediaStreamSource(stream)
-      // 4096-sample buffer, 1 channel
       const processor = ctx.createScriptProcessor(4096, 1, 1)
       processorRef.current = processor
       chunksRef.current = []
 
       processor.onaudioprocess = (e) => {
         const input = e.inputBuffer.getChannelData(0)
-        // copy because the buffer is reused
         chunksRef.current.push(new Float32Array(input))
       }
       source.connect(processor)
-      processor.connect(ctx.destination)
+      // Connect to a zero-gain node instead of destination — mic audio must NOT
+      // play through speakers (feedback + audio process crash on some systems).
+      // ScriptProcessorNode requires a connection to fire onaudioprocess.
+      const sink = ctx.createGain()
+      sink.gain.value = 0
+      processor.connect(sink)
+      sink.connect(ctx.destination)
 
       setState('recording')
       timeoutRef.current = setTimeout(() => {
@@ -69,28 +71,29 @@ export function useVoiceRecorder() {
       }, 30_000)
     } catch (err) {
       console.error('[voice] mic access failed:', err)
+      cleanup()
       setState('idle')
     }
   }, [cleanup, setStatus])
 
   const stop = useCallback(() => {
     if (!processorRef.current) return
-    const processor = processorRef.current
     const ctx = audioCtxRef.current
-    if (!ctx) return
+    if (!ctx) { cleanup(); setState('idle'); return }
 
-    // disconnect first so no more onaudioprocess fires
-    processor.disconnect()
+    try { processorRef.current.disconnect() } catch { /* noop */ }
 
-    // collect all PCM samples
     const chunks = chunksRef.current
     const totalLength = chunks.reduce((sum, c) => sum + c.length, 0)
-    if (totalLength < 1600) { // less than 0.1s
+    if (totalLength < 1600) {
       cleanup()
       setState('idle')
       return
     }
 
+    const sampleRate = ctx.sampleRate
+
+    // Merge PCM before cleanup (ctx still alive)
     const pcm = new Float32Array(totalLength)
     let offset = 0
     for (const chunk of chunks) {
@@ -100,8 +103,16 @@ export function useVoiceRecorder() {
 
     cleanup()
 
-    // encode MP3 (128kbps, 16kHz, mono) — smaller than WAV, faster to transfer
-    const mp3Base64 = encodeMp3Base64(pcm, ctx.sampleRate)
+    // Encode MP3 in a try-catch — lamejs can throw on malformed data
+    let mp3Base64: string
+    try {
+      mp3Base64 = encodeMp3Base64(pcm, sampleRate)
+    } catch (err) {
+      console.error('[voice] MP3 encoding failed:', err)
+      setStatus('idle')
+      setState('idle')
+      return
+    }
 
     setState('transcribing')
     setStatus('thinking')
@@ -111,7 +122,6 @@ export function useVoiceRecorder() {
         console.warn('[voice] ASR failed:', res.message)
         setStatus('idle')
       }
-      // on success, engineer.enqueue already fired in main
       setState('idle')
     }).catch((err) => {
       console.error('[voice] transcribe error:', err)
@@ -130,16 +140,15 @@ export function useVoiceRecorder() {
 
 /**
  * Encode Float32 PCM samples into MP3 (128kbps, mono) as a base64 string.
- * MiMo ASR expects: data:audio/mpeg;base64,...
+ * Uses chunked base64 encoding to avoid O(n^2) string concatenation.
  */
 function encodeMp3Base64(samples: Float32Array, sampleRate: number): string {
-  // Float32 -> Int16
   const int16 = new Int16Array(samples.length)
   for (let i = 0; i < samples.length; i++) {
     const s = Math.max(-1, Math.min(1, samples[i]))
     int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF
   }
-  // Encode to MP3 in 1152-sample blocks
+
   const encoder = new lamejs.Mp3Encoder(1, sampleRate, 128)
   const blockSize = 1152
   const chunks: Uint8Array[] = []
@@ -150,7 +159,7 @@ function encodeMp3Base64(samples: Float32Array, sampleRate: number): string {
   }
   const end = encoder.flush()
   if (end.length > 0) chunks.push(new Uint8Array(end))
-  // Concatenate all MP3 chunks -> base64
+
   const total = chunks.reduce((sum, c) => sum + c.length, 0)
   const merged = new Uint8Array(total)
   let offset = 0
@@ -158,9 +167,17 @@ function encodeMp3Base64(samples: Float32Array, sampleRate: number): string {
     merged.set(c, offset)
     offset += c.length
   }
-  let binary = ''
-  for (let i = 0; i < merged.length; i++) {
-    binary += String.fromCharCode(merged[i])
+
+  // Chunked base64: process in 32KB slices to avoid string concat O(n^2)
+  const sliceSize = 32768
+  let result = ''
+  for (let i = 0; i < merged.length; i += sliceSize) {
+    const slice = merged.subarray(i, Math.min(i + sliceSize, merged.length))
+    let binary = ''
+    for (let j = 0; j < slice.length; j++) {
+      binary += String.fromCharCode(slice[j])
+    }
+    result += btoa(binary)
   }
-  return btoa(binary)
+  return result
 }
