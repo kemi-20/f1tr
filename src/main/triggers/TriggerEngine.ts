@@ -146,7 +146,7 @@ export class TriggerEngine {
       )
     }
     // also drop the live level when wear falls well below (re-enter after a stop)
-    this.tyreWearLevel = Math.max(this.tyreWearLevel, newLevel) === this.tyreWearLevel ? this.tyreWearLevel : newLevel
+    this.tyreWearLevel = Math.max(this.tyreWearLevel, newLevel)
     // if wear dropped a lot (fresh tyres after stop), reset so we re-fire later
     if (wear < 20) this.tyreWearLevel = 0
   }

@@ -141,7 +141,9 @@ export class LlmClient implements EngineerBackend {
           stream_options: { include_usage: true },
           ...(isLastRound ? {} : { tools })
         }
-        const body = { ...base, thinking: { type: 'disabled' } }
+        // DeepSeek v4 thinking defaults to ENABLED — only inject disable for DeepSeek base URLs
+      const isDeepSeek = this.config.baseURL.includes('deepseek')
+      const body = isDeepSeek ? { ...base, thinking: { type: 'disabled' } } : base
         const stream = (await this.client.chat.completions.create(
           body as Parameters<typeof this.client.chat.completions.create>[0],
           { signal: this.abort.signal }
@@ -196,9 +198,10 @@ export class LlmClient implements EngineerBackend {
               messages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult } as ChatCompletionMessageParam)
             }
           }
+          finalText += text // accumulate any intermediate text (e.g. "Let me check the screen")
           continue // next round — model responds after seeing the tool result
         }
-        finalText = text
+        finalText += text
         break
       } catch (err) {
         if (this.isAbort(err)) {

@@ -26,6 +26,11 @@ export class Cooldown {
     const now = Date.now()
     // first-lap suppression: only critical allowed (covers "don't talk during the start")
     if (this.config.suppressFirstLap && currentLap === 1 && priority !== 'critical') return false
+    // critical events bypass global cooldown (SC/red flag must never be blocked by heartbeat)
+    if (priority === 'critical') {
+      const ruleNext = this.byRule.get(ruleId) ?? 0
+      return now >= ruleNext
+    }
     const ruleNext = this.byRule.get(ruleId) ?? 0
     return now >= ruleNext && now >= this.globalNext
   }

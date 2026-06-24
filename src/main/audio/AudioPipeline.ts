@@ -127,10 +127,13 @@ export class AudioPipeline {
       this.endOnce(req.id, completed ? 'complete' : 'error')
       // graceful: the renderer still shows the text advice; just no audio
     } finally {
-      this.current = null
-      // drain the queue
-      const next = this.queue.shift()
-      if (next) void this.play(next)
+      // only clear if this play() is still the current one — cancelAll may have
+      // already started a new play() and we must not clobber its reference
+      if (this.current === req) {
+        this.current = null
+        const next = this.queue.shift()
+        if (next) void this.play(next)
+      }
     }
   }
 

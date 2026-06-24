@@ -39,9 +39,7 @@ export class StateAggregator {
 
   /** Reset racing state when session changes (keeps nothing — memory is handled elsewhere). */
   reset(format: PacketFormat): void {
-    const prevErrors = this.state.recentEvents
     this.state = emptyRaceState(format)
-    this.state.recentEvents = prevErrors
     this.lastSessionUID = ''
     this.lastEventBucket.clear()
     this.prevSC = 0
@@ -235,7 +233,9 @@ export class StateAggregator {
 
     const playerPos = this.state.player.position
     const playerCarIndex = this.state.player.carIndex
-    const playerIdxInSorted = sorted.findIndex((r) => r.carIndex === playerCarIndex || r.position === playerPos)
+    // Match by carIndex only — position fallback causes wrong matches in spectator mode
+    // (playerCarIndex=255, position=0 would match the first AI car in the sorted list)
+    const playerIdxInSorted = sorted.findIndex((r) => r.carIndex === playerCarIndex)
     if (playerIdxInSorted >= 0) {
       const playerRival = sorted[playerIdxInSorted]
       playerRival.gapToPlayerS = 0
@@ -601,10 +601,6 @@ function averagePct(values: number[]): number | null {
   if (finite.length === 0) return null
   return finite.reduce((sum, v) => sum + v, 0) / finite.length
 }
-function clamp01Pct(x: number): number {
-  return clamp01(x / 100)
-}
-void clamp01Pct
 function msToS(ms: number | undefined | null): number | null {
   if (ms == null || ms === 0 || ms === -1 || !isFinite(ms)) return null
   return ms / 1000
