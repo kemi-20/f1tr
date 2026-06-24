@@ -26,18 +26,33 @@ export function LlmTab(): React.ReactElement {
         </Field>
       </div>
 
+     <label className="flex items-center gap-2 text-xs text-white/60">
+       <input
+         type="checkbox"
+         checked={llm.visionSupported}
+         onChange={(e) => void patch({ llm: { visionSupported: e.target.checked } })}
+         className="h-4 w-4 accent-accent-carbon"
+       />
+       <span>支持图片输入</span>
+       <span className="text-[10px] text-white/30">
+         {llm.visionSupported
+           ? '截图直接发给此模型'
+           : '截图先经 MiMo mimo-v2.5 描述后再发'}
+       </span>
+     </label>
+
       <label className="flex items-center gap-2 text-xs text-white/60">
         <input
           type="checkbox"
-          checked={llm.visionSupported}
-          onChange={(e) => void patch({ llm: { visionSupported: e.target.checked } })}
+          checked={llm.audioSupported}
+          onChange={(e) => void patch({ llm: { audioSupported: e.target.checked } })}
           className="h-4 w-4 accent-accent-carbon"
         />
-        <span>支持图片输入</span>
+        <span>支持音频输入</span>
         <span className="text-[10px] text-white/30">
-          {llm.visionSupported
-            ? '截图直接发给此模型'
-            : '截图先经 MiMo mimo-v2.5 描述后再发'}
+          {llm.audioSupported
+            ? '语音录音直接发给此模型'
+            : '语音先经 MiMo mimo-v2.5-asr 转文字后再发'}
         </span>
       </label>
 

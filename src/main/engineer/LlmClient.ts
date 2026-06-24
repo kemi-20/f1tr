@@ -92,7 +92,8 @@ export class LlmClient implements EngineerBackend {
     digestText: string,
     firing: TriggerFiring,
     manualPrompt: string | undefined,
-    onDelta: (delta: string) => void
+    onDelta: (delta: string) => void,
+    audioBase64?: string
   ): Promise<string> {
     if (!this.client) throw new Error('LLM backend not configured (missing baseURL/apiKey)')
     this.abort = new AbortController()
@@ -100,6 +101,19 @@ export class LlmClient implements EngineerBackend {
 
     const turn = this.renderDigestTurn(digest, digestText, manualPrompt)
     const messages: ChatCompletionMessageParam[] = this.memory.build(turn)
+
+    // If audio is provided (voice message from driver), append audio content to the last user message
+    if (audioBase64) {
+      const lastMsg = messages[messages.length - 1]
+      if (lastMsg && lastMsg.role === 'user') {
+        const textContent = typeof lastMsg.content === 'string' ? lastMsg.content : ''
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(lastMsg as any).content = [
+          { type: 'text', text: textContent + '\n[DRIVER VOICE MESSAGE - audio attached]' },
+          { type: 'input_audio', input_audio: { data: audioBase64, format: 'mp3' } }
+        ]
+      }
+    }
 
     // Tool: capture_screenshot — the AI can call this to see the game screen.
     const tools = [{

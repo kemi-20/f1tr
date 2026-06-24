@@ -116,14 +116,23 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle('engineer:voice', async (_e, base64Audio: string, format: string) => {
+    const svc = getTelemetry()
+    const eng = getEngineer()
+    if (!svc || !eng) return { ok: false, message: 'Engineer service not ready.' }
+    const state = svc.aggregator.getState()
+    const cfg = ConfigStore.getAll()
+
+    // If the default model supports audio input, send the audio directly to it
+    if (cfg.llm.audioSupported) {
+      eng.enqueue(state, manualFiring('Voice message from driver'), base64Audio)
+      return { ok: true, text: '(audio sent to LLM)' }
+    }
+
+    // Otherwise, transcribe via MiMo ASR first
     const asr = getAsrClient()
     if (!asr) return { ok: false, message: 'MiMo ASR not configured (check TTS base URL / API key).' }
     try {
       const text = await asr.transcribe(base64Audio, format)
-      const svc = getTelemetry()
-      const eng = getEngineer()
-      if (!svc || !eng) return { ok: false, message: 'Engineer service not ready.' }
-      const state = svc.aggregator.getState()
       eng.enqueue(state, manualFiring(text))
       return { ok: true, text }
     } catch (err) {

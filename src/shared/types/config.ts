@@ -24,7 +24,8 @@ export interface AppConfig {
    maxTokens: number
    hasSecret: boolean // whether a key is available (.env or override)
     visionSupported: boolean // whether the configured model can accept image input
- }
+    audioSupported: boolean // whether the configured model can accept audio input directly
+  }
   tts: {
     baseURL: string // resolved from MIMO_API_BASE_URL, editable in UI
     apiKeyOverride: string // '' = use .env MIMO_API_KEY; otherwise this wins
@@ -67,7 +68,7 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  llm: { baseURL: '', apiKeyOverride: '', model: '', temperature: 0.55, maxTokens: 140, hasSecret: false, visionSupported: false },
+  llm: { baseURL: '', apiKeyOverride: '', model: '', temperature: 0.55, maxTokens: 140, hasSecret: false, visionSupported: false, audioSupported: false },
   tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false },
   language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气', engineerStyle: 'gp' },
   telemetry: {

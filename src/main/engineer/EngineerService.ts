@@ -25,7 +25,7 @@ export class EngineerService {
   private voice = '冰糖'
   private direction = '冷静果断的 F1 赛车工程师语气'
   private inFlight: Promise<void> | null = null
-  private pending: { state: RaceState; firing: TriggerFiring } | null = null
+  private pending: { state: RaceState; firing: TriggerFiring; audioBase64?: string } | null = null
   private onSpeak: (text: string, firing: TriggerFiring, voice: string, direction: string) => void = () => {}
   private idleTimer: NodeJS.Timeout | null = null
 
@@ -68,16 +68,16 @@ export class EngineerService {
    * fire two overlapping LLM streams. If a new (higher-or-equal priority) firing arrives
    * while one is in flight, it replaces the pending one (last-wins coalescing).
    */
-  enqueue(state: RaceState, firing: TriggerFiring): void {
+  enqueue(state: RaceState, firing: TriggerFiring, audioBase64?: string): void {
     // if nothing in flight, run immediately; otherwise stash as pending (coalesce)
     if (!this.inFlight) {
-      void this.run(state, firing)
+      void this.run(state, firing, audioBase64)
     } else {
       // only replace pending if the new firing is higher-or-equal priority
       if (this.pending && !this.priorityGte(firing.priority, this.pending.firing.priority)) {
         return // existing pending is higher priority — keep it
       }
-      this.pending = { state, firing }
+      this.pending = { state, firing, audioBase64 }
     }
   }
 
@@ -86,8 +86,8 @@ export class EngineerService {
     return rank[a] >= rank[b]
   }
 
-  private async run(state: RaceState, firing: TriggerFiring): Promise<void> {
-    this.inFlight = this.advise(state, firing)
+  private async run(state: RaceState, firing: TriggerFiring, audioBase64?: string): Promise<void> {
+    this.inFlight = this.advise(state, firing, undefined, audioBase64)
     try {
       await this.inFlight
     } finally {
@@ -95,7 +95,7 @@ export class EngineerService {
       if (this.pending) {
         const next = this.pending
         this.pending = null
-        void this.run(next.state, next.firing)
+        void this.run(next.state, next.firing, next.audioBase64)
       }
     }
   }
@@ -127,7 +127,7 @@ export class EngineerService {
    * Streams tokens to the renderer via 'engineer:text', then commits the full message.
    * Throws on cancel/abort (caught by run()); never commits a truncated message.
    */
-  async advise(state: RaceState, firing: TriggerFiring, manualPrompt?: string): Promise<void> {
+  async advise(state: RaceState, firing: TriggerFiring, manualPrompt?: string, audioBase64?: string): Promise<void> {
     const id = nanoid(10)
     const digest = this.digestBuilder.build(state, firing)
     const digestText = this.digestBuilder.toText(digest)
@@ -143,7 +143,7 @@ export class EngineerService {
 
     try {
       const rawText = this.llm
-        ? await this.llm.generate(digest, digestText, firing, manualPrompt, emitDelta)
+        ? await this.llm.generate(digest, digestText, firing, manualPrompt, emitDelta, audioBase64)
         : this.simulateStream(this.stub.generate(digest), emitDelta)
       const text = cleanAutoTriggerAcknowledgement(rawText, firing)
 
@@ -206,7 +206,8 @@ export interface EngineerBackend {
     digestText: string,
     firing: TriggerFiring,
     manualPrompt: string | undefined,
-    onDelta: (delta: string) => void
+    onDelta: (delta: string) => void,
+    audioBase64?: string
   ): Promise<string>
 }
 
