@@ -16,7 +16,7 @@ function DamageBar({ label, value }: { label: string; value: number }): React.Re
 
 export function DamagePanel(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
-  const dmg = race?.player.damage
+  const dmg = race?.player?.damage
 
   return (
     <div className="glass p-4">

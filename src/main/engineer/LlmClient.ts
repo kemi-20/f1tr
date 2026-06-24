@@ -196,12 +196,15 @@ export class LlmClient implements EngineerBackend {
             if (tc.name === 'capture_screenshot') {
               const toolResult = await this.executeScreenshotTool()
               messages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult } as ChatCompletionMessageParam)
+            } else {
+              // Unknown tool — must still return a tool result or the API will 400
+              messages.push({ role: 'tool', tool_call_id: tc.id, content: `Unknown tool: ${tc.name}` } as ChatCompletionMessageParam)
             }
           }
-          finalText += text // accumulate any intermediate text (e.g. "Let me check the screen")
+          // Don't accumulate intermediate text — only the final response matters for advice
           continue // next round — model responds after seeing the tool result
         }
-        finalText += text
+        finalText = text
         break
       } catch (err) {
         if (this.isAbort(err)) {
@@ -212,7 +215,11 @@ export class LlmClient implements EngineerBackend {
       }
     } // end tool-calling loop
 
-    this.memory.pushTurn(turn, finalText || '(no response)')
+    // Only record non-empty responses in conversation memory — '(no response)' would
+    // pollute future context and the model might imitate it
+    if (finalText) {
+      this.memory.pushTurn(turn, finalText)
+    }
     return finalText
   }
 

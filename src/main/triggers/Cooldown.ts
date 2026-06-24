@@ -8,8 +8,6 @@ import type { Priority } from '@shared/types/audio'
 export class Cooldown {
   private byRule = new Map<string, number>() // ruleId -> next allowed ms
   private globalNext = 0
-  private lastPriority: Priority = 'normal'
-
   constructor(private config: TriggerConfig) {}
 
   /** Hot-swap config and reset cooldown state so new thresholds apply immediately
@@ -18,7 +16,6 @@ export class Cooldown {
     this.config = config
     this.byRule.clear()
     this.globalNext = 0
-    this.lastPriority = 'normal'
   }
 
   /** True if a rule may fire now (respects per-rule + global + first-lap suppression). */
@@ -36,18 +33,13 @@ export class Cooldown {
   }
 
   /** Record that a rule fired; sets its cooldown + the global gap. */
-  recordFire(ruleId: string, priority: Priority): void {
+  recordFire(ruleId: string, _priority: Priority): void {
     const now = Date.now()
     // heartbeat is paced only by its own interval + the global gap (no 45s per-rule lock)
     if (ruleId !== 'heartbeat') {
       this.byRule.set(ruleId, now + this.ruleCooldownMs(ruleId))
+      this.globalNext = now + this.config.globalMinGapS * 1000
     }
-    this.globalNext = now + this.config.globalMinGapS * 1000
-    this.lastPriority = priority
-  }
-
-  get currentPriority(): Priority {
-    return this.lastPriority
   }
 
   /** Per-rule cooldown: explicit override > default-by-priority. */

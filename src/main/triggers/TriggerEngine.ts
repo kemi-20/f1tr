@@ -41,9 +41,14 @@ export class TriggerEngine {
   /** Hot-reload config (from UI settings changes). Resets cooldown state so the new
    *  threshold values apply immediately instead of being held back by old timestamps. */
  setConfig(config: TriggerConfig): void {
-   this.config = config
-   this.cooldown.setConfig(config)
-    // reset hysteresis flags so new thresholds take effect immediately
+  this.config = config
+  this.cooldown.setConfig(config)
+    // defensive: ensure tyre wear thresholds are sorted ascending so
+    // the loop in evalTyreWear assigns correct levels
+    if (config.tyreWearLevels) {
+      config.tyreWearLevels = [...config.tyreWearLevels].sort((a, b) => a - b)
+    }
+   // reset hysteresis flags so new thresholds take effect immediately
     this.tyreWearLevel = 0
     this.tyreHotActive = false
     this.tyreColdActive = false
@@ -51,7 +56,10 @@ export class TriggerEngine {
     this.attackActive = false
     this.rainImminentActive = false
     this.fuelLowActive = false
- }
+    this.lastPosition = 0
+    this.lastLap = 0
+    this.lastHeartbeatMs = Date.now()
+  }
 
   /** Called when the aggregator has updated state (throttled, e.g. once per tick). */
   evaluate(state: RaceState): void {
@@ -113,7 +121,8 @@ export class TriggerEngine {
     this.rainImminentActive = false
     this.fuelLowActive = false
     this.lastPosition = 0
-    this.lastLap = 0
+    this.lastLap = -1 // use -1 so evalPositionChange's guard (lastLap !== 0) passes
+                     // but lap === lastLap+1 won't match on the resumed timeline
     this.lastHeartbeatMs = Date.now()
     logger.info('flashback detected — triggers suppressed for 3s, states reset')
   }

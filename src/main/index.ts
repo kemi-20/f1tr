@@ -164,5 +164,3 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled rejection:', reason)
 })
-
-export { mainWindow }

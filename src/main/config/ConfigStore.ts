@@ -58,11 +58,6 @@ class ConfigStoreImpl {
     return cfg.tts.apiKeyOverride || loadSecrets().mimoKey
   }
 
-  /** Returns raw .env secrets (fallback source). */
-  secrets() {
-    return loadSecrets()
-  }
-
   private upgradeQuietEngineerDefaults(config: AppConfig, stored: Partial<AppConfig>): void {
     if (stored.llm?.maxTokens === 80) config.llm.maxTokens = DEFAULT_CONFIG.llm.maxTokens
     if (stored.triggers?.heartbeatIntervalS === 60) config.triggers.heartbeatIntervalS = DEFAULT_CONFIG.triggers.heartbeatIntervalS

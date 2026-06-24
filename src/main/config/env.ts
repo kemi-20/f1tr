@@ -139,7 +139,3 @@ export function normalizeURL(u: string): string {
   return url + '/v1'
 }
 
-export function refreshSecrets(): Secrets {
-  cached = null
-  return loadSecrets()
-}
