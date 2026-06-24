@@ -68,7 +68,7 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  llm: { baseURL: '', apiKeyOverride: '', model: '', temperature: 0.55, maxTokens: 140, hasSecret: false, visionSupported: false, audioSupported: false },
+  llm: { baseURL: '', apiKeyOverride: '', model: '', temperature: 0.55, maxTokens: 1400, hasSecret: false, visionSupported: false, audioSupported: false },
   tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false },
   language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气', engineerStyle: 'gp' },
   telemetry: {

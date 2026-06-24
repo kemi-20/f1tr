@@ -79,14 +79,14 @@ export function LlmTab(): React.ReactElement {
           <input
             type="range"
             min={0}
-            max={1.5}
+            max={2}
             step={0.05}
             value={llm.temperature}
             onChange={(e) => void patch({ llm: { temperature: Number(e.target.value) } })}
             className="h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-accent-carbon"
           />
         </Field>
-        <Field label="最大回复 tokens" hint="默认 140：减少次数后，单次可包含局势、动作和原因">
+        <Field label="最大回复 tokens" hint="默认 1400：单次可包含完整局势、动作和原因">
           <TextInput
             type="number"
             value={llm.maxTokens}
