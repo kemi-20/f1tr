@@ -2,6 +2,7 @@ import { useRaceStore } from '../../store'
 import { useHealthStore } from '../../store'
 import { useConfigStore } from '../../store'
 import { fmtLapTime } from '@shared/index'
+import type { SessionState } from '@shared/types/state'
 
 export function TopStrip(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
@@ -11,7 +12,7 @@ export function TopStrip(): React.ReactElement {
   const session = race?.session
   const player = race?.player
 
-  const sc = session?.isSafetyCar ? 'SC' : session?.isVirtualSafetyCar ? 'VSC' : session?.isRedFlag ? 'RED' : null
+  const raceSignal = session ? getRaceSignal(session) : null
   const isPractice = session ? isPracticeSession(session.sessionType, session.sessionTypeLabel) : false
   const lapText = isPractice
     ? String(session?.currentLap ?? 0)
@@ -59,6 +60,12 @@ export function TopStrip(): React.ReactElement {
 
       {/* center: position + gaps */}
       <div className="flex items-center gap-6">
+        {raceSignal && (
+          <div className={`race-signal race-signal-${raceSignal.tone}`}>
+            <span className="race-signal-chip">{raceSignal.label}</span>
+            <span className="race-signal-text">{raceSignal.detail}</span>
+          </div>
+        )}
         <div className="text-center">
           <div className="num-display text-3xl font-extrabold text-accent-carbon">{player?.position ?? '—'}</div>
           <div className="label">pos</div>
@@ -108,14 +115,39 @@ export function TopStrip(): React.ReactElement {
       </div>
 
       {/* SC / VSC / RED banner */}
-      {sc && (
+      {raceSignal && (
         <div
           className="absolute inset-x-0 bottom-0 flex h-1 items-center justify-center"
-          style={{ background: sc === 'RED' ? '#FF3B3B' : '#FFB020' }}
+          style={{ background: raceSignal.color }}
         />
       )}
     </div>
   )
+}
+
+type RaceSignal = { label: string; detail: string; tone: 'red' | 'yellow' | 'blue' | 'green'; color: string }
+
+function getRaceSignal(session: SessionState): RaceSignal | null {
+  if (session.isRedFlag || session.trackFlag === 'red') {
+    return { label: 'RED', detail: 'Red flag', tone: 'red', color: '#FF3030' }
+  }
+  if (session.isSafetyCar) {
+    return { label: 'SC', detail: 'Safety car', tone: 'yellow', color: '#FFD400' }
+  }
+  if (session.isVirtualSafetyCar) {
+    return { label: 'VSC', detail: 'Virtual safety car', tone: 'yellow', color: '#FFD400' }
+  }
+  if (session.trackFlag === 'yellow') {
+    const zones = session.activeFlagZones > 1 ? `${session.activeFlagZones} zones` : 'sector'
+    return { label: 'YELLOW', detail: zones, tone: 'yellow', color: '#FFD400' }
+  }
+  if (session.trackFlag === 'blue') {
+    return { label: 'BLUE', detail: 'Blue flag', tone: 'blue', color: '#2F8FFF' }
+  }
+  if (session.trackFlag === 'green') {
+    return { label: 'GREEN', detail: 'Green flag', tone: 'green', color: '#33D17A' }
+  }
+  return null
 }
 
 function isPracticeSession(sessionType: number, label: string): boolean {

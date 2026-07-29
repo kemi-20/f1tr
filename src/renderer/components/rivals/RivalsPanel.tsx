@@ -1,29 +1,40 @@
 import { useRaceStore } from '../../store'
 import { compoundLabel, fmtGap, fmtLapTime } from '@shared/index'
 import type { RaceState, RivalState, TyreCompound } from '@shared/types/state'
+import f1Logo from '../../assets/team-logos/Formula_One_logo.svg'
+import mercedesLogo from '../../assets/team-logos/Mercedes_Logo.png'
+import ferrariLogo from '../../assets/team-logos/Ferrari_Logo.png'
+import redBullLogo from '../../assets/team-logos/Red_Bull_Logo.png'
+import williamsLogo from '../../assets/team-logos/Williams_Logo.png'
+import astonMartinLogo from '../../assets/team-logos/Aston_Martin_Logo.png'
+import alpineLogo from '../../assets/team-logos/Alpine_Logo.png'
+import rbLogo from '../../assets/team-logos/RB_Logo.png'
+import haasLogo from '../../assets/team-logos/Haas_Logo.png'
+import mclarenLogo from '../../assets/team-logos/McLaren_Logo.png'
+import kickLogo from '../../assets/team-logos/Kick_Logo.png'
 
-const TEAM_MARKS: Record<string, { label: string; color: string }> = {
-  '0': { label: 'M', color: '#00D2BE' },
-  '1': { label: 'F', color: '#DC0000' },
-  '2': { label: 'R', color: '#3671C6' },
-  '3': { label: 'W', color: '#64C4FF' },
-  '4': { label: 'A', color: '#229971' },
-  '5': { label: 'A', color: '#0090FF' },
-  '6': { label: 'RB', color: '#6692FF' },
-  '7': { label: 'H', color: '#FFFFFF' },
-  '8': { label: 'M', color: '#FF8000' },
-  '9': { label: 'K', color: '#B6BABD' },
-  '129': { label: 'M', color: '#00D2BE' },
-  '185': { label: 'M', color: '#00D2BE' },
-  '186': { label: 'F', color: '#DC0000' },
-  '187': { label: 'R', color: '#3671C6' },
-  '188': { label: 'W', color: '#64C4FF' },
-  '189': { label: 'A', color: '#229971' },
-  '190': { label: 'A', color: '#0090FF' },
-  '191': { label: 'RB', color: '#6692FF' },
-  '192': { label: 'H', color: '#FFFFFF' },
-  '193': { label: 'M', color: '#FF8000' },
-  '194': { label: 'K', color: '#B6BABD' }
+const TEAM_MARKS: Record<string, { label: string; color: string; logo?: string }> = {
+  '0': { label: 'Mercedes', color: '#00D2BE', logo: mercedesLogo },
+  '1': { label: 'Ferrari', color: '#DC0000', logo: ferrariLogo },
+  '2': { label: 'Red Bull', color: '#3671C6', logo: redBullLogo },
+  '3': { label: 'Williams', color: '#64C4FF', logo: williamsLogo },
+  '4': { label: 'Aston Martin', color: '#229971', logo: astonMartinLogo },
+  '5': { label: 'Alpine', color: '#0090FF', logo: alpineLogo },
+  '6': { label: 'Racing Bulls', color: '#6692FF', logo: rbLogo },
+  '7': { label: 'Haas', color: '#FFFFFF', logo: haasLogo },
+  '8': { label: 'McLaren', color: '#FF8000', logo: mclarenLogo },
+  '9': { label: 'Kick Sauber', color: '#B6BABD', logo: kickLogo },
+  '129': { label: 'Mercedes', color: '#00D2BE', logo: mercedesLogo },
+  '185': { label: 'Mercedes', color: '#00D2BE', logo: mercedesLogo },
+  '186': { label: 'Ferrari', color: '#DC0000', logo: ferrariLogo },
+  '187': { label: 'Red Bull', color: '#3671C6', logo: redBullLogo },
+  '188': { label: 'Williams', color: '#64C4FF', logo: williamsLogo },
+  '189': { label: 'Aston Martin', color: '#229971', logo: astonMartinLogo },
+  '190': { label: 'Alpine', color: '#0090FF', logo: alpineLogo },
+  '191': { label: 'Racing Bulls', color: '#6692FF', logo: rbLogo },
+  '192': { label: 'Haas', color: '#FFFFFF', logo: haasLogo },
+  '193': { label: 'McLaren', color: '#FF8000', logo: mclarenLogo },
+  '194': { label: 'Kick Sauber', color: '#B6BABD', logo: kickLogo }
 }
 
 function Row({ r, isPlayer, timingMode }: { r: RivalState; isPlayer: boolean; timingMode: boolean }): React.ReactElement {
@@ -46,10 +57,10 @@ function Row({ r, isPlayer, timingMode }: { r: RivalState; isPlayer: boolean; ti
   return (
     <div className={`broadcast-row ${isPlayer ? 'broadcast-row-player' : ''} ${retired ? 'broadcast-row-muted' : ''}`}>
       <div className={`broadcast-pos ${r.position === 1 ? 'broadcast-pos-leader' : ''}`}>{r.position}</div>
-      <div className="broadcast-team" style={{ color: mark.color }}>
-        {mark.label}
+      <div className="broadcast-team" style={{ color: mark.color }} title={mark.label}>
+        {mark.logo ? <img src={mark.logo} alt={mark.label} /> : <span>{shortTeam(r.team)}</span>}
       </div>
-      <div className="broadcast-code">{driverCode(r)}</div>
+      <div className="broadcast-code" title={r.name || driverCode(r)}>{driverCode(r)}</div>
       <div className="broadcast-gap">{inPit ? 'PIT' : center}</div>
       <div className={`broadcast-tyre tyre-${tyre.toLowerCase()}`}>{tyre}</div>
       {r.penaltiesS > 0 && <div className="broadcast-penalty">{r.penaltiesS}s</div>}
@@ -70,7 +81,7 @@ export function RivalsPanel(): React.ReactElement {
   return (
     <aside className="broadcast-tower h-full">
       <div className="broadcast-header">
-        <div className="broadcast-logo">F1</div>
+        <img className="broadcast-f1-logo" src={f1Logo} alt="Formula 1" />
         <div className="broadcast-subtitle">FIA Formula 1 World Championship</div>
         <div className="broadcast-divider" />
         <div className="broadcast-lap">
@@ -94,7 +105,9 @@ export function RivalsPanel(): React.ReactElement {
 function driverCode(r: RivalState): string {
   const letters = (r.name || '').replace(/[^A-Za-z]/g, '').toUpperCase()
   if (letters.length >= 3) return letters.slice(0, 3)
-  return r.raceNumber ? String(r.raceNumber).padStart(2, '0') : '---'
+  const mapped = DRIVER_CODES[r.raceNumber]
+  if (mapped) return mapped
+  return r.raceNumber ? `#${r.raceNumber}` : '---'
 }
 
 function shortTeam(team: string): string {
@@ -110,4 +123,28 @@ function tyreCode(compound: TyreCompound): string {
 function isTimingSession(race: RaceState): boolean {
   const { sessionType, sessionTypeLabel } = race.session
   return [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12].includes(sessionType) || /practice|qual|^p[123]$|^q[123]$|^osq$/i.test(sessionTypeLabel)
+}
+
+const DRIVER_CODES: Record<number, string> = {
+  1: 'VER',
+  4: 'NOR',
+  5: 'BOR',
+  6: 'HAD',
+  10: 'GAS',
+  12: 'ANT',
+  14: 'ALO',
+  16: 'LEC',
+  18: 'STR',
+  22: 'TSU',
+  23: 'ALB',
+  27: 'HUL',
+  30: 'LAW',
+  31: 'OCO',
+  33: 'VER',
+  43: 'COL',
+  44: 'HAM',
+  55: 'SAI',
+  63: 'RUS',
+  81: 'PIA',
+  87: 'BEA'
 }

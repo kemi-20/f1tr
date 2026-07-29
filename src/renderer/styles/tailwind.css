@@ -119,11 +119,12 @@ body {
   text-align: center;
 }
 
-.broadcast-logo {
-  padding-top: 14px;
-  font-family: 'F1 Display Black', 'F1 Bold', sans-serif;
-  font-size: 52px;
-  line-height: 0.9;
+.broadcast-f1-logo {
+  display: block;
+  width: min(128px, 54%);
+  height: auto;
+  margin: 18px auto 8px;
+  filter: brightness(0) invert(1);
 }
 
 .broadcast-subtitle {
@@ -210,13 +211,24 @@ body {
 }
 
 .broadcast-team {
+  display: grid;
+  width: 29px;
+  height: 21px;
+  place-items: center;
   justify-self: center;
-  max-width: 27px;
   overflow: hidden;
   font-family: 'F1 Bold';
   font-size: 14px;
   line-height: 1;
   text-shadow: 0 1px 1px #000;
+}
+
+.broadcast-team img {
+  display: block;
+  max-width: 28px;
+  max-height: 18px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.72));
 }
 
 .broadcast-code {
@@ -542,11 +554,18 @@ body {
 }
 
 .tyre-wear {
-  margin-bottom: 7px;
+  margin-bottom: 1px;
   font-family: 'F1 Display Black';
   font-size: clamp(34px, 5vh, 50px);
   line-height: 0.95;
   color: var(--tyre-temp);
+}
+
+.tyre-wear-caption {
+  margin-bottom: 6px;
+  font-family: 'F1 Bold';
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.42);
 }
 
 .tyre-metric {
@@ -616,6 +635,67 @@ body {
   transition: filter 120ms ease, background-color 120ms ease, border-color 120ms ease;
 }
 
+.race-signal {
+  display: grid;
+  min-width: 132px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(4, 6, 10, 0.76);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+
+.race-signal-chip {
+  display: grid;
+  min-width: 58px;
+  height: 28px;
+  place-items: center;
+  padding: 0 8px;
+  font-family: 'F1 Bold';
+  font-size: 12px;
+  color: #05070a;
+}
+
+.race-signal-text {
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'F1 Bold';
+  font-size: 10px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.race-signal-red {
+  border-color: rgba(255, 48, 48, 0.58);
+}
+.race-signal-red .race-signal-chip {
+  background: #ff3030;
+}
+.race-signal-yellow {
+  border-color: rgba(255, 212, 0, 0.58);
+}
+.race-signal-yellow .race-signal-chip {
+  background: #ffd400;
+}
+.race-signal-blue {
+  border-color: rgba(47, 143, 255, 0.64);
+}
+.race-signal-blue .race-signal-chip {
+  background: #2f8fff;
+  color: #fff;
+}
+.race-signal-green {
+  border-color: rgba(51, 209, 122, 0.54);
+}
+.race-signal-green .race-signal-chip {
+  background: #33d17a;
+}
+
 @media (max-width: 1180px) {
   .race-console-grid {
     grid-template-columns: 220px minmax(0, 1fr) 300px;
@@ -646,8 +726,20 @@ body {
   .broadcast-gap {
     font-size: 14px;
   }
-  .broadcast-logo {
-    font-size: 42px;
+  .broadcast-f1-logo {
+    width: min(106px, 58%);
+    margin-top: 14px;
+  }
+  .race-signal {
+    min-width: 92px;
+  }
+  .race-signal-chip {
+    min-width: 48px;
+    height: 24px;
+    font-size: 10px;
+  }
+  .race-signal-text {
+    display: none;
   }
   .car-status-body {
     grid-template-columns: 1fr;

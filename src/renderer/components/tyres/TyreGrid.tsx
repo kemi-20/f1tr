@@ -64,16 +64,16 @@ function TyreInfo({ corner, label, side }: { corner: keyof Corners; label: strin
   const surface = Math.round(tyres?.surfaceTempC[corner] ?? 0)
   const inner = Math.round(tyres?.innerTempC[corner] ?? 0)
   const brake = Math.round(tyres?.brakeTempC[corner] ?? 0)
-  const remaining = Math.max(0, 100 - wear)
   const hasData = tyres != null && (surface > 0 || inner > 0 || brake > 0 || wear > 0 || tyres.compound !== 'unknown')
   const temp = tempStatus(inner, compound)
-  const wearText = hasData ? `${remaining}%` : '--%'
+  const wearText = hasData ? `${wear}%` : '--%'
   const tempColor = hasData ? temp.color : 'rgba(255,255,255,0.5)'
 
   return (
     <div className={`tyre-map-corner tyre-map-${corner} tyre-map-${side}`} style={{ '--tyre-temp': tempColor } as CSSProperties}>
       <div className="tyre-corner-label">{label}</div>
       <div className="tyre-wear">{wearText}</div>
+      <div className="tyre-wear-caption">WORN</div>
       <div className="tyre-metric">SURF&nbsp; {hasData ? surface : '--'}°C</div>
       <div className="tyre-metric">IN&nbsp;&nbsp;&nbsp; {hasData ? inner : '--'}°C</div>
       <div className="tyre-metric">BRAKE {hasData ? brake : '--'}°C</div>

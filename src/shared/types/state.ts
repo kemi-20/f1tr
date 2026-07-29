@@ -147,6 +147,8 @@ export interface SessionState {
   isSafetyCar: boolean
   isVirtualSafetyCar: boolean
   isRedFlag: boolean
+  trackFlag: 'none' | 'green' | 'blue' | 'yellow' | 'red'
+  activeFlagZones: number
   pitSpeedLimitKmh: number
   trackLengthM: number
   gameYear: number
@@ -168,6 +170,9 @@ export interface RecentEvent {
     | 'safetyCar'
     | 'vsc'
     | 'redFlag'
+    | 'yellowFlag'
+    | 'blueFlag'
+    | 'greenFlag'
     | 'weatherChange'
     | 'pitEntered'
     | 'pitExited'

@@ -19,6 +19,7 @@ export class StateAggregator {
   public state: RaceState = emptyRaceState()
   private lastSessionUID = ''
   private prevSC = 0
+  private prevTrackFlag = 'none'
   private scActive = false
   private _prevRedFlagCount = 0
   private lastEventBucket = new Set<string>()
@@ -43,6 +44,7 @@ export class StateAggregator {
     this.lastSessionUID = ''
     this.lastEventBucket.clear()
     this.prevSC = 0
+    this.prevTrackFlag = 'none'
     this.scActive = false
     this._prevRedFlagCount = 0
   }
@@ -91,6 +93,16 @@ export class StateAggregator {
       this._prevRedFlagCount = Math.max(this._prevRedFlagCount ?? 0, redCount)
     }
     s.safetyCarPhase = scStatus
+    const flag = readTrackFlag(p.m_marshalZones)
+    s.trackFlag = flag.flag
+    s.activeFlagZones = flag.activeZones
+    if (s.trackFlag !== this.prevTrackFlag) {
+      if (s.trackFlag === 'yellow') this.pushEvent('yellowFlag', flag.activeZones > 1 ? 'Yellow flags' : 'Yellow flag')
+      if (s.trackFlag === 'blue') this.pushEvent('blueFlag', 'Blue flag')
+      if (s.trackFlag === 'red' && !s.isRedFlag) this.pushEvent('redFlag', 'Red flag')
+      if (s.trackFlag === 'green' && this.prevTrackFlag !== 'none') this.pushEvent('greenFlag', 'Green flag')
+      this.prevTrackFlag = s.trackFlag
+    }
     if (decoded.sc || decoded.vsc) {
       this.scActive = true
     }
@@ -642,6 +654,22 @@ function minNullable(a: number | null, b: number | null): number | null {
 function isRainWeatherCode(code: number): boolean {
   // F1 weather enum: 0 clear, 1 light cloud, 2 overcast, 3 light rain, 4 heavy rain, 5 storm.
   return code >= 3
+}
+
+function readTrackFlag(rawZones: unknown): { flag: RaceState['session']['trackFlag']; activeZones: number } {
+  const zones = Array.isArray(rawZones) ? rawZones : []
+  let activeZones = 0
+  let flag: RaceState['session']['trackFlag'] = 'none'
+  for (const zone of zones) {
+    const zoneFlag = typeof zone?.m_zoneFlag === 'number' ? zone.m_zoneFlag : -1
+    if (zoneFlag <= 0) continue
+    if (zoneFlag !== 1) activeZones += 1
+    if (zoneFlag === 4) return { flag: 'red', activeZones: Math.max(1, activeZones) }
+    if (zoneFlag === 3) flag = 'yellow'
+    else if (zoneFlag === 2 && flag !== 'yellow') flag = 'blue'
+    else if (zoneFlag === 1 && flag === 'none') flag = 'green'
+  }
+  return { flag, activeZones }
 }
 function rivalStatus(driverStatus: number, resultStatus: number): RivalState['status'] {
   if (resultStatus === 3) return 'finished'
