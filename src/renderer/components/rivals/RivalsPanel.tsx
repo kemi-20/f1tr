@@ -1,7 +1,7 @@
 import { useRaceStore } from '../../store'
 import { compoundLabel, fmtGap, fmtLapTime } from '@shared/index'
 import type { RaceState, RivalState, TyreCompound } from '@shared/types/state'
-import f1Logo from '../../assets/team-logos/F1_mark.svg'
+import f1Logo from '../../assets/team-logos/F1_Logo.png'
 import mercedesLogo from '../../assets/team-logos/Mercedes_Logo.png'
 import ferrariLogo from '../../assets/team-logos/Ferrari_Logo.png'
 import redBullLogo from '../../assets/team-logos/Red_Bull_Logo.png'

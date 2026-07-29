@@ -121,10 +121,10 @@ body {
 
 .broadcast-f1-logo {
   display: block;
-  width: min(154px, 62%);
-  height: auto;
-  margin: 18px auto 9px;
-  filter: brightness(0) invert(1);
+  width: min(176px, 72%);
+  height: 44px;
+  margin: 16px auto 8px;
+  object-fit: contain;
 }
 
 .broadcast-subtitle {
@@ -846,7 +846,8 @@ body {
     font-size: 14px;
   }
   .broadcast-f1-logo {
-    width: min(128px, 64%);
+    width: min(142px, 72%);
+    height: 36px;
     margin-top: 14px;
   }
   .race-signal {
