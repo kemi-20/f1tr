@@ -454,24 +454,27 @@ body {
   filter: blur(7px);
 }
 
+.origin-style-car {
+  overflow: visible;
+}
+
 .origin-style-car .body-shell {
   fill: url('#carBody');
-  stroke: rgba(255, 255, 255, 0.34);
-  stroke-width: 1.3;
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1.1;
 }
 
 .origin-style-car .nose-highlight {
-  fill: rgba(255, 255, 255, 0.025);
-  stroke: var(--team-color);
-  stroke-opacity: 0.85;
-  stroke-width: 1.2;
+  fill: rgba(255, 255, 255, 0.04);
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1;
   filter: url('#carGlow');
 }
 
 .origin-style-car .front-wing-main,
 .origin-style-car .rear-wing-main {
-  fill: rgba(255, 255, 255, 0.045);
-  stroke: rgba(255, 255, 255, 0.28);
+  fill: rgba(160, 172, 184, 0.28);
+  stroke: rgba(255, 255, 255, 0.36);
   stroke-width: 1.15;
 }
 
@@ -484,16 +487,11 @@ body {
 }
 
 .origin-style-car .wing-endplate {
-  fill: rgba(255, 255, 255, 0.14);
-}
-
-.origin-style-car .tyre-shape {
-  fill: #f4e300;
-  filter: drop-shadow(0 4px 8px rgba(244, 227, 0, 0.18));
+  fill: rgba(170, 184, 196, 0.35);
 }
 
 .origin-style-car .sidepod {
-  fill: rgba(255, 255, 255, 0.02);
+  fill: rgba(255, 255, 255, 0.045);
   stroke: rgba(255, 255, 255, 0.16);
   stroke-width: 1;
 }
@@ -512,9 +510,97 @@ body {
 
 .origin-style-car .center-stripe {
   fill: none;
-  stroke: #ff2f62;
+  stroke: var(--team-color);
   stroke-width: 1.2;
   stroke-opacity: 0.95;
+}
+
+.origin-style-car .floor-plate {
+  fill: rgba(255, 255, 255, 0.05);
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 1;
+}
+
+.origin-style-car .vent-lines {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1;
+}
+
+.origin-style-car .suspension {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.origin-style-car .suspension-fl { stroke: var(--brake-fl); color: var(--brake-fl); }
+.origin-style-car .suspension-fr { stroke: var(--brake-fr); color: var(--brake-fr); }
+.origin-style-car .suspension-rl { stroke: var(--brake-rl); color: var(--brake-rl); }
+.origin-style-car .suspension-rr { stroke: var(--brake-rr); color: var(--brake-rr); }
+
+.origin-style-car .temp-wheel .tyre-surface-band {
+  stroke: currentColor;
+  stroke-width: 3;
+  fill: rgba(0, 0, 0, 0.28);
+  filter: drop-shadow(0 0 5px currentColor);
+}
+
+.origin-style-car .temp-wheel .tyre-inner-band {
+  stroke: none;
+  opacity: 0.92;
+}
+
+.origin-style-car .temp-wheel .brake-temp-block {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 0.7;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.origin-style-car .temp-wheel-fl {
+  color: var(--surface-fl);
+}
+.origin-style-car .temp-wheel-fl .tyre-inner-band { fill: var(--inner-fl); }
+.origin-style-car .temp-wheel-fl .brake-temp-block { fill: var(--brake-fl); }
+
+.origin-style-car .temp-wheel-fr {
+  color: var(--surface-fr);
+}
+.origin-style-car .temp-wheel-fr .tyre-inner-band { fill: var(--inner-fr); }
+.origin-style-car .temp-wheel-fr .brake-temp-block { fill: var(--brake-fr); }
+
+.origin-style-car .temp-wheel-rl {
+  color: var(--surface-rl);
+}
+.origin-style-car .temp-wheel-rl .tyre-inner-band { fill: var(--inner-rl); }
+.origin-style-car .temp-wheel-rl .brake-temp-block { fill: var(--brake-rl); }
+
+.origin-style-car .temp-wheel-rr {
+  color: var(--surface-rr);
+}
+.origin-style-car .temp-wheel-rr .tyre-inner-band { fill: var(--inner-rr); }
+.origin-style-car .temp-wheel-rr .brake-temp-block { fill: var(--brake-rr); }
+
+.origin-style-car .brake-core path:first-child {
+  fill: var(--brake-avg);
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1.1;
+  filter: drop-shadow(0 0 7px var(--brake-avg));
+}
+
+.origin-style-car .brake-core path:last-child {
+  fill: rgba(255, 255, 255, 0.18);
+  stroke: rgba(255, 255, 255, 0.32);
+  stroke-width: 0.8;
+}
+
+.origin-style-car .brake-temp-label {
+  fill: #fff;
+  font-family: 'F1 Regular';
+  font-size: 22px;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.75);
+  stroke-width: 3px;
 }
 
 .tyre-map-corner {
@@ -633,6 +719,39 @@ body {
   line-height: 1;
   text-transform: uppercase;
   transition: filter 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+
+.engineer-header {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(74px, auto) minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.engineer-title {
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.status-pills {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.status-pills .chip {
+  max-width: 86px;
+  min-width: 0;
+  overflow: hidden;
+  padding-inline: 5px;
+  font-size: 9px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .race-signal {

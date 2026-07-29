@@ -12,7 +12,7 @@ const STATUSES: { id: Status; label: string; color: string }[] = [
 export function StatusPills(): React.ReactElement {
   const status = useEngineerStore((s) => s.status)
   return (
-    <div className="flex items-center gap-2">
+    <div className="status-pills">
       {STATUSES.map((s) => {
         const active = status === s.id
         return (

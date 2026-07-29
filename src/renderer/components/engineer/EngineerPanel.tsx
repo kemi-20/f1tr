@@ -32,8 +32,8 @@ export function EngineerPanel(): React.ReactElement {
 
   return (
     <div className="glass flex h-full min-w-0 flex-col gap-3 p-4">
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <div className="engineer-header">
+        <div className="engineer-title">
           <span className="label">Race Engineer</span>
         </div>
         <StatusPills />
