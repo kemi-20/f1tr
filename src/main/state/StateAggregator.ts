@@ -300,6 +300,7 @@ export class StateAggregator {
     pl.speedKmh = t.m_speed ?? pl.speedKmh
     pl.gear = t.m_gear ?? pl.gear
     pl.rpm = t.m_engineRPM ?? pl.rpm
+    pl.engineTempC = t.m_engineTemperature ?? pl.engineTempC
     pl.throttle = t.m_throttle ?? pl.throttle
     pl.brake = t.m_brake ?? pl.brake
     pl.revLightsPercent = t.m_revLightsPercent ?? pl.revLightsPercent

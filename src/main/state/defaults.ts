@@ -49,6 +49,7 @@ export function emptyRaceState(format: PacketFormat = 2025): RaceState {
       speedKmh: 0,
       gear: 0,
       rpm: 0,
+      engineTempC: 0,
       ersPercent: 0,
       drsActive: false,
       drsAllowed: false,

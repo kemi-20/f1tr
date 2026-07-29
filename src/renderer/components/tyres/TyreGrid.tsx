@@ -96,11 +96,12 @@ function DamageLine({ label, value }: { label: string; value: number }): React.R
 }
 
 function CarSilhouette(): React.ReactElement {
-  const tyres = useRaceStore((s) => s.race?.player.tyres)
+  const race = useRaceStore((s) => s.race)
+  const tyres = race?.player.tyres
   const surface = tyres?.surfaceTempC ?? { fl: 0, fr: 0, rl: 0, rr: 0 }
   const inner = tyres?.innerTempC ?? { fl: 0, fr: 0, rl: 0, rr: 0 }
   const brake = tyres?.brakeTempC ?? { fl: 0, fr: 0, rl: 0, rr: 0 }
-  const brakeAvg = Math.round((brake.fl + brake.fr + brake.rl + brake.rr) / 4)
+  const engineTemp = Math.round(race?.player.engineTempC ?? 0)
   const carStyle = {
     '--surface-fl': tyreSurfaceColor(surface.fl),
     '--surface-fr': tyreSurfaceColor(surface.fr),
@@ -114,16 +115,21 @@ function CarSilhouette(): React.ReactElement {
     '--brake-fr': brakeColor(brake.fr),
     '--brake-rl': brakeColor(brake.rl),
     '--brake-rr': brakeColor(brake.rr),
-    '--brake-avg': brakeColor(brakeAvg)
+    '--engine-temp': engineColor(engineTemp)
   } as CSSProperties
 
   return (
-    <svg className="origin-style-car" style={carStyle} viewBox="0 0 180 300" role="img">
+    <svg className="origin-style-car" style={carStyle} viewBox="0 0 180 320" role="img">
       <defs>
         <linearGradient id="carBody" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#2a333d" stopOpacity="0.62" />
-          <stop offset="0.52" stopColor="#0a0e13" stopOpacity="0.72" />
-          <stop offset="1" stopColor="#26313a" stopOpacity="0.58" />
+          <stop offset="0" stopColor="#e7edf4" stopOpacity="0.28" />
+          <stop offset="0.5" stopColor="#56616d" stopOpacity="0.13" />
+          <stop offset="1" stopColor="#e7edf4" stopOpacity="0.22" />
+        </linearGradient>
+        <linearGradient id="carSpine" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.35" />
+          <stop offset="0.45" stopColor="#ffffff" stopOpacity="0.08" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0.28" />
         </linearGradient>
         <filter id="carGlow" x="-40%" y="-20%" width="180%" height="140%">
           <feGaussianBlur stdDeviation="2.2" result="blur" />
@@ -135,45 +141,46 @@ function CarSilhouette(): React.ReactElement {
       </defs>
 
       <g opacity="0.98">
-        <path className="car-shadow" d="M90 28 C116 72 119 220 90 282 C61 220 64 72 90 28 Z" />
+        <ellipse className="car-shadow" cx="90" cy="169" rx="48" ry="135" />
 
-        <path className="front-wing-main" d="M26 16 L90 34 L154 16 L154 58 C124 48 56 48 26 58 Z" />
-        <path className="front-wing-flap" d="M35 25 L90 40 L145 25" />
-        <rect className="wing-endplate" x="16" y="9" width="8" height="55" rx="2" />
-        <rect className="wing-endplate" x="156" y="9" width="8" height="55" rx="2" />
+        <path className="front-wing-main" d="M31 18 L90 34 L149 18 L149 62 C126 54 108 52 90 52 C72 52 54 54 31 62 Z" />
+        <path className="front-wing-flap" d="M39 29 L90 43 L141 29 M42 47 C66 40 114 40 138 47" />
+        <rect className="wing-endplate" x="20" y="12" width="8" height="55" rx="2" />
+        <rect className="wing-endplate" x="152" y="12" width="8" height="55" rx="2" />
 
-        <path className="rear-wing-main" d="M37 254 H143 L151 285 H29 Z" />
-        <path className="rear-wing-flap" d="M47 265 H133" />
-        <rect className="wing-endplate" x="23" y="248" width="12" height="43" rx="2" />
-        <rect className="wing-endplate" x="145" y="248" width="12" height="43" rx="2" />
+        <path className="rear-wing-main" d="M35 273 H145 L154 306 H26 Z" />
+        <path className="rear-wing-flap" d="M45 283 H135 M50 294 H130" />
+        <rect className="wing-endplate" x="22" y="265" width="11" height="45" rx="2" />
+        <rect className="wing-endplate" x="147" y="265" width="11" height="45" rx="2" />
 
-        <TemperatureWheel corner="fl" x={18} y={75} />
-        <TemperatureWheel corner="fr" x={138} y={75} />
-        <TemperatureWheel corner="rl" x={18} y={204} />
-        <TemperatureWheel corner="rr" x={138} y={204} />
+        <TemperatureWheel corner="fl" x={16} y={78} />
+        <TemperatureWheel corner="fr" x={140} y={78} />
+        <TemperatureWheel corner="rl" x={16} y={216} />
+        <TemperatureWheel corner="rr" x={140} y={216} />
 
-        <path className="suspension suspension-fl" d="M43 97 L78 111 M43 124 L78 132" />
-        <path className="suspension suspension-fr" d="M137 97 L102 111 M137 124 L102 132" />
-        <path className="suspension suspension-rl" d="M43 225 L76 210 M43 251 L76 230" />
-        <path className="suspension suspension-rr" d="M137 225 L104 210 M137 251 L104 230" />
+        <path className="suspension suspension-fl" d="M43 99 L75 113 M43 127 L76 136 M46 112 H75" />
+        <path className="suspension suspension-fr" d="M137 99 L105 113 M137 127 L104 136 M134 112 H105" />
+        <path className="suspension suspension-rl" d="M43 237 L75 220 M43 263 L75 241 M46 250 H73" />
+        <path className="suspension suspension-rr" d="M137 237 L105 220 M137 263 L105 241 M134 250 H107" />
 
-        <path className="floor-plate" d="M66 76 H114 L126 245 H54 Z" />
-        <path className="sidepod sidepod-left" d="M72 101 L52 124 L58 201 L75 222 C65 183 64 139 72 101 Z" />
-        <path className="sidepod sidepod-right" d="M108 101 L128 124 L122 201 L105 222 C115 183 116 139 108 101 Z" />
+        <path className="floor-plate" d="M66 76 H114 L128 264 L90 296 L52 264 Z" />
+        <path className="floor-outline" d="M60 92 C46 139 46 216 61 262 M120 92 C134 139 134 216 119 262" />
+        <path className="sidepod sidepod-left" d="M73 114 L55 139 L60 216 L76 238 C67 194 66 151 73 114 Z" />
+        <path className="sidepod sidepod-right" d="M107 114 L125 139 L120 216 L104 238 C113 194 114 151 107 114 Z" />
 
-        <path className="body-shell" d="M84 32 C84 19 96 19 96 32 L101 88 L119 121 L104 252 L90 282 L76 252 L61 121 L79 88 Z" />
-        <path className="nose-highlight" d="M90 30 C94 75 96 122 96 168 C96 217 93 256 90 279 C87 256 84 217 84 168 C84 122 86 75 90 30 Z" />
-        <path className="halo" d="M75 98 C78 78 102 78 105 98 C101 89 79 89 75 98 Z" />
-        <ellipse className="cockpit" cx="90" cy="119" rx="10" ry="24" />
-        <path className="center-stripe" d="M90 31 C88 76 87 122 87 170 C87 219 88 255 90 279 C92 255 93 219 93 170 C93 122 92 76 90 31 Z" />
-        <path className="floor-outline" d="M65 108 C47 158 54 226 90 282 C126 226 133 158 115 108" />
-        <path className="vent-lines" d="M73 148 H107 M70 160 H110 M68 172 H112 M66 184 H114" />
+        <path className="body-shell" d="M86 36 C86 24 94 24 94 36 L99 94 L113 130 L105 258 L90 293 L75 258 L67 130 L81 94 Z" />
+        <path className="nose-highlight" d="M90 36 C94 84 96 127 96 171 C96 221 93 262 90 292 C87 262 84 221 84 171 C84 127 86 84 90 36 Z" />
+        <path className="halo" d="M75 105 C78 85 102 85 105 105 C100 96 80 96 75 105 Z" />
+        <ellipse className="cockpit" cx="90" cy="126" rx="9" ry="22" />
+        <path className="center-stripe" d="M90 38 C88 84 87 126 87 174 C87 226 88 263 90 292 C92 263 93 226 93 174 C93 126 92 84 90 38 Z" />
+        <path className="vent-lines" d="M72 161 H108 M70 174 H110 M68 187 H112 M68 201 H112 M71 215 H109" />
+        <path className="plank-lines" d="M82 70 H98 M78 86 H102 M73 247 H107 M68 260 H112" />
 
-        <g className="brake-core">
-          <path d="M90 137 L111 151 L108 177 L90 191 L72 177 L69 151 Z" />
-          <path d="M90 145 L102 154 L100 173 L90 182 L80 173 L78 154 Z" />
+        <g className="engine-core">
+          <path d="M90 145 L111 158 L107 184 L90 198 L73 184 L69 158 Z" />
+          <path d="M90 153 L101 161 L99 180 L90 188 L81 180 L79 161 Z" />
         </g>
-        <text className="brake-temp-label" x="90" y="134" textAnchor="middle">{brakeAvg > 0 ? `${brakeAvg}°C` : '--°C'}</text>
+        <text className="engine-temp-label" x="90" y="141" textAnchor="middle">{engineTemp > 0 ? `${engineTemp}°C` : '--°C'}</text>
       </g>
     </svg>
   )
@@ -217,6 +224,16 @@ function brakeColor(temp: number): string {
     [650, '#f4e300'],
     [850, '#ff5a1f'],
     [1000, '#ff1f2d']
+  ])
+}
+
+function engineColor(temp: number): string {
+  return tempColor(temp, [
+    [70, '#2f8fff'],
+    [95, '#20f06b'],
+    [108, '#f4e300'],
+    [118, '#ff5a1f'],
+    [128, '#ff1f2d']
   ])
 }
 

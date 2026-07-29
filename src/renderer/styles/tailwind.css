@@ -437,8 +437,8 @@ body {
 }
 
 .origin-style-car .car-shadow {
-  fill: rgba(0, 0, 0, 0.5);
-  filter: blur(7px);
+  fill: rgba(0, 0, 0, 0.44);
+  filter: blur(9px);
 }
 
 .origin-style-car {
@@ -447,21 +447,21 @@ body {
 
 .origin-style-car .body-shell {
   fill: url('#carBody');
-  stroke: rgba(255, 255, 255, 0.3);
-  stroke-width: 1.1;
+  stroke: rgba(255, 255, 255, 0.36);
+  stroke-width: 1.2;
 }
 
 .origin-style-car .nose-highlight {
-  fill: rgba(255, 255, 255, 0.04);
-  stroke: rgba(255, 255, 255, 0.18);
+  fill: url('#carSpine');
+  stroke: rgba(255, 255, 255, 0.22);
   stroke-width: 1;
   filter: url('#carGlow');
 }
 
 .origin-style-car .front-wing-main,
 .origin-style-car .rear-wing-main {
-  fill: rgba(160, 172, 184, 0.28);
-  stroke: rgba(255, 255, 255, 0.36);
+  fill: rgba(210, 220, 230, 0.24);
+  stroke: rgba(255, 255, 255, 0.42);
   stroke-width: 1.15;
 }
 
@@ -474,12 +474,14 @@ body {
 }
 
 .origin-style-car .wing-endplate {
-  fill: rgba(170, 184, 196, 0.35);
+  fill: rgba(220, 230, 240, 0.28);
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 0.8;
 }
 
 .origin-style-car .sidepod {
-  fill: rgba(255, 255, 255, 0.045);
-  stroke: rgba(255, 255, 255, 0.16);
+  fill: rgba(255, 255, 255, 0.06);
+  stroke: rgba(255, 255, 255, 0.2);
   stroke-width: 1;
 }
 
@@ -503,12 +505,13 @@ body {
 }
 
 .origin-style-car .floor-plate {
-  fill: rgba(255, 255, 255, 0.05);
-  stroke: rgba(255, 255, 255, 0.14);
+  fill: rgba(255, 255, 255, 0.035);
+  stroke: rgba(255, 255, 255, 0.16);
   stroke-width: 1;
 }
 
-.origin-style-car .vent-lines {
+.origin-style-car .vent-lines,
+.origin-style-car .plank-lines {
   fill: none;
   stroke: rgba(255, 255, 255, 0.18);
   stroke-width: 1;
@@ -568,20 +571,20 @@ body {
 .origin-style-car .temp-wheel-rr .tyre-inner-band { fill: var(--inner-rr); }
 .origin-style-car .temp-wheel-rr .brake-temp-block { fill: var(--brake-rr); }
 
-.origin-style-car .brake-core path:first-child {
-  fill: var(--brake-avg);
+.origin-style-car .engine-core path:first-child {
+  fill: var(--engine-temp);
   stroke: rgba(255, 255, 255, 0.3);
   stroke-width: 1.1;
-  filter: drop-shadow(0 0 7px var(--brake-avg));
+  filter: drop-shadow(0 0 7px var(--engine-temp));
 }
 
-.origin-style-car .brake-core path:last-child {
+.origin-style-car .engine-core path:last-child {
   fill: rgba(255, 255, 255, 0.18);
   stroke: rgba(255, 255, 255, 0.32);
   stroke-width: 0.8;
 }
 
-.origin-style-car .brake-temp-label {
+.origin-style-car .engine-temp-label {
   fill: #fff;
   font-family: 'F1 Regular';
   font-size: 22px;

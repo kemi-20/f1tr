@@ -78,6 +78,7 @@ export interface PlayerCarState {
   speedKmh: number
   gear: number
   rpm: number
+  engineTempC: number
   ersPercent: number // 0..1 deployment store
   drsActive: boolean
   drsAllowed: boolean
