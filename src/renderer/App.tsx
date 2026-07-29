@@ -5,7 +5,6 @@ import { TopStrip } from './components/layout/TopStrip'
 import { TrackMap } from './components/trackmap/TrackMap'
 import { DriverHud } from './components/hud/DriverHud'
 import { TyreGrid } from './components/tyres/TyreGrid'
-import { DamagePanel } from './components/damage/DamagePanel'
 import { RivalsPanel } from './components/rivals/RivalsPanel'
 import { EngineerPanel } from './components/engineer/EngineerPanel'
 import { SettingsModal } from './settings/SettingsModal'
@@ -16,7 +15,7 @@ export function App(): React.ReactElement {
   const ui = useConfigStore((s) => s.config?.ui)
   const theme = themeVars(ui?.theme ?? 'midnight', ui?.accent)
   const className = [
-    'app-backdrop flex h-screen w-screen flex-col gap-3 p-3',
+    'app-backdrop flex h-screen w-screen flex-col gap-2 p-2',
     ui?.glassmorphism === false ? 'theme-flat-glass' : '',
     ui?.reduceMotion ? 'theme-reduce-motion' : ''
   ].filter(Boolean).join(' ')
@@ -25,30 +24,23 @@ export function App(): React.ReactElement {
     <div className={className} style={theme}>
       <TopStrip />
 
-      {/* main 3-column grid */}
-      <div className="grid flex-1 grid-cols-12 gap-3 overflow-hidden">
-        {/* left column: HUD + tyres + damage */}
-        <div className="col-span-3 flex flex-col gap-3 overflow-hidden">
-          <div className="min-h-[320px] flex-1">
+      <div className="race-console-grid flex-1 overflow-hidden">
+        <div className="min-w-0 overflow-hidden">
+          <RivalsPanel />
+        </div>
+
+        <div className="grid min-w-0 grid-rows-[minmax(250px,0.82fr)_minmax(260px,1fr)] gap-2 overflow-hidden">
+          <div className="grid min-h-0 grid-cols-[minmax(330px,0.86fr)_minmax(360px,1fr)] gap-2 overflow-hidden">
             <DriverHud />
+            <TrackMap />
           </div>
-          <TyreGrid />
-          <DamagePanel />
+          <div className="min-h-0 overflow-hidden">
+            <TyreGrid />
+          </div>
         </div>
 
-        {/* center: track map */}
-        <div className="col-span-5 overflow-hidden">
-          <TrackMap />
-        </div>
-
-        {/* right: rivals + engineer */}
-        <div className="col-span-4 flex flex-col gap-3 overflow-hidden">
-          <div className="min-h-[280px] flex-1">
-            <RivalsPanel />
-          </div>
-          <div className="min-h-[280px] flex-1">
-            <EngineerPanel />
-          </div>
+        <div className="min-w-0 overflow-hidden">
+          <EngineerPanel />
         </div>
       </div>
 
