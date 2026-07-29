@@ -123,16 +123,8 @@ body {
   display: block;
   width: min(176px, 72%);
   height: 44px;
-  margin: 16px auto 8px;
+  margin: 14px auto 10px;
   object-fit: contain;
-}
-
-.broadcast-subtitle {
-  margin: 2px auto 12px;
-  width: 168px;
-  font-size: 10px;
-  line-height: 1.15;
-  color: rgba(255, 255, 255, 0.66);
 }
 
 .broadcast-divider {
@@ -176,7 +168,7 @@ body {
 .broadcast-row {
   position: relative;
   display: grid;
-  grid-template-columns: 34px 30px minmax(52px, 1fr) 70px 24px;
+  grid-template-columns: 34px 30px minmax(48px, 1fr) 39px 60px 22px;
   align-items: center;
   min-height: 34px;
   margin: 1px 0;
@@ -243,8 +235,16 @@ body {
 .broadcast-gap {
   justify-self: end;
   font-family: 'F1 Regular';
-  font-size: 16px;
+  font-size: 14px;
   color: rgba(255, 255, 255, 0.82);
+}
+
+.broadcast-wear {
+  justify-self: end;
+  font-family: 'F1 Bold';
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.85);
 }
 
 .broadcast-tyre {
@@ -838,12 +838,16 @@ body {
     grid-template-columns: 190px minmax(0, 1fr) 260px;
   }
   .broadcast-row {
-    grid-template-columns: 30px 24px minmax(42px, 1fr) 56px 20px;
+    grid-template-columns: 30px 24px minmax(40px, 1fr) 34px 50px 18px;
     min-height: 30px;
   }
   .broadcast-code,
   .broadcast-gap {
     font-size: 14px;
+  }
+  .broadcast-wear,
+  .broadcast-tyre {
+    font-size: 11px;
   }
   .broadcast-f1-logo {
     width: min(142px, 72%);

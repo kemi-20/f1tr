@@ -35,10 +35,11 @@ export class TelemetryService {
     port = 20777,
     triggerConfig: TriggerConfig,
     rendererPaintHz = 12,
+    formatOverride: 'auto' | PacketFormat = 'auto',
     onFiring: (f: TriggerFiring) => void
   ) {
     this.aggregator = new StateAggregator()
-    this.receiver = new UdpReceiver(port)
+    this.receiver = new UdpReceiver(port, formatOverride)
     this.triggers = new TriggerEngine(triggerConfig, onFiring)
     this.emitter = new SnapshotEmitter(
       this.aggregator,
@@ -189,5 +190,12 @@ export class TelemetryService {
     this.lastTrackId = -1
     this.lastMetaFormat = null
     this.pendingEvents = []
+  }
+
+  setFormatOverride(format: 'auto' | PacketFormat): void {
+    this.receiver.setFormatOverride(format)
+    this.aggregator.reset(this.receiver.currentFormat ?? 2025)
+    this.lastTrackId = -1
+    this.lastMetaFormat = null
   }
 }

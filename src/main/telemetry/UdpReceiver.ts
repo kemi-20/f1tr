@@ -43,8 +43,11 @@ export class UdpReceiver {
   public packetsDropped = 0
   public lastPacketMs = 0
   public currentFormat: PacketFormat | null = null
+  private formatOverride: PacketFormat | null = null
 
-  constructor(private port = 20777) {}
+  constructor(private port = 20777, formatOverride: 'auto' | PacketFormat = 'auto') {
+    this.setFormatOverride(formatOverride)
+  }
 
   /** Register a reducer for a packet event name (one of the PACKETS keys). */
   on(name: string, cb: (p: AnyParsedPacket) => void): void {
@@ -81,14 +84,15 @@ export class UdpReceiver {
       return
     }
     const fmt = msg.readUInt16LE(0)
+    const effectiveFmt = this.formatOverride ?? (fmt === 2026 ? 2026 : 2025)
     const packetId = msg.readUInt8(6)
     // 2026 season-pack packet 16 (CAR_TELEMETRY_2) is valid for that format but not registered
     // by our reducers — don't count it as a dropped/error packet.
-    if (fmt === 2026 && packetId === 16) {
-      this.record(packetId, fmt)
+    if (effectiveFmt === 2026 && packetId === 16) {
+      this.record(packetId, effectiveFmt)
       return
     }
-    const expected = this.expectedSize(packetId, fmt)
+    const expected = this.expectedSize(packetId, effectiveFmt)
     if (expected != null && msg.length < expected) {
       // truncated datagram — drop instead of letting the parser throw
       this.packetsDropped++
@@ -106,7 +110,7 @@ export class UdpReceiver {
         this.packetsDropped++
         return
       }
-      this.record(packetId, fmt)
+      this.record(packetId, effectiveFmt)
       const cb = this.handlers.get(packetID)
       if (cb) cb(data)
     } catch (err) {
@@ -123,6 +127,11 @@ export class UdpReceiver {
       this.currentFormat = format
       logger.info(`F1 packet format detected: ${format} (packetId ${packetId})`)
     }
+  }
+
+  setFormatOverride(format: 'auto' | PacketFormat): void {
+    this.formatOverride = format === 'auto' ? null : format
+    this.currentFormat = null
   }
 
   private expectedSize(packetId: number, fmt: number): number | null {

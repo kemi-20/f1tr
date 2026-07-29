@@ -3,7 +3,6 @@ import { useEngineerStore } from '../../store'
 type Status = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error'
 
 const STATUSES: { id: Status; label: string; color: string }[] = [
-  { id: 'listening', label: 'LISTENING', color: '#2DD4BF' },
   { id: 'thinking', label: 'THINKING', color: '#FFB020' },
   { id: 'speaking', label: 'SPEAKING', color: '#FF6A00' },
   { id: 'error', label: 'ERROR', color: '#FF3B3B' }

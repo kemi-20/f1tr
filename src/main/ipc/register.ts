@@ -45,6 +45,9 @@ export function registerIpc(): void {
     if (patch.telemetry?.port != null) {
       getTelemetry()?.setPort(cfg.telemetry.port)
     }
+    if (patch.telemetry?.formatOverride != null) {
+      getTelemetry()?.setFormatOverride(cfg.telemetry.formatOverride)
+    }
     if (patch.advanced?.memoryTurns != null) {
       getEngineer()?.setMemoryTurns(cfg.advanced.memoryTurns)
     }

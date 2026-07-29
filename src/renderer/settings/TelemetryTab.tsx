@@ -26,6 +26,23 @@ export function TelemetryTab(): React.ReactElement {
             onChange={(e) => void patch({ telemetry: { rendererPaintHz: Number(e.target.value) } })}
           />
         </Field>
+        <Field label="遥测格式" hint="AUTO 会按 UDP 包头识别 F1 25 / 26">
+          <select
+            value={telemetry.formatOverride}
+            onChange={(e) =>
+              void patch({
+                telemetry: {
+                  formatOverride: e.target.value === 'auto' ? 'auto' : Number(e.target.value) as 2025 | 2026
+                }
+              })
+            }
+            className="w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-accent-carbon/60"
+          >
+            <option value="auto">AUTO</option>
+            <option value={2025}>F1 25</option>
+            <option value={2026}>F1 26</option>
+          </select>
+        </Field>
       </div>
 
       <div className="border-t border-white/[0.06] pt-4">

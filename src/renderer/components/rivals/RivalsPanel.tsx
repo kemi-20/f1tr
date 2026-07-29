@@ -1,6 +1,6 @@
 import { useRaceStore } from '../../store'
-import { compoundLabel, fmtGap, fmtLapTime } from '@shared/index'
-import type { RaceState, RivalState, TyreCompound } from '@shared/types/state'
+import { compoundLabel } from '@shared/index'
+import type { RivalState, TyreCompound } from '@shared/types/state'
 import f1Logo from '../../assets/team-logos/F1_Logo.png'
 import mercedesLogo from '../../assets/team-logos/Mercedes_Logo.png'
 import ferrariLogo from '../../assets/team-logos/Ferrari_Logo.png'
@@ -37,20 +37,11 @@ const TEAM_MARKS: Record<string, { label: string; color: string; logo?: string }
   '194': { label: 'Kick Sauber', color: '#B6BABD', logo: kickLogo }
 }
 
-function Row({ r, isPlayer, timingMode }: { r: RivalState; isPlayer: boolean; timingMode: boolean }): React.ReactElement {
+function Row({ r, isPlayer }: { r: RivalState; isPlayer: boolean }): React.ReactElement {
   const mark = TEAM_MARKS[String(r.team)] ?? { label: shortTeam(r.team), color: '#E6EDF6' }
   const tyre = tyreCode(r.tyreCompound)
-  const center = timingMode
-    ? r.bestLapTimeS
-      ? fmtLapTime(r.bestLapTimeS * 1000)
-      : '--'
-    : r.position === 1
-      ? 'Leader'
-      : r.deltaToCarInFrontS != null
-        ? `+${r.deltaToCarInFrontS.toFixed(1)}`
-        : r.gapToPlayerS != null
-          ? fmtGap(Math.abs(r.gapToPlayerS))
-          : '--'
+  const gap = formatPlayerRelativeGap(r.gapToPlayerS)
+  const tyreWear = formatTyreWear(r.tyreWearAvg)
   const retired = r.status === 'retired'
   const inPit = r.pitStatus === 1 || r.pitStatus === 2
 
@@ -61,7 +52,8 @@ function Row({ r, isPlayer, timingMode }: { r: RivalState; isPlayer: boolean; ti
         {mark.logo ? <img src={mark.logo} alt={mark.label} /> : <span>{shortTeam(r.team)}</span>}
       </div>
       <div className="broadcast-code" title={r.name || driverCode(r)}>{driverCode(r)}</div>
-      <div className="broadcast-gap">{inPit ? 'PIT' : center}</div>
+      <div className="broadcast-wear" style={{ color: tyreWear.color }} title={tyreWear.title}>{tyreWear.text}</div>
+      <div className="broadcast-gap">{inPit ? 'PIT' : gap}</div>
       <div className={`broadcast-tyre tyre-${tyre.toLowerCase()}`}>{tyre}</div>
       {r.penaltiesS > 0 && <div className="broadcast-penalty">{r.penaltiesS}s</div>}
     </div>
@@ -72,7 +64,6 @@ export function RivalsPanel(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const rivals = race ? Object.values(race.rivals) : []
   const playerIdx = race?.player.carIndex ?? -1
-  const timingMode = race ? isTimingSession(race) : false
   const sorted = rivals
     .filter((r) => r.position > 0)
     .sort((a, b) => a.position - b.position || a.carIndex - b.carIndex)
@@ -82,7 +73,6 @@ export function RivalsPanel(): React.ReactElement {
     <aside className="broadcast-tower h-full">
       <div className="broadcast-header">
         <img className="broadcast-f1-logo" src={f1Logo} alt="Formula 1" />
-        <div className="broadcast-subtitle">FIA Formula 1 World Championship</div>
         <div className="broadcast-divider" />
         <div className="broadcast-lap">
           <span>LAP</span>
@@ -95,7 +85,7 @@ export function RivalsPanel(): React.ReactElement {
       <div className="broadcast-body">
         {sorted.length === 0 && <div className="broadcast-empty">等待车手数据</div>}
         {sorted.map((r) => (
-          <Row key={r.carIndex} r={r} isPlayer={r.carIndex === playerIdx} timingMode={timingMode} />
+          <Row key={r.carIndex} r={r} isPlayer={r.carIndex === playerIdx} />
         ))}
       </div>
     </aside>
@@ -120,9 +110,26 @@ function tyreCode(compound: TyreCompound): string {
   return label === '?' ? '' : label
 }
 
-function isTimingSession(race: RaceState): boolean {
-  const { sessionType, sessionTypeLabel } = race.session
-  return [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12].includes(sessionType) || /practice|qual|^p[123]$|^q[123]$|^osq$/i.test(sessionTypeLabel)
+function formatPlayerRelativeGap(gapToPlayerS: number | null): string {
+  if (gapToPlayerS == null || !isFinite(gapToPlayerS)) return '--'
+  const display = -gapToPlayerS
+  const abs = Math.abs(display)
+  const sign = display > 0 ? '+' : display < 0 ? '-' : ''
+  return `${sign}${abs.toFixed(2)}`
+}
+
+function formatTyreWear(wear: number | null): { text: string; color: string; title: string } {
+  if (wear == null || !isFinite(wear)) return { text: '--', color: 'rgba(255, 255, 255, 0.34)', title: 'Tyre wear unknown' }
+  const rounded = Math.round(Math.max(0, Math.min(100, wear)))
+  return { text: `${rounded}%`, color: tyreWearColor(rounded), title: `Tyre wear ${rounded}%` }
+}
+
+function tyreWearColor(wear: number): string {
+  if (wear >= 90) return '#B000F7'
+  if (wear >= 75) return '#E10600'
+  if (wear >= 55) return '#FF7A00'
+  if (wear >= 35) return '#F7D210'
+  return '#49D66A'
 }
 
 const DRIVER_CODES: Record<number, string> = {
