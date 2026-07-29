@@ -1,5 +1,5 @@
 import { useRaceStore } from '../../store'
-import { compoundCName, tempStatus, type Corners } from '@shared/index'
+import { compoundCName, tyreWearColor, type Corners } from '@shared/index'
 import type { CSSProperties } from 'react'
 
 const CORNERS: Array<{ key: keyof Corners; label: string; side: 'left' | 'right' }> = [
@@ -59,18 +59,16 @@ export function TyreGrid(): React.ReactElement {
 function TyreInfo({ corner, label, side }: { corner: keyof Corners; label: string; side: 'left' | 'right' }): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const tyres = race?.player.tyres
-  const compound = tyres?.compound ?? 'unknown'
   const wear = Math.round(tyres?.wear[corner] ?? 0)
   const surface = Math.round(tyres?.surfaceTempC[corner] ?? 0)
   const inner = Math.round(tyres?.innerTempC[corner] ?? 0)
   const brake = Math.round(tyres?.brakeTempC[corner] ?? 0)
   const hasData = tyres != null && (surface > 0 || inner > 0 || brake > 0 || wear > 0 || tyres.compound !== 'unknown')
-  const temp = tempStatus(inner, compound)
   const wearText = hasData ? `${wear}%` : '--%'
-  const tempColor = hasData ? temp.color : 'rgba(255,255,255,0.5)'
+  const wearColor = hasData ? tyreWearColor(wear) : 'rgba(255,255,255,0.5)'
 
   return (
-    <div className={`tyre-map-corner tyre-map-${corner} tyre-map-${side}`} style={{ '--tyre-temp': tempColor } as CSSProperties}>
+    <div className={`tyre-map-corner tyre-map-${corner} tyre-map-${side}`} style={{ '--tyre-temp': wearColor } as CSSProperties}>
       <div className="tyre-corner-label">{label}</div>
       <div className="tyre-wear">{wearText}</div>
       <div className="tyre-wear-caption">WORN</div>

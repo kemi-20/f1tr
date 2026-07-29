@@ -1,5 +1,5 @@
 import { useRaceStore } from '../../store'
-import { compoundLabel } from '@shared/index'
+import { compoundLabel, tyreWearColor } from '@shared/index'
 import type { RivalState, TyreCompound } from '@shared/types/state'
 import mercedesLogo from '../../assets/team-logos/Mercedes_Logo.png'
 import ferrariLogo from '../../assets/team-logos/Ferrari_Logo.png'
@@ -119,14 +119,6 @@ function formatTyreWear(wear: number | null): { text: string; color: string; tit
   if (wear == null || !isFinite(wear)) return { text: '--', color: 'rgba(255, 255, 255, 0.34)', title: 'Tyre wear unknown' }
   const rounded = Math.round(Math.max(0, Math.min(100, wear)))
   return { text: `${rounded}%`, color: tyreWearColor(rounded), title: `Tyre wear ${rounded}%` }
-}
-
-function tyreWearColor(wear: number): string {
-  if (wear >= 90) return '#B000F7'
-  if (wear >= 75) return '#E10600'
-  if (wear >= 55) return '#FF7A00'
-  if (wear >= 35) return '#F7D210'
-  return '#49D66A'
 }
 
 const DRIVER_CODES: Record<number, string> = {

@@ -105,3 +105,14 @@ export function tempStatus(
   if (c > hi) return { status: 'hot', color: '#FF3B3B' }
   return { status: 'ideal', color: compound === 'inter' ? '#22C55E' : '#2DD4BF' }
 }
+
+/** F1-overlay style tyre wear colour: calm when fresh, alarming as wear climbs. */
+export function tyreWearColor(wear: number | null | undefined): string {
+  if (wear == null || !isFinite(wear)) return 'rgba(255, 255, 255, 0.34)'
+  const pct = Math.max(0, Math.min(100, wear))
+  if (pct >= 90) return '#B000F7'
+  if (pct >= 75) return '#E10600'
+  if (pct >= 55) return '#FF7A00'
+  if (pct >= 35) return '#F7D210'
+  return '#49D66A'
+}
