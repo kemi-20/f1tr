@@ -43,6 +43,7 @@ export class DigestBuilder {
         lastLap: fmtLapTime(p.lastLapTimeS ? p.lastLapTimeS * 1000 : null),
         bestLap: fmtLapTime(p.bestLapTimeS ? p.bestLapTimeS * 1000 : null),
         fuel: p.fuelRemainingKg != null ? `${p.fuelRemainingKg.toFixed(1)}kg` : '--',
+        engineTemp: p.engineTempC > 0 ? `${Math.round(p.engineTempC)}C` : '--',
         pits: p.pitStopCount,
         ers: fmtPct(p.ersPercent),
         drs: raceSession
@@ -97,7 +98,7 @@ export class DigestBuilder {
       `PLAYER: ${d.player.pos} • Lap ${d.player.position.lapPct}% (sector ${sectorLabel})` +
         (d.player.gapAhead ? ` • ahead ${d.player.gapAhead}` : '') +
         (d.player.gapBehind ? ` • behind ${d.player.gapBehind}` : '') +
-        ` • last ${d.player.lastLap} best ${d.player.bestLap} • fuel ${d.player.fuel} • pits ${d.player.pits}` +
+        ` • last ${d.player.lastLap} best ${d.player.bestLap} • fuel ${d.player.fuel} • engine ${d.player.engineTemp} • pits ${d.player.pits}` +
         ` • ERS ${d.player.ers}` +
         (d.player.drs ? ` • DRS ${d.player.drs}` : '')
     )

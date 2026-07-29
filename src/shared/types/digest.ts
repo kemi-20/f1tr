@@ -27,6 +27,7 @@ export interface Digest {
     lastLap: string
     bestLap: string
     fuel: string
+    engineTemp: string
     pits: number
     ers: string
     drs: string
