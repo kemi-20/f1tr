@@ -12,8 +12,8 @@ import type { SynthRequest, Priority } from '@shared/types/audio'
  * - Synthesis happens in MAIN; the base64 PCM16 chunks cross IPC to the renderer,
  *   which owns the AudioContext (24kHz) and actual playback.
  *
- * NOTE on MiMo latency: current streaming is "compatibility mode" (whole clip synthesized
- * then chunked). So preemption mostly cancels a not-yet-played synthesis, not mid-audio.
+ * MiMo streams PCM16 chunks as they are ready, so playback can start before the
+ * full utterance is synthesized.
  */
 export class AudioPipeline {
   private client: MiMoTtsClient | null = null

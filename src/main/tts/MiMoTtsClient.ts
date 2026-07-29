@@ -17,9 +17,7 @@ export interface MiMoConfig {
  * Response: SSE, each chunk choices[0].delta.audio.data = base64 PCM16
  *           (24000Hz, mono, int16 LE). Terminated by `data: [DONE]`.
  *
- * NOTE: MiMo's streaming is currently "compatibility mode" — the whole audio is synthesized
- * first then chunked, so stream:true does NOT reduce first-audio latency (~1-3s full synthesis).
- * We still stream so audio can begin playing as soon as chunks arrive.
+ * MiMo's mimo-v2.5-tts low-latency streaming returns audio chunks as they are ready.
  */
 export class MiMoTtsClient {
   private parser = new SseParser()
@@ -78,7 +76,7 @@ export class MiMoTtsClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.config.apiKey}`
+          'api-key': this.config.apiKey
         },
         body: JSON.stringify(body),
         signal: this.abort.signal

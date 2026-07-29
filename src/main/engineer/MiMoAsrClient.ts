@@ -9,10 +9,10 @@ export interface MiMoAsrConfig {
 /**
  * MiMoAsrClient — speech-to-text via MiMo's ASR model (mimo-v2.5-asr).
  *
- * MiMo ASR API spec (https://mimo.mi.com/docs/zh-CN/api/audio/Speech-Recognition):
+ * MiMo ASR API spec:
  *   POST {baseURL}/chat/completions
- *   Audio passed as base64 data URL in message content:
- *     data:audio/mpeg;base64,...  (also supports audio/wav, audio/mp3)
+ *   Audio passed as content array:
+ *     [{ type:"input_audio", input_audio:{ data:"data:audio/mpeg;base64,..." } }]
  *   Max base64 size: 10MB
  * Returns: { choices: [{ message: { content: "transcribed text" } }] }
  */
@@ -32,7 +32,18 @@ export class MiMoAsrClient {
     const dataUrl = `data:${mimeType};base64,${base64Audio}`
     const body = {
       model: this.config.model,
-      messages: [{ role: 'user', content: dataUrl }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_audio',
+              input_audio: { data: dataUrl }
+            }
+          ]
+        }
+      ],
+      asr_options: { language: 'auto' },
       max_tokens: 500
     }
 
@@ -41,7 +52,7 @@ export class MiMoAsrClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.config.apiKey}`
+          'api-key': this.config.apiKey
         },
         body: JSON.stringify(body)
       })

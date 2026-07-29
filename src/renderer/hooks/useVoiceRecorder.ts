@@ -66,12 +66,14 @@ export function useVoiceRecorder() {
       sink.connect(ctx.destination)
 
       setState('recording')
+      setStatus('listening')
       timeoutRef.current = setTimeout(() => {
         if (processorRef.current) stop()
       }, 30_000)
     } catch (err) {
       console.error('[voice] mic access failed:', err)
       cleanup()
+      setStatus('idle')
       setState('idle')
     }
   }, [cleanup, setStatus])
@@ -87,6 +89,7 @@ export function useVoiceRecorder() {
     const totalLength = chunks.reduce((sum, c) => sum + c.length, 0)
     if (totalLength < 1600) {
       cleanup()
+      setStatus('idle')
       setState('idle')
       return
     }

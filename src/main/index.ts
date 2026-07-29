@@ -112,29 +112,20 @@ app.whenReady().then(() => {
   )
   setTelemetry(telemetry)
   telemetry.start()
+  registerHotkey(cfg.hotkeys.pushToTalk)
 
   // UDP staleness watchdog: if no packets for 2 minutes, cancel the engineer
-  // and suppress triggers until packets resume.
+  // and suppress autonomous triggers until packets resume. Push-to-talk stays
+  // registered so the driver can still talk while the game has focus.
   telemetry.setUdpCallbacks(
     () => {
       engineer?.cancel()
-      unregisterHotkey()
       logger.info('Engineer paused (UDP stale)')
     },
     () => {
-      registerHotkey(cfg.hotkeys.pushToTalk)
       logger.info('Engineer resumed (UDP reconnected)')
     }
   )
-
-  // Register hotkey once first UDP packet arrives (poll until connected)
-  const hotkeyPoll = setInterval(() => {
-    if (telemetry?.packetsReceived() && telemetry.packetsReceived() > 0) {
-      registerHotkey(cfg.hotkeys.pushToTalk)
-      clearInterval(hotkeyPoll)
-    }
-  }, 2000)
-  setTimeout(() => clearInterval(hotkeyPoll), 300_000) // safety: stop after 5min
 
   // wire the real LLM + TTS backends (P3/P5) if secrets are present
   wireLlm(cfg).catch((err) => {

@@ -34,10 +34,7 @@ export function registerIpc(): void {
       getTelemetry()?.triggers.setConfig(cfg.triggers)
     }
     if (patch.hotkeys?.pushToTalk) {
-      // re-register global hotkey if telemetry is active
-      if (getTelemetry()?.packetsReceived() && getTelemetry()!.packetsReceived() > 0) {
-        registerHotkey(cfg.hotkeys.pushToTalk)
-      }
+      registerHotkey(cfg.hotkeys.pushToTalk)
     }
     if (patch.telemetry?.rendererPaintHz != null) {
       getTelemetry()?.setRendererPaintHz(cfg.telemetry.rendererPaintHz)
