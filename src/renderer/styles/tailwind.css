@@ -98,7 +98,7 @@ body {
 
 .race-console-grid {
   display: grid;
-  grid-template-columns: minmax(230px, 280px) minmax(720px, 1fr) minmax(330px, 390px);
+  grid-template-columns: clamp(230px, 15vw, 280px) minmax(0, 1fr) clamp(330px, 20vw, 390px);
   gap: 8px;
 }
 
@@ -402,7 +402,7 @@ body {
   display: grid;
   min-height: 0;
   flex: 1;
-  grid-template-columns: minmax(460px, 1fr) 1px minmax(190px, 0.46fr);
+  grid-template-columns: minmax(0, 1fr) 1px minmax(170px, 0.4fr);
   gap: 14px;
 }
 
@@ -417,9 +417,10 @@ body {
   display: grid;
   min-height: 0;
   height: calc(100% - 25px);
-  grid-template-columns: 1fr minmax(150px, 190px) 1fr;
+  grid-template-columns: minmax(140px, 1fr) minmax(128px, 168px) minmax(140px, 1fr);
   grid-template-rows: 1fr 1fr;
   align-items: center;
+  column-gap: 8px;
 }
 
 .car-graphic {
@@ -432,8 +433,76 @@ body {
 
 .car-graphic svg {
   max-height: 100%;
-  width: min(190px, 100%);
+  width: min(168px, 100%);
   filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.42));
+}
+
+.origin-style-car .car-shadow {
+  fill: rgba(0, 0, 0, 0.5);
+  filter: blur(7px);
+}
+
+.origin-style-car .body-shell {
+  fill: url('#carBody');
+  stroke: rgba(255, 255, 255, 0.34);
+  stroke-width: 1.3;
+}
+
+.origin-style-car .nose-highlight {
+  fill: rgba(255, 255, 255, 0.025);
+  stroke: var(--team-color);
+  stroke-opacity: 0.85;
+  stroke-width: 1.2;
+  filter: url('#carGlow');
+}
+
+.origin-style-car .front-wing-main,
+.origin-style-car .rear-wing-main {
+  fill: rgba(255, 255, 255, 0.045);
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 1.15;
+}
+
+.origin-style-car .front-wing-flap,
+.origin-style-car .rear-wing-flap,
+.origin-style-car .floor-outline {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1.1;
+}
+
+.origin-style-car .wing-endplate {
+  fill: rgba(255, 255, 255, 0.14);
+}
+
+.origin-style-car .tyre-shape {
+  fill: #f4e300;
+  filter: drop-shadow(0 4px 8px rgba(244, 227, 0, 0.18));
+}
+
+.origin-style-car .sidepod {
+  fill: rgba(255, 255, 255, 0.02);
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1;
+}
+
+.origin-style-car .halo {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.24);
+  stroke-width: 1.4;
+}
+
+.origin-style-car .cockpit {
+  fill: rgba(0, 0, 0, 0.62);
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1;
+}
+
+.origin-style-car .center-stripe {
+  fill: none;
+  stroke: #ff2f62;
+  stroke-width: 1.2;
+  stroke-opacity: 0.95;
 }
 
 .tyre-map-corner {
@@ -475,7 +544,7 @@ body {
 .tyre-wear {
   margin-bottom: 7px;
   font-family: 'F1 Display Black';
-  font-size: clamp(36px, 5.2vh, 54px);
+  font-size: clamp(34px, 5vh, 50px);
   line-height: 0.95;
   color: var(--tyre-temp);
 }
@@ -529,12 +598,69 @@ body {
   transition: none;
 }
 
+.engineer-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.engineer-action-btn {
+  min-width: 58px;
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-family: 'F1 Bold';
+  font-size: 12px;
+  line-height: 1;
+  text-transform: uppercase;
+  transition: filter 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+
 @media (max-width: 1180px) {
   .race-console-grid {
-    grid-template-columns: 240px minmax(610px, 1fr) 320px;
+    grid-template-columns: 220px minmax(0, 1fr) 300px;
   }
   .car-status-body {
-    grid-template-columns: minmax(360px, 1fr) 1px minmax(160px, 0.44fr);
+    grid-template-columns: minmax(0, 1fr) 1px minmax(150px, 0.42fr);
+  }
+  .tyre-map-grid {
+    grid-template-columns: minmax(112px, 1fr) minmax(112px, 140px) minmax(112px, 1fr);
+  }
+  .tyre-wear {
+    font-size: 34px;
+  }
+  .damage-line-head {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 980px) {
+  .race-console-grid {
+    grid-template-columns: 190px minmax(0, 1fr) 260px;
+  }
+  .broadcast-row {
+    grid-template-columns: 30px 24px minmax(42px, 1fr) 56px 20px;
+    min-height: 30px;
+  }
+  .broadcast-code,
+  .broadcast-gap {
+    font-size: 14px;
+  }
+  .broadcast-logo {
+    font-size: 42px;
+  }
+  .car-status-body {
+    grid-template-columns: 1fr;
+  }
+  .car-status-separator,
+  .damage-map {
+    display: none;
+  }
+  .engineer-input-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .engineer-input-row button:last-child {
+    grid-column: 2;
   }
 }
 

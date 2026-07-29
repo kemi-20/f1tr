@@ -31,8 +31,8 @@ export function EngineerPanel(): React.ReactElement {
   }
 
   return (
-    <div className="glass flex h-full flex-col gap-3 p-4">
-      <div className="flex items-center justify-between">
+    <div className="glass flex h-full min-w-0 flex-col gap-3 p-4">
+      <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="label">Race Engineer</span>
         </div>
@@ -40,7 +40,7 @@ export function EngineerPanel(): React.ReactElement {
       </div>
 
       {/* message stream — newest on top, older sinks down */}
-      <div className="flex-1 overflow-y-auto rounded-xl bg-black/20 p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-lg bg-black/20 p-3">
         {messages.length === 0 && !streamingId && (
           <div className="flex h-full items-center justify-center text-center text-xs text-white/25">
             等待比赛数据… 工程师会在关键时刻自动播报。
@@ -67,7 +67,7 @@ export function EngineerPanel(): React.ReactElement {
       </div>
 
       {/* input row */}
-      <div className="flex items-center gap-2">
+      <div className="engineer-input-row">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -75,19 +75,19 @@ export function EngineerPanel(): React.ReactElement {
             if (e.key === 'Enter') sendManual()
           }}
           placeholder="向工程师提问…"
-          className="flex-1 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-sm text-white/90 outline-none placeholder:text-white/25 focus:border-accent-carbon/50"
+          className="min-w-0 flex-1 rounded-md border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-sm text-white/90 outline-none placeholder:text-white/25 focus:border-accent-carbon/50"
         />
         <button
           onClick={sendManual}
           disabled={busy}
-          className="rounded-lg bg-accent-carbon px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink-950 transition hover:brightness-110 disabled:opacity-40"
+          className="engineer-action-btn bg-accent-carbon text-ink-950 hover:brightness-110 disabled:opacity-40"
         >
           Ask
         </button>
         <button
           onClick={toggleRec}
           disabled={recState === 'transcribing'}
-          className={`rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-wide transition disabled:opacity-40 ${
+          className={`engineer-action-btn disabled:opacity-40 ${
             recState === 'recording'
               ? 'animate-pulse bg-accent-racing text-white hover:brightness-110'
               : recState === 'transcribing'
@@ -96,7 +96,7 @@ export function EngineerPanel(): React.ReactElement {
           }`}
           title={recState === 'recording' ? '点击停止录音' : recState === 'transcribing' ? '转写中…' : '语音输入'}
         >
-          {recState === 'recording' ? '● 录音中' : recState === 'transcribing' ? '转写中…' : 'Speak'}
+          {recState === 'recording' ? 'Rec' : recState === 'transcribing' ? '...' : 'Speak'}
         </button>
       </div>
 

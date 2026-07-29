@@ -65,15 +65,18 @@ function TyreInfo({ corner, label, side }: { corner: keyof Corners; label: strin
   const inner = Math.round(tyres?.innerTempC[corner] ?? 0)
   const brake = Math.round(tyres?.brakeTempC[corner] ?? 0)
   const remaining = Math.max(0, 100 - wear)
+  const hasData = tyres != null && (surface > 0 || inner > 0 || brake > 0 || wear > 0 || tyres.compound !== 'unknown')
   const temp = tempStatus(inner, compound)
+  const wearText = hasData ? `${remaining}%` : '--%'
+  const tempColor = hasData ? temp.color : 'rgba(255,255,255,0.5)'
 
   return (
-    <div className={`tyre-map-corner tyre-map-${corner} tyre-map-${side}`} style={{ '--tyre-temp': temp.color } as CSSProperties}>
+    <div className={`tyre-map-corner tyre-map-${corner} tyre-map-${side}`} style={{ '--tyre-temp': tempColor } as CSSProperties}>
       <div className="tyre-corner-label">{label}</div>
-      <div className="tyre-wear">{remaining}%</div>
-      <div className="tyre-metric">SURF&nbsp; {surface}°C</div>
-      <div className="tyre-metric">IN&nbsp;&nbsp;&nbsp; {inner}°C</div>
-      <div className="tyre-metric">BRAKE {brake}°C</div>
+      <div className="tyre-wear">{wearText}</div>
+      <div className="tyre-metric">SURF&nbsp; {hasData ? surface : '--'}°C</div>
+      <div className="tyre-metric">IN&nbsp;&nbsp;&nbsp; {hasData ? inner : '--'}°C</div>
+      <div className="tyre-metric">BRAKE {hasData ? brake : '--'}°C</div>
     </div>
   )
 }
@@ -96,19 +99,48 @@ function DamageLine({ label, value }: { label: string; value: number }): React.R
 
 function CarSilhouette(): React.ReactElement {
   return (
-    <svg viewBox="0 0 150 260" role="img">
-      <path d="M67 35 C67 18 83 18 83 35 L88 96 C103 118 107 158 99 203 C96 224 87 241 75 248 C63 241 54 224 51 203 C43 158 47 118 62 96 Z" fill="rgba(7,10,15,0.86)" stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" />
-      <path d="M72 34 C72 24 78 24 78 34 L81 94 C82 117 84 194 75 225 C66 194 68 117 69 94 Z" fill="rgba(255,255,255,0.03)" stroke="var(--team-color)" strokeOpacity="0.75" strokeWidth="1.2" />
-      <path d="M31 58 C59 48 91 48 119 58 L119 75 C91 67 59 67 31 75 Z" fill="rgba(255,255,255,0.035)" stroke="rgba(255,255,255,0.25)" strokeWidth="1.2" />
-      <path d="M27 196 C58 205 92 205 123 196 L123 213 C92 222 58 222 27 213 Z" fill="rgba(255,255,255,0.035)" stroke="rgba(255,255,255,0.25)" strokeWidth="1.2" />
-      <rect x="18" y="55" width="7" height="28" rx="2" fill="rgba(255,255,255,0.12)" />
-      <rect x="125" y="55" width="7" height="28" rx="2" fill="rgba(255,255,255,0.12)" />
-      <rect x="16" y="192" width="8" height="31" rx="2" fill="rgba(255,255,255,0.12)" />
-      <rect x="126" y="192" width="8" height="31" rx="2" fill="rgba(255,255,255,0.12)" />
-      <rect x="37" y="85" width="18" height="67" rx="8" fill="#F4E300" />
-      <rect x="95" y="85" width="18" height="67" rx="8" fill="#F4E300" />
-      <rect x="38" y="172" width="19" height="66" rx="8" fill="#F4E300" />
-      <rect x="93" y="172" width="19" height="66" rx="8" fill="#F4E300" />
+    <svg className="origin-style-car" viewBox="0 0 180 300" role="img">
+      <defs>
+        <linearGradient id="carBody" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#151b22" />
+          <stop offset="0.5" stopColor="#05080d" />
+          <stop offset="1" stopColor="#10151c" />
+        </linearGradient>
+        <filter id="carGlow" x="-40%" y="-20%" width="180%" height="140%">
+          <feGaussianBlur stdDeviation="2.2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      <path className="car-shadow" d="M90 28 C116 72 119 220 90 282 C61 220 64 72 90 28 Z" />
+
+      <path className="front-wing-main" d="M22 68 C63 55 117 55 158 68 L158 90 C116 76 64 76 22 90 Z" />
+      <path className="front-wing-flap" d="M31 76 C68 66 112 66 149 76" />
+      <rect className="wing-endplate" x="8" y="63" width="9" height="38" rx="2" />
+      <rect className="wing-endplate" x="163" y="63" width="9" height="38" rx="2" />
+
+      <path className="rear-wing-main" d="M18 232 C61 246 119 246 162 232 L162 255 C119 270 61 270 18 255 Z" />
+      <path className="rear-wing-flap" d="M31 241 C69 251 111 251 149 241" />
+      <rect className="wing-endplate" x="6" y="226" width="11" height="44" rx="2" />
+      <rect className="wing-endplate" x="163" y="226" width="11" height="44" rx="2" />
+
+      <rect className="tyre-shape" x="42" y="105" width="25" height="72" rx="11" />
+      <rect className="tyre-shape" x="113" y="105" width="25" height="72" rx="11" />
+      <rect className="tyre-shape" x="41" y="206" width="26" height="74" rx="11" />
+      <rect className="tyre-shape" x="113" y="206" width="26" height="74" rx="11" />
+
+      <path className="sidepod sidepod-left" d="M73 106 C58 132 56 191 73 229 C61 206 54 162 61 125 C63 116 67 110 73 106 Z" />
+      <path className="sidepod sidepod-right" d="M107 106 C122 132 124 191 107 229 C119 206 126 162 119 125 C117 116 113 110 107 106 Z" />
+
+      <path className="body-shell" d="M83 43 C83 27 97 27 97 43 L101 104 C116 131 119 202 106 248 C101 266 95 279 90 286 C85 279 79 266 74 248 C61 202 64 131 79 104 Z" />
+      <path className="nose-highlight" d="M90 38 C95 78 98 124 98 168 C98 217 94 256 90 276 C86 256 82 217 82 168 C82 124 85 78 90 38 Z" />
+      <path className="halo" d="M76 99 C78 79 102 79 104 99 C101 91 79 91 76 99 Z" />
+      <ellipse className="cockpit" cx="90" cy="118" rx="9" ry="22" />
+      <path className="center-stripe" d="M90 37 C88 76 87 121 87 168 C87 214 88 253 90 276 C92 253 93 214 93 168 C93 121 92 76 90 37 Z" />
+      <path className="floor-outline" d="M67 112 C49 158 54 229 90 286 C126 229 131 158 113 112" />
     </svg>
   )
 }
