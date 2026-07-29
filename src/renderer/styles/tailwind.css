@@ -119,25 +119,12 @@ body {
   text-align: center;
 }
 
-.broadcast-f1-logo {
-  display: block;
-  width: min(176px, 72%);
-  height: 44px;
-  margin: 14px auto 10px;
-  object-fit: contain;
-}
-
-.broadcast-divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.22);
-}
-
 .broadcast-lap {
   display: flex;
   align-items: baseline;
   justify-content: center;
   gap: 7px;
-  padding: 12px 8px;
+  padding: 10px 8px 11px;
   color: rgba(255, 255, 255, 0.72);
   font-size: 16px;
   text-transform: uppercase;
@@ -848,11 +835,6 @@ body {
   .broadcast-wear,
   .broadcast-tyre {
     font-size: 11px;
-  }
-  .broadcast-f1-logo {
-    width: min(142px, 72%);
-    height: 36px;
-    margin-top: 14px;
   }
   .race-signal {
     min-width: 92px;

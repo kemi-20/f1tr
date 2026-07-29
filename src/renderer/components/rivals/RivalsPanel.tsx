@@ -1,7 +1,6 @@
 import { useRaceStore } from '../../store'
 import { compoundLabel } from '@shared/index'
 import type { RivalState, TyreCompound } from '@shared/types/state'
-import f1Logo from '../../assets/team-logos/F1_Logo.png'
 import mercedesLogo from '../../assets/team-logos/Mercedes_Logo.png'
 import ferrariLogo from '../../assets/team-logos/Ferrari_Logo.png'
 import redBullLogo from '../../assets/team-logos/Red_Bull_Logo.png'
@@ -72,8 +71,6 @@ export function RivalsPanel(): React.ReactElement {
   return (
     <aside className="broadcast-tower h-full">
       <div className="broadcast-header">
-        <img className="broadcast-f1-logo" src={f1Logo} alt="Formula 1" />
-        <div className="broadcast-divider" />
         <div className="broadcast-lap">
           <span>LAP</span>
           <strong>{race?.session.currentLap ?? 0}</strong>
