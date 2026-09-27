@@ -87,7 +87,26 @@ function sourceImports(key) {
   return names
 }
 
+// The private runtime only serves the custom race-gateway route. Remove the
+// JSON-RPC server's eager DeepSeek fallback so its adapter packages stay out.
+const jsonRpcPath = join(modules, '@deepseek-ai', 'dsh-sdk-jsonrpc-server', 'lib', 'index.js')
+let jsonRpcSource = readFileSync(jsonRpcPath, 'utf8')
+const deepSeekImport = 'import * as LlmDeepSeek from "@deepseek-ai/dsh-llm-deepseek-api-key";\n'
+const deepSeekFallback = 'this.llmFiber = await this.ctx.plugin(LlmDeepSeek);'
+const hasDeepSeekImport = jsonRpcSource.includes(deepSeekImport)
+const hasDeepSeekFallback = jsonRpcSource.includes(deepSeekFallback)
+if (hasDeepSeekImport !== hasDeepSeekFallback) {
+  throw new Error('Pinned JSON-RPC DeepSeek fallback is partially changed; review runtime slimming')
+}
+if (hasDeepSeekImport) {
+  jsonRpcSource = jsonRpcSource
+    .replace(deepSeekImport, '')
+    .replace(deepSeekFallback, 'throw new Error("DeepSeek adapter is not bundled in this runtime");')
+  writeFileSync(jsonRpcPath, jsonRpcSource)
+}
+
 const kept = new Set()
+const importedBy = new Map()
 const queue = roots.map((name) => resolveDependency('', name))
 while (queue.length) {
   const key = queue.pop()
@@ -110,17 +129,31 @@ while (queue.length) {
     if (key === 'node_modules/@deepseek-ai/dsh-sdk-app' &&
         (name === '@deepseek-ai/dsh-skill-office' || name === '@deepseek-ai/dsh-tool-workspace-dependencies')) continue
     const dependency = resolveDependency(key, name, !catalog && Object.hasOwn(meta.dependencies ?? {}, name))
-    if (dependency) queue.push(dependency)
+    if (dependency) {
+      if (!importedBy.has(dependency)) importedBy.set(dependency, key)
+      queue.push(dependency)
+    }
   }
 }
 
 if (kept.has('node_modules/@deepseek-ai/dsh-agent-preset')) {
   throw new Error('Unused DSH agent presets must not be packaged')
 }
-for (const key of kept) {
-  if (/node_modules\/(?:@anthropic-ai\/|@aws-sdk\/|@aws-crypto\/|@smithy\/|@google\/genai$|bowser$|@earendil-works\/pi-ai$)/.test(key)) {
-    throw new Error(`Unexpected multi-provider dependency: ${key}`)
+const forbidden = [...kept].filter((key) =>
+  /node_modules\/(?:@anthropic-ai\/|@aws-sdk\/|@aws-crypto\/|@smithy\/|@google\/genai$|bowser$|@earendil-works\/pi-ai$|@deepseek-ai\/dsh-llm-deepseek(?:-api-key)?$|@deepseek-ai\/dsh-deepseek-llm-api-extensions$)/.test(key)
+)
+if (forbidden.length > 0) {
+  const chain = (key) => {
+    const parts = [key]
+    let current = importedBy.get(key)
+    while (current && parts.length < 16 && !parts.includes(current)) {
+      parts.push(current)
+      current = importedBy.get(current)
+    }
+    return parts.join(' <- ')
   }
+  const chains = forbidden.map(chain).join(' | ')
+  throw new Error(`Unexpected multi-provider dependency: ${chains}`)
 }
 
 // Profile resolution walks dependencies declared by the installed CLI package.
@@ -150,3 +183,23 @@ for (const key of unused) {
   removed++
 }
 console.log(`DSH runtime: kept ${kept.size} pinned packages, removed ${removed} unused packages`)
+
+// npm bin shims are never used at runtime: DSH imports modules directly and the
+// packaged app does not execute npm scripts from its asar.
+let removedBinDirs = 0
+const pendingDirs = [modules]
+while (pendingDirs.length > 0) {
+  const dir = pendingDirs.pop()
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const target = join(dir, entry.name)
+    if (entry.name === '.bin') {
+      if (!target.startsWith(rootReal + sep)) throw new Error(`Bin path escapes DSH runtime: ${target}`)
+      rmSync(target, { recursive: true, force: false })
+      removedBinDirs++
+      continue
+    }
+    pendingDirs.push(target)
+  }
+}
+console.log(`DSH runtime: removed ${removedBinDirs} .bin directories`)

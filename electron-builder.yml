@@ -10,6 +10,7 @@ files:
   - out/**/*
   - package.json
   - "!**/*.{map,ts}"
+  - "!**/node_modules/.bin/**"
 asar: true
 extraResources:
   - from: resources/dsh-runtime
@@ -21,6 +22,7 @@ extraResources:
       - '!**/*.ts'
       - '!**/lib/types/**'
       - '!package-lock.json'
+      - '!**/.bin/**'
 win:
   target:
     - target: nsis
