@@ -33,6 +33,7 @@ const roots = [
   '@deepseek-ai/dsh-session-projection',
   '@deepseek-ai/dsh-llm',
   '@deepseek-ai/dsh-session',
+  '@deepseek-ai/dsh-session-persistence-jsonl',
   '@deepseek-ai/dsh-system-prompt',
   '@deepseek-ai/dsh-tools',
   '@deepseek-ai/dsh-agent',
@@ -41,6 +42,8 @@ const roots = [
   '@deepseek-ai/dsh-scope',
   '@deepseek-ai/dsh-agent-loop',
   '@deepseek-ai/dsh-llm-pi-ai',
+  '@deepseek-ai/dsh-token-meter',
+  '@deepseek-ai/dsh-compaction-basic',
   'commander',
   'js-yaml',
   'node-addon-require-builtin'

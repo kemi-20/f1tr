@@ -30,8 +30,6 @@
   disabled: true
 - id: plugin-package-inventory-deepseek
   disabled: true
-- id: sessions
-  disabled: true
 - id: system-prompt
   config:
     includeHarnessIdentity: false
@@ -55,5 +53,9 @@
                   off: none
                   low: low
                   max: max
+    - id: race-token-meter
+      name: '@deepseek-ai/dsh-token-meter'
+    - id: race-compaction
+      name: '@deepseek-ai/dsh-compaction-basic'
     - id: race-tools
       name: ./plugin/index.mjs

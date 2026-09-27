@@ -5,7 +5,9 @@
   "type": "module",
   "dependencies": {
     "@deepseek-ai/dsh": "0.1.7-rc.2",
-    "@deepseek-ai/dsh-llm-pi-ai": "0.1.7-rc.2"
+    "@deepseek-ai/dsh-compaction-basic": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-token-meter": "0.1.7-rc.2"
   },
   "overrides": {
     "fflate": "0.8.3"

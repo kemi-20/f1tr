@@ -11,12 +11,20 @@ if (!patch.includes('personaPrefix: !!js process.env.F1TR_PERSONA ??') ||
   throw new Error('Private DSH runtime is missing its F1 race engineer persona fallback')
 }
 for (const capability of ['sandbox', 'sandbox-policy', 'subprocess', 'pty', 'terminal-bash', 'terminal-pwsh',
-  'persistent-bash', 'persistent-pwsh', 'jobs', 'mcp-resources', 'sessions']) {
+  'persistent-bash', 'persistent-pwsh', 'jobs', 'mcp-resources']) {
   const lines = patch.split(/\r?\n/)
   const row = lines.indexOf(`- id: ${capability}`)
   if (row < 0 || lines[row + 1] !== '  disabled: true') {
     throw new Error(`Private DSH runtime unexpectedly enables ${capability}`)
   }
+}
+for (const capability of ['race-token-meter', 'race-compaction']) {
+  if (!patch.split(/\r?\n/).includes(`    - id: ${capability}`)) {
+    throw new Error(`Private DSH runtime is missing ${capability}`)
+  }
+}
+if (/- id: sessions\r?\n  disabled: true/.test(patch)) {
+  throw new Error('Compaction requires isolated session persistence')
 }
 const home = await mkdtemp(join(tmpdir(), 'f1tr-dsh-ci-'))
 const startedAt = performance.now()
