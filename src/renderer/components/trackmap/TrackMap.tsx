@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useRaceStore } from '../../store'
 import { getTrack } from '@shared/index'
 import { CALIBRATED_TRACK_MAPS, type CalibratedTrackMap, type TrackBounds, type TrackPoint } from './trackMapAssets'
+import { teamColorForCar } from '../rivals/teamColors'
 
 /**
  * TrackMap renders calibrated F1 world-coordinate map data. Car dots use Motion
@@ -81,7 +82,8 @@ export function TrackMap(): React.ReactElement {
               const pt = pointForPosition(p, geometry)
               if (!pt) return null
               const isP = p.isPlayer
-              const colour = teamColorForCar(race?.rivals[p.carIndex]?.team)
+              const rival = race?.rivals[p.carIndex]
+              const colour = teamColorForCar(rival?.team, rival?.teamColor)
               return (
                 <g key={p.carIndex}>
                   {isP && (
@@ -94,11 +96,6 @@ export function TrackMap(): React.ReactElement {
                     </>
                   )}
                   <circle cx={pt.x} cy={pt.y} r={isP ? marker * 2.05 : marker * 1.6} fill={colour} stroke="#071017" strokeWidth={marker * 0.55} />
-                  <circle cx={pt.x - marker * 0.38} cy={pt.y - marker * 0.38} r={marker * 0.35} fill="rgba(255,255,255,0.7)">
-                    {isP && (
-                      <animate attributeName="opacity" values="0.9;0;0.9" dur="1.6s" repeatCount="indefinite" />
-                    )}
-                  </circle>
                 </g>
               )
             })}
@@ -109,7 +106,8 @@ export function TrackMap(): React.ReactElement {
             <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3" strokeDasharray="4 3" />
             {positions.map((p) => {
               const pt = fallbackPointAt(p.lapDistancePct)
-              const colour = teamColorForCar(race?.rivals[p.carIndex]?.team)
+              const rival = race?.rivals[p.carIndex]
+              const colour = teamColorForCar(rival?.team, rival?.teamColor)
               return (
                 <g key={p.carIndex}>
                   {p.isPlayer && <circle cx={pt.x} cy={pt.y} r="5.4" fill="none" stroke="#FFE600" strokeWidth="1.1" />}
@@ -314,38 +312,4 @@ function isFiniteNumber(v: unknown): v is number {
 function fallbackPointAt(t: number): { x: number; y: number } {
   const a = clamp01(t) * 2 * Math.PI - Math.PI / 2
   return { x: 50 + Math.cos(a) * 38, y: 50 + Math.sin(a) * 38 }
-}
-
-const TEAM_COLOURS: Record<number, string> = {
-  0: '#00D2BE',
-  1: '#DC0000',
-  2: '#0600EF',
-  3: '#005AFF',
-  4: '#006F62',
-  5: '#0090FF',
-  6: '#2B4562',
-  7: '#FFFFFF',
-  8: '#FF8700',
-  9: '#900000',
-  41: '#FFFFFF',
-  104: '#FFFFFF',
-  129: '#00D2BE',
-  142: '#FFFFFF',
-  154: '#FFFFFF',
-  155: '#00D2BE',
-  185: '#00D2BE',
-  186: '#DC0000',
-  187: '#0600EF',
-  188: '#005AFF',
-  189: '#006F62',
-  190: '#0090FF',
-  191: '#2B4562',
-  192: '#FFFFFF',
-  193: '#FF8700',
-  194: '#900000'
-}
-
-function teamColorForCar(teamId: string | undefined): string {
-  const id = Number(teamId)
-  return Number.isFinite(id) ? TEAM_COLOURS[id] ?? '#E6EDF6' : '#E6EDF6'
 }

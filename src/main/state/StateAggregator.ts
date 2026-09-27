@@ -394,6 +394,8 @@ export class StateAggregator {
       if (i === h.m_playerCarIndex) {
         const pl = this.state.player
         pl.fuelRemainingKg = st.m_fuelInTank ?? pl.fuelRemainingKg
+        pl.fuelRemainingLaps = typeof st.m_fuelRemainingLaps === 'number' && Number.isFinite(st.m_fuelRemainingLaps)
+          ? st.m_fuelRemainingLaps : null
         pl.fuelMix = (st.m_fuelMix ?? 1) as 0 | 1 | 2 | 3
         pl.drsAllowed = (st.m_drsAllowed ?? 0) !== 0
         pl.tyres.rawCompoundId = typeof st.m_actualTyreCompound === 'number' ? st.m_actualTyreCompound : -1

@@ -94,6 +94,7 @@ export interface PlayerCarState {
   brake: number
   revLightsPercent: number
   fuelRemainingKg: number | null
+  fuelRemainingLaps: number | null // game's current consumption-based estimate; not a guarantee
   fuelMix: 0 | 1 | 2 | 3
   pitStatus: number
   pitTimerS: number | null

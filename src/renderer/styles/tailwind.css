@@ -712,6 +712,11 @@ body {
   align-items: center;
 }
 
+.engineer-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .engineer-markdown {
   overflow-wrap: anywhere;
   line-height: 1.45;

@@ -262,6 +262,20 @@ export class TriggerEngine {
   private evalLowFuel(state: RaceState): void {
     const fuel = state.player.fuelRemainingKg
     if (fuel == null || fuel <= 0) return
+    const { totalLaps } = state.session
+    const estimatedLaps = state.player.fuelRemainingLaps
+    if (totalLaps != null && totalLaps > 0 && estimatedLaps != null && Number.isFinite(estimatedLaps)) {
+      const toFlag = totalLaps - state.player.lap + 1 - state.player.lapDistancePct
+      if (toFlag > 0) {
+        const margin = estimatedLaps - toFlag
+        if (margin >= -0.15) { this.fuelLowActive = false; return }
+        if (!this.fuelLowActive) {
+          this.fuelLowActive = true
+          this.tryFire(state, 'low_fuel', 'high', 'low_fuel', `Fuel estimate short by ${Math.abs(margin).toFixed(2)} laps`)
+        }
+        return
+      }
+    }
     // hysteresis: only fire on crossing below threshold, reset when above
     if (!this.fuelLowActive && fuel < this.config.lowFuelKg) {
       this.fuelLowActive = true

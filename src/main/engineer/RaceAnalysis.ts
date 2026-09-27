@@ -93,6 +93,12 @@ export class RaceAnalysis {
       return lines.concat('STALE/UNAVAILABLE: no live strategy or trend claims; request fresh telemetry.').join('\n')
     }
     const samples = this.laps
+    const remaining = s.totalLaps != null ? s.totalLaps - p.lap + 1 - p.lapDistancePct : null
+    const gameFuelLaps = p.fuelRemainingLaps
+    if (remaining != null && remaining > 0 && gameFuelLaps != null && Number.isFinite(gameFuelLaps)) {
+      const margin = gameFuelLaps - remaining
+      lines.push(`Game fuel estimate: ${gameFuelLaps.toFixed(2)} laps available, ${remaining.toFixed(2)} laps to flag, margin ${margin >= 0 ? '+' : ''}${margin.toFixed(2)} laps. ${margin >= 0.25 ? 'Fuel is sufficient at the current rate; do not request lift-and-coast or repeatedly warn about fuel.' : margin >= 0 ? 'Positive but narrow margin; monitor, no saving instruction solely from this reading.' : 'Estimated shortfall; assess recent consumption before requesting saving.'} Game estimate changes with pace and neutralisation.`)
+    }
     lines.push(`Comparable observed laps: ${samples.map(l => `L${l.lap}=${l.time.toFixed(3)}s`).join(', ') || 'not enough yet'}. Pit/neutralised/weather-change laps excluded; validity and traffic can still confound pace.`)
     if (samples.length >= 3) {
       const old = samples.slice(0, -1)
@@ -101,10 +107,14 @@ export class RaceAnalysis {
       const wearRate = samples.reduce((sum, l) => sum + l.wearAdded, 0) / samples.length
       lines.push(`Observed maximum-corner wear rise: ${wearRate.toFixed(2)} percentage points/lap; linear trend only, not a puncture prediction or universal pit threshold.`)
       const fuelSamples = samples.map(l => l.fuelUsed).filter((v): v is number => v != null)
-      const remaining = s.totalLaps != null ? s.totalLaps - p.lap + 1 - p.lapDistancePct : null
       if (fuelSamples.length >= 3 && p.fuelRemainingKg != null && remaining != null && remaining > 0) {
         const rate = fuelSamples.reduce((a, b) => a + b, 0) / fuelSamples.length
-        lines.push(`Estimated fuel at flag: ${(p.fuelRemainingKg - rate * remaining).toFixed(2)}kg using ${rate.toFixed(2)}kg/lap across ${fuelSamples.length} laps and ${remaining.toFixed(2)} laps remaining; no reserve included, driving/SC changes invalidate projection. F1 race refuelling is not an option.`)
+        const projected = p.fuelRemainingKg - rate * remaining
+        if (gameFuelLaps != null && gameFuelLaps - remaining >= 0.25 && projected > 0) {
+          lines.push('Historical fuel cross-check also projects positive fuel at the flag. No fuel-saving instruction is warranted at the current rate; avoid repeating this status unless it changes.')
+        } else {
+          lines.push(`Historical fuel cross-check: ${projected.toFixed(2)}kg at flag using ${rate.toFixed(2)}kg/lap across ${fuelSamples.length} laps. This is remaining fuel, NOT a deficit or target; positive fuel at the flag means enough to finish at this rate. Use game fuel-laps estimate above as the primary current signal when available. No reserve included; driving/SC changes invalidate projection. F1 race refuelling is not an option.`)
+        }
       }
     }
     for (const r of Object.values(state.rivals)) {

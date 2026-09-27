@@ -33,7 +33,7 @@ export function EngineerPanel(): React.ReactElement {
   }
 
   return (
-    <div className="glass flex h-full min-w-0 flex-col gap-3 p-4">
+    <div className="glass engineer-panel flex h-full min-w-0 flex-col gap-3 p-4">
       <div className="engineer-header">
         <div className="engineer-title">
           <span className="label">Race Engineer</span>
@@ -57,13 +57,13 @@ export function EngineerPanel(): React.ReactElement {
           {/* store prepends newest message to the front of the array, so a normal
               flex-col renders it at the top. The streaming bubble is placed first too. */}
           {streamingId && (
-            <div className="animate-fade-in rounded-lg border border-accent-carbon/30 bg-accent-carbon/[0.06] px-3 py-2 text-sm text-white/90">
+            <div className="rounded-lg border border-accent-carbon/30 bg-accent-carbon/[0.06] px-3 py-2 text-sm text-white/90">
               <EngineerMarkdown text={streamingText} />
               <span className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-accent-carbon" />
             </div>
           )}
           {messages.map((m) => (
-            <div key={m.id} className="animate-slide-up rounded-lg bg-white/[0.03] px-3 py-2 text-sm text-white/85">
+            <div key={m.id} className="rounded-lg bg-white/[0.03] px-3 py-2 text-sm text-white/85">
               <div className="num-mono mb-0.5 text-[9px] text-white/30">
                 {new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>

@@ -1,6 +1,7 @@
 import { useRaceStore } from '../../store'
 import { compoundLabel, tyreWearColor } from '@shared/index'
 import type { RivalState, TyreCompound } from '@shared/types/state'
+import { teamColorForCar } from './teamColors'
 import mercedesLogo from '../../assets/team-logos/Mercedes_Logo.png'
 import ferrariLogo from '../../assets/team-logos/Ferrari_Logo.png'
 import redBullLogo from '../../assets/team-logos/Red_Bull_Logo.png'
@@ -60,7 +61,7 @@ function Row({ r, isPlayer }: { r: RivalState; isPlayer: boolean }): React.React
   return (
     <div className={`broadcast-row ${isPlayer ? 'broadcast-row-player' : ''} ${retired ? 'broadcast-row-muted' : ''}`}>
       <div className={`broadcast-pos ${r.position === 1 ? 'broadcast-pos-leader' : ''}`}>{r.position}</div>
-      <div className="broadcast-team" style={{ color: mark.color }} title={mark.label}>
+      <div className="broadcast-team" style={{ color: teamColorForCar(r.team, r.teamColor) }} title={mark.label}>
         {mark.logo ? <img src={mark.logo} alt={mark.label} /> : <span>{shortTeam(mark.label)}</span>}
       </div>
       <div className="broadcast-code" title={r.name || driverCode(r)}>{r.driverCode || driverCode(r)}</div>

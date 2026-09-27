@@ -64,6 +64,7 @@ export function emptyRaceState(format: PacketFormat = 2025): RaceState {
       brake: 0,
       revLightsPercent: 0,
       fuelRemainingKg: null,
+      fuelRemainingLaps: null,
       fuelMix: 1,
       pitStatus: 0,
       pitTimerS: null,
