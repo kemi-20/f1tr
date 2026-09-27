@@ -68,7 +68,7 @@ function sourceImports(key) {
     const dir = stack.pop()
     if (!existsSync(dir)) continue
     for (const item of readdirSync(dir, { withFileTypes: true })) {
-      if (item.name === 'node_modules') continue
+      if (item.name === 'node_modules' || item.name === 'types') continue
       const file = join(dir, item.name)
       if (item.isDirectory()) {
         stack.push(file)
@@ -98,8 +98,12 @@ while (queue.length) {
   // The selected profile supplies its own explicit plugin tree. Do not traverse
   // the CLI/profile package manifests, which list every unrelated DSH feature.
   const catalog = key === 'node_modules/@deepseek-ai/dsh' || key === 'node_modules/@deepseek-ai/dsh-sdk-minimal'
-  const names = catalog ? imports : new Set([
-    ...Object.keys({ ...meta.dependencies, ...meta.optionalDependencies, ...meta.peerDependencies }),
+  const slimProvider = key === 'node_modules/@deepseek-ai/dsh-llm-pi-ai'
+  if (slimProvider && !existsSync(join(runtime, key, 'f1tr-slim.json'))) {
+    throw new Error('Run slim-dsh-provider.mjs before pruning')
+  }
+  const names = catalog || slimProvider ? imports : new Set([
+    ...Object.keys({ ...meta.dependencies, ...meta.optionalDependencies }),
     ...imports
   ])
   for (const name of names) {
@@ -112,6 +116,11 @@ while (queue.length) {
 
 if (kept.has('node_modules/@deepseek-ai/dsh-agent-preset')) {
   throw new Error('Unused DSH agent presets must not be packaged')
+}
+for (const key of kept) {
+  if (/node_modules\/(?:@anthropic-ai\/|@aws-sdk\/|@aws-crypto\/|@smithy\/|@google\/genai$|bowser$|@earendil-works\/pi-ai$)/.test(key)) {
+    throw new Error(`Unexpected multi-provider dependency: ${key}`)
+  }
 }
 
 // Profile resolution walks dependencies declared by the installed CLI package.

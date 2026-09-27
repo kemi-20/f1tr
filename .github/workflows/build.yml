@@ -49,6 +49,8 @@ jobs:
         run: npm ci
       - name: Install private DSH runtime
         run: npm ci --prefix resources/dsh-runtime
+      - name: Link only the OpenAI Chat Completions provider
+        run: node .github/slim-dsh-provider.mjs
       - name: Remove unused DSH plugins and dependencies
         run: node .github/prune-dsh-runtime.mjs
       - name: Stage private DSH plugin
@@ -56,9 +58,6 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path resources/dsh-runtime/plugin -Force | Out-Null
           Copy-Item -LiteralPath resources/dsh-f1-plugin/index.mjs -Destination resources/dsh-runtime/plugin/index.mjs -Force
-      - name: Stage private Node runtime
-        shell: pwsh
-        run: Copy-Item -LiteralPath (Get-Command node).Source -Destination resources/dsh-runtime/node.exe -Force
       - name: Smoke check pinned DSH runtime
         shell: pwsh
         run: |
@@ -72,9 +71,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw 'The staged DSH plugin failed Node syntax validation.'
           }
+          $env:F1TR_DSH_EXEC_PATH = (Resolve-Path node_modules/electron/dist/electron.exe).Path
           & node .github/smoke-dsh.mjs
           if ($LASTEXITCODE -ne 0) {
             throw 'Pinned DSH runtime failed JSON-RPC initialization.'
+          }
+          & node .github/test-dsh-completions.mjs
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Completions streaming and F1 tool round-trip failed.'
           }
       - name: Typecheck
         run: npm run typecheck
@@ -90,6 +94,13 @@ jobs:
         with:
           name: F1-Race-Engineer-Portable
           path: release/**/*portable*.exe
+          if-no-files-found: error
+
+      - name: Upload extracted app (no startup self-extraction)
+        uses: actions/upload-artifact@v4
+        with:
+          name: F1-Race-Engineer-Unpacked
+          path: release/**/win-unpacked/**
           if-no-files-found: error
 
       # On a tag push: create a GitHub Release with BOTH portable + NSIS installer.

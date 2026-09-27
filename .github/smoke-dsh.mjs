@@ -19,13 +19,15 @@ for (const capability of ['sandbox', 'sandbox-policy', 'subprocess', 'pty', 'ter
   }
 }
 const home = await mkdtemp(join(tmpdir(), 'f1tr-dsh-ci-'))
-const child = spawn(process.execPath, [
+const startedAt = performance.now()
+const child = spawn(process.env.F1TR_DSH_EXEC_PATH || process.execPath, [
   join(runtime, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
   '--profile', 'sdk-minimal', '--patch', join(runtime, 'race-engineer.cordis.patch.yml')
 ], {
   cwd: home,
   env: {
     ...process.env,
+    ELECTRON_RUN_AS_NODE: '1',
     DSH_HOME: home,
     F1TR_BRIDGE_PIPE: `\\\\.\\pipe\\f1tr-ci-${randomUUID()}`,
     F1TR_BRIDGE_TOKEN: randomBytes(32).toString('hex'),
@@ -72,7 +74,7 @@ try {
       params: { cwd: home, provider: 'race-gateway', model: 'f1tr-ci-smoke', maxTokens: 128 }
     }) + '\n')
   })
-  console.log('Private DSH profile initialized successfully')
+  console.log(`Private DSH profile initialized successfully in ${Math.round(performance.now() - startedAt)} ms`)
 } finally {
   child.kill()
   await closed

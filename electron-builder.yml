@@ -17,8 +17,10 @@ extraResources:
     filter:
       - '**/*'
       - '!node.exe'
-  - from: resources/dsh-runtime/node.exe
-    to: dsh-runtime/node.exe
+      - '!**/*.map'
+      - '!**/*.ts'
+      - '!**/lib/types/**'
+      - '!package-lock.json'
 win:
   target:
     - target: nsis

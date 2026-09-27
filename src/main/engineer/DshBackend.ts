@@ -18,7 +18,7 @@ import { logger } from '../logging/Logger'
 type JsonRecord = Record<string, unknown>
 type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void }
 
-/** The CLI and its Node binary live outside Electron's ASAR and outside the user's DSH home. */
+/** The private CLI reuses Electron's Node runtime, with an isolated DSH home. */
 export class DshBackend implements EngineerBackend {
   private child: ChildProcessWithoutNullStreams | null = null
   private server: Server | null = null
@@ -86,11 +86,12 @@ export class DshBackend implements EngineerBackend {
 
   private async startInner(): Promise<void> {
     const root = this.runtimeDir()
-    const node = app.isPackaged ? join(root, 'node.exe') : 'node'
+    const startedAt = performance.now()
+    const node = process.execPath
     const bin = join(root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
     const patch = join(root, 'race-engineer.cordis.patch.yml')
     const plugin = join(root, 'plugin', 'index.mjs')
-    if (!existsSync(bin) || !existsSync(patch) || !existsSync(plugin) || (app.isPackaged && !existsSync(node))) {
+    if (!existsSync(bin) || !existsSync(patch) || !existsSync(plugin)) {
       throw new Error('Private DSH runtime resources are missing')
     }
     this.home = mkdtempSync(join(tmpdir(), 'f1tr-dsh-'))
@@ -108,6 +109,7 @@ export class DshBackend implements EngineerBackend {
         this.cancel()
       })
       const env: NodeJS.ProcessEnv = {
+        ELECTRON_RUN_AS_NODE: '1',
         SystemRoot: process.env.SystemRoot,
         WINDIR: process.env.WINDIR,
         PATH: app.isPackaged ? root : process.env.PATH,
@@ -154,7 +156,7 @@ export class DshBackend implements EngineerBackend {
         this.releaseHome(ownedHome)
       })
       await this.request('initialize', { cwd: this.home, provider: 'race-gateway', model: this.config.model, maxTokens: this.config.maxTokens }, 20_000)
-      logger.info('Private DSH runtime ready')
+      logger.info(`Private DSH runtime ready in ${Math.round(performance.now() - startedAt)} ms`)
     } catch (error) {
       this.stop()
       throw error
