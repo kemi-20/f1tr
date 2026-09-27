@@ -122,16 +122,15 @@ app.whenReady().then(() => {
   telemetry.start()
   registerHotkey(cfg.hotkeys.pushToTalk)
 
-  // UDP staleness watchdog: if no packets for 2 minutes, cancel the engineer
-  // and suppress autonomous triggers until packets resume. Push-to-talk stays
-  // registered so the driver can still talk while the game has focus.
+  // UDP staleness watchdog: suppress autonomous triggers until packets resume.
+  // Never cancel an in-flight manual turn just because the game stopped sending
+  // telemetry; the driver may still be asking a question with the cockpit open.
   telemetry.setUdpCallbacks(
     () => {
-      engineer?.cancel()
-      logger.info('Engineer paused (UDP stale)')
+      logger.info('Autonomous engineer triggers paused (UDP stale)')
     },
     () => {
-      logger.info('Engineer resumed (UDP reconnected)')
+      logger.info('Autonomous engineer triggers resumed (UDP reconnected)')
     }
   )
 

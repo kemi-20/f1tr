@@ -32,6 +32,7 @@ export class DshBackend implements EngineerBackend {
   private starting: Promise<void> | null = null
   private radioTimes: number[] = []
   private closing = false
+  private stderrLines = 0
 
   constructor(
     private readonly config: LlmConfig,
@@ -123,6 +124,7 @@ export class DshBackend implements EngineerBackend {
         F1TR_MODEL_URL: this.config.baseURL,
         F1TR_MODEL_NAME: this.config.model
       }
+      this.stderrLines = 0
       const child = spawn(node, [bin, '--profile', 'sdk-minimal', '--patch', patch], {
         cwd: this.home, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']
       })
@@ -139,7 +141,21 @@ export class DshBackend implements EngineerBackend {
           this.onLine(line)
         }
       })
-      child.stderr.resume()
+      child.stderr.setEncoding('utf8')
+      let stderr = ''
+      child.stderr.on('data', (chunk: string) => {
+        stderr += chunk
+        if (stderr.length > 16_384) stderr = stderr.slice(-16_384)
+        let at: number
+        while ((at = stderr.indexOf('\n')) >= 0) {
+          const line = stderr.slice(0, at)
+          stderr = stderr.slice(at + 1)
+          this.logChildStderr(line)
+        }
+      })
+      child.stderr.on('end', () => {
+        if (stderr.trim()) this.logChildStderr(stderr)
+      })
       child.once('error', error => {
         if (this.child !== child) return
         for (const pending of this.requests.values()) pending.reject(error)
@@ -227,6 +243,14 @@ export class DshBackend implements EngineerBackend {
     clearTimeout(active.timer)
     if (error) active.reject(error)
     else active.resolve(active.text)
+  }
+
+  private logChildStderr(line: string): void {
+    const text = line.trim()
+    if (!text || this.stderrLines++ >= 20) return
+    const redact = (value: string): string => value ? text.split(value).join('[redacted]') : text
+    const safe = [this.config.apiKey, this.token].reduce(redact, text).slice(0, 2_000)
+    logger.warn(`Private DSH stderr: ${safe}`)
   }
 
   private acceptToolConnection(socket: Socket): void {
