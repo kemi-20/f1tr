@@ -16,6 +16,7 @@ files:
   - "!**/*.{map,ts}"
   - "!**/node_modules/.bin/**"
 asar: true
+afterPack: .github/prune-electron-gpu.cjs
 extraResources:
   - from: resources/dsh-runtime
     to: dsh-runtime

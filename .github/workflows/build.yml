@@ -88,6 +88,28 @@ jobs:
         run: npm run typecheck
       - name: Build & package Windows (portable + NSIS)
         run: npm run build:win
+      - name: Smoke check pruned Windows app
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $unpacked = Get-ChildItem -Path release -Directory -Recurse -Filter win-unpacked | Select-Object -First 1
+          if (-not $unpacked) { throw 'Unpacked Windows app is missing.' }
+          foreach ($name in @('dxcompiler.dll', 'dxil.dll', 'vk_swiftshader.dll', 'vk_swiftshader_icd.json', 'vulkan-1.dll')) {
+            if (Test-Path -LiteralPath (Join-Path $unpacked.FullName $name)) { throw "GPU file was not pruned: $name" }
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $unpacked.FullName 'd3dcompiler_47.dll'))) {
+            throw 'Required D3D compiler was unexpectedly removed.'
+          }
+          $exe = Join-Path $unpacked.FullName 'F1 Race Engineer.exe'
+          $smoke = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden
+          try {
+            Start-Sleep -Seconds 10
+            $smoke.Refresh()
+            if ($smoke.HasExited) { throw "Pruned Windows app exited during startup: $($smoke.ExitCode)" }
+          } finally {
+            $smoke.Refresh()
+            if (-not $smoke.HasExited) { Stop-Process -Id $smoke.Id -Force }
+          }
       - name: Smoke check packaged DSH runtime
         shell: pwsh
         run: |
