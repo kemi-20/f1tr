@@ -53,6 +53,8 @@ jobs:
         run: node node_modules/electron/install.js
       - name: Install private DSH runtime
         run: npm ci --prefix resources/dsh-runtime
+      - name: Enable pinned DSH internal-loader compatibility
+        run: node .github/patch-dsh-internals.mjs
       - name: Link only the OpenAI Chat Completions provider
         run: node .github/slim-dsh-provider.mjs
       - name: Remove unused DSH plugins and dependencies

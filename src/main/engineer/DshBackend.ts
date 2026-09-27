@@ -194,7 +194,7 @@ export class DshBackend implements EngineerBackend {
         F1TR_CONTEXT_LIMIT: String(this.config.contextLimit)
       }
       this.stderrLines = 0
-      const child = spawn(node, [bin, '--profile', 'sdk-minimal', '--patch', patch], {
+      const child = spawn(node, ['--expose-internals', bin, '--profile', 'sdk-minimal', '--patch', patch], {
         cwd: this.home, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']
       })
       this.child = child

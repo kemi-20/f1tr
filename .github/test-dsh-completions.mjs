@@ -65,6 +65,7 @@ const api = httpServer(async (req, res) => {
 })
 await new Promise(resolve => api.listen(0, '127.0.0.1', resolve))
 const child = spawn(process.env.F1TR_DSH_EXEC_PATH || process.execPath, [
+  '--expose-internals',
   join(runtime, 'launch.mjs'), '--profile', 'sdk-minimal',
   '--patch', join(runtime, 'race-engineer.cordis.patch.yml')
 ], { cwd: home, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: {
