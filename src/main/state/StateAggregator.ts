@@ -1,5 +1,6 @@
 import type { RaceState, RecentEvent, PacketFormat, TrackPosition, RivalState } from '@shared/index'
 import { getTrack } from '@shared/index'
+import { constants } from '@z0mt3c/f1-telemetry-client'
 import { emptyRaceState } from './defaults'
 import { mapCompound, decodeSafetyCar, sessionTypeLabel } from './mappings'
 import type { AnyParsedPacket } from '../telemetry/UdpReceiver'
@@ -161,8 +162,20 @@ export class StateAggregator {
     for (let i = 0; i < list.length; i++) {
       const part = list[i]
       const r = this.ensureRival(i)
-      r.name = String(part.m_name ?? '')
-      r.team = String(part.m_teamId ?? '')
+      const rawDriverId = part.m_driverId
+      const driverId = rawDriverId == null || rawDriverId === '' ? null : Number(rawDriverId)
+      const rawTeamId = part.m_teamId
+      const teamId = rawTeamId == null || rawTeamId === '' ? null : Number(rawTeamId)
+      const driver = driverId == null || !Number.isFinite(driverId) ? undefined : constants.DRIVERS[driverId]
+      const team = teamId == null || !Number.isFinite(teamId) ? undefined : constants.TEAMS[teamId]
+      const participantName = String(part.m_name ?? '').trim()
+      const fallbackName = driver ? [driver.firstName, driver.lastName].filter(Boolean).join(' ') : ''
+      r.driverId = driverId ?? 0
+      r.driverCode = driver?.abbreviation ?? ''
+      r.name = participantName || fallbackName || r.name
+      r.team = teamId == null ? '' : String(teamId)
+      r.teamName = team?.name ?? ''
+      r.teamColor = team?.color ?? ''
       r.raceNumber = Number(part.m_raceNumber ?? 0)
     }
     this.state.player.carIndex = h.m_playerCarIndex
@@ -549,8 +562,12 @@ export class StateAggregator {
     if (!this.state.rivals[carIndex]) {
       this.state.rivals[carIndex] = {
         carIndex,
+        driverId: 0,
+        driverCode: '',
         name: '',
         team: '',
+        teamName: '',
+        teamColor: '',
         raceNumber: 0,
         carClass: 0,
         position: 0,

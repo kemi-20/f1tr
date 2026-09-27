@@ -107,8 +107,12 @@ export interface PlayerCarState {
 
 export interface RivalState {
   carIndex: number
+  driverId?: number
+  driverCode?: string
   name: string
   team: string
+  teamName?: string
+  teamColor?: string
   raceNumber: number
   carClass: number
   position: number

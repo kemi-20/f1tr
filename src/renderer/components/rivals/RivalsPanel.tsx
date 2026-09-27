@@ -11,6 +11,8 @@ import rbLogo from '../../assets/team-logos/RB_Logo.png'
 import haasLogo from '../../assets/team-logos/Haas_Logo.png'
 import mclarenLogo from '../../assets/team-logos/McLaren_Logo.png'
 import kickLogo from '../../assets/team-logos/Kick_Logo.png'
+import audiLogo from '../../assets/team-logos/Audi_Logo.png'
+import cadillacLogo from '../../assets/team-logos/Cadillac_Logo.png'
 
 const TEAM_MARKS: Record<string, { label: string; color: string; logo?: string }> = {
   '0': { label: 'Mercedes', color: '#00D2BE', logo: mercedesLogo },
@@ -33,11 +35,22 @@ const TEAM_MARKS: Record<string, { label: string; color: string; logo?: string }
   '191': { label: 'Racing Bulls', color: '#6692FF', logo: rbLogo },
   '192': { label: 'Haas', color: '#FFFFFF', logo: haasLogo },
   '193': { label: 'McLaren', color: '#FF8000', logo: mclarenLogo },
-  '194': { label: 'Kick Sauber', color: '#B6BABD', logo: kickLogo }
+  '194': { label: 'Kick Sauber', color: '#B6BABD', logo: kickLogo },
+  '476': { label: 'Mercedes', color: '#27F4D2', logo: mercedesLogo },
+  '477': { label: 'Ferrari', color: '#E8002D', logo: ferrariLogo },
+  '478': { label: 'Red Bull', color: '#3671C6', logo: redBullLogo },
+  '479': { label: 'Williams', color: '#1868DB', logo: williamsLogo },
+  '480': { label: 'Aston Martin', color: '#229971', logo: astonMartinLogo },
+  '481': { label: 'Alpine', color: '#00A1E8', logo: alpineLogo },
+  '482': { label: 'Racing Bulls', color: '#6692FF', logo: rbLogo },
+  '483': { label: 'Haas', color: '#DEE1E2', logo: haasLogo },
+  '484': { label: 'McLaren', color: '#FF8000', logo: mclarenLogo },
+  '485': { label: 'Audi', color: '#FF2D00', logo: audiLogo },
+  '486': { label: 'Cadillac', color: '#AAAAAD', logo: cadillacLogo }
 }
 
 function Row({ r, isPlayer }: { r: RivalState; isPlayer: boolean }): React.ReactElement {
-  const mark = TEAM_MARKS[String(r.team)] ?? { label: shortTeam(r.team), color: '#E6EDF6' }
+  const mark = TEAM_MARKS[String(r.team)] ?? { label: r.teamName || shortTeam(r.team), color: r.teamColor || '#E6EDF6' }
   const tyre = tyreCode(r.tyreCompound)
   const gap = formatPlayerRelativeGap(r.gapToPlayerS)
   const tyreWear = formatTyreWear(r.tyreWearAvg)
@@ -48,9 +61,9 @@ function Row({ r, isPlayer }: { r: RivalState; isPlayer: boolean }): React.React
     <div className={`broadcast-row ${isPlayer ? 'broadcast-row-player' : ''} ${retired ? 'broadcast-row-muted' : ''}`}>
       <div className={`broadcast-pos ${r.position === 1 ? 'broadcast-pos-leader' : ''}`}>{r.position}</div>
       <div className="broadcast-team" style={{ color: mark.color }} title={mark.label}>
-        {mark.logo ? <img src={mark.logo} alt={mark.label} /> : <span>{shortTeam(r.team)}</span>}
+        {mark.logo ? <img src={mark.logo} alt={mark.label} /> : <span>{shortTeam(mark.label)}</span>}
       </div>
-      <div className="broadcast-code" title={r.name || driverCode(r)}>{driverCode(r)}</div>
+      <div className="broadcast-code" title={r.name || driverCode(r)}>{r.driverCode || driverCode(r)}</div>
       <div className="broadcast-wear" style={{ color: tyreWear.color }} title={tyreWear.title}>{tyreWear.text}</div>
       <div className="broadcast-gap">{inPit ? 'PIT' : gap}</div>
       <div className={`broadcast-tyre tyre-${tyre.toLowerCase()}`}>{tyre}</div>

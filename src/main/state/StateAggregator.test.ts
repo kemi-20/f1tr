@@ -61,4 +61,24 @@ describe('2026 telemetry state', () => {
     expect(text).toContain('overtake available in 220m')
     expect(text).not.toContain('DRS ')
   })
+
+  it('resolves 2026 drivers and teams from participant ids when names are absent', () => {
+    const aggregator = new StateAggregator()
+    const packet = parsedPacket(2026, 4)
+    Object.assign(packet.m_participants[0], {
+      m_driverId: 188,
+      m_teamId: 485,
+      m_name: '',
+      m_raceNumber: 41
+    })
+
+    aggregator.onParticipants(packet)
+
+    const rival = aggregator.state.rivals[0]
+    expect(rival.name).toBe('Arvid Lindblad')
+    expect(rival.driverCode).toBe('LIN')
+    expect(rival.team).toBe('485')
+    expect(rival.teamName).toBe('Audi 26')
+    expect(rival.teamColor).toBe('#ff2d00')
+  })
 })
