@@ -29,7 +29,6 @@ if (/- id: sessions\r?\n  disabled: true/.test(patch)) {
 const home = await mkdtemp(join(tmpdir(), 'f1tr-dsh-ci-'))
 const startedAt = performance.now()
 const child = spawn(process.env.F1TR_DSH_EXEC_PATH || process.execPath, [
-  '--expose-internals',
   join(runtime, 'launch.mjs'),
   '--profile', 'sdk-minimal', '--patch', join(runtime, 'race-engineer.cordis.patch.yml')
 ], {
