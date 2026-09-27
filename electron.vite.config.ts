@@ -8,7 +8,7 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: { index: resolve(__dirname, 'src/main/index.ts') },
-        external: ['electron-store', 'openai', '@deltazeroproduction/f1-udp-parser']
+        external: ['electron-store', '@deltazeroproduction/f1-udp-parser']
       }
     },
     resolve: {

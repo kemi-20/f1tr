@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os'
 import { randomUUID, randomBytes } from 'node:crypto'
 import type { Digest } from '@shared/types/digest'
 import type { TriggerFiring } from '@shared/types/triggers'
+import type { ReasoningEffort } from '@shared/index'
 import type { EngineerBackend } from './EngineerService'
-import type { LlmConfig } from './LlmClient'
 import type { TelemetryHistory } from './TelemetryHistory'
 import { executeTelemetryTool } from './TelemetryHarness'
 import { captureF1Screenshot } from '../screenshot/ScreenshotService'
@@ -17,6 +17,15 @@ import { logger } from '../logging/Logger'
 
 type JsonRecord = Record<string, unknown>
 type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void }
+
+export interface LlmConfig {
+  baseURL: string
+  apiKey: string
+  model: string
+  reasoningEffort: ReasoningEffort
+  contextLimit: number
+  visionSupported: boolean
+}
 
 /** The private CLI reuses Electron's Node runtime, with an isolated DSH home. */
 export class DshBackend implements EngineerBackend {

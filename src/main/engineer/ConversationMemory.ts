@@ -1,9 +1,13 @@
-import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { systemPrompt } from './Persona'
 import { SessionPrimeBuilder } from './SessionPrimeBuilder'
 import type { RaceState } from '@shared/types/state'
 import type { LanguageMode } from '@shared/constants/voices'
 import { logger } from '../logging/Logger'
+
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
 
 /**
  * ConversationMemory — assembles the three-layer message array for the LLM:
@@ -86,8 +90,8 @@ export class ConversationMemory {
    * Build the full message array for a new LLM call.
    * `digestText` is the fresh layer-3 user turn.
    */
-  build(digestText: string): ChatCompletionMessageParam[] {
-    const msgs: ChatCompletionMessageParam[] = []
+  build(digestText: string): ChatMessage[] {
+    const msgs: ChatMessage[] = []
     // layer 1 + 2 combined into a single stable system message (max cache benefit)
     const sys = [systemPrompt(this.mode, this.engineerStyle), this.primeText ? `\n\n${this.primeText}` : ''].join('')
     msgs.push({ role: 'system', content: sys })

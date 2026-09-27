@@ -8,7 +8,7 @@ import { normalizeURL } from '../config/env'
 import { logger } from '../logging/Logger'
 
 /**
- * Indirection so ipc/register.ts can reach the running EngineerService + LlmClient
+ * Indirection so ipc/register.ts can reach the running EngineerService + DSH backend
  * without a circular import with index.ts.
  */
 let svc: EngineerService | null = null

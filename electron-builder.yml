@@ -1,6 +1,10 @@
 appId: com.f1tr.app
 productName: F1 Race Engineer
 copyright: MIT
+compression: maximum
+electronLanguages:
+  - en-US
+  - zh-CN
 # Publishing is controlled by the CI `--publish never` flag, not here, so the Release
 # carries exactly the two installer exes (no win-unpacked/blockmap/latest.yml).
 directories:

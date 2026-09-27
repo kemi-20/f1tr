@@ -13,7 +13,7 @@ import { logger } from '../logging/Logger'
 /**
  * EngineerService — orchestrates digest -> advice -> UI streaming + (later) TTS enqueue.
  *
- * In P2 this uses StubAdvice (no LLM). P3 swaps in the real LlmClient while keeping
+ * In P2 this uses StubAdvice (no LLM). P3 swaps in the real DSH backend while keeping
  * the same digest/IPC contract. The manual "Ask Engineer" path reuses the digest so the
  * model always sees the current race picture.
  */
@@ -221,7 +221,7 @@ export class EngineerService {
   }
 }
 
-/** Backend interface — stub implements it inline, LlmClient implements it in P3. */
+/** Backend interface — stub implements it inline, DshBackend implements it in P3. */
 export interface EngineerBackend {
   cancel?(): void
   generate(
