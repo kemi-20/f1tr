@@ -88,7 +88,7 @@ export class DshBackend implements EngineerBackend {
     const root = this.runtimeDir()
     const startedAt = performance.now()
     const node = process.execPath
-    const bin = join(root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+    const bin = join(root, 'launch.mjs')
     const patch = join(root, 'race-engineer.cordis.patch.yml')
     const plugin = join(root, 'plugin', 'index.mjs')
     if (!existsSync(bin) || !existsSync(patch) || !existsSync(plugin)) {

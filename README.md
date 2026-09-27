@@ -42,7 +42,11 @@
 
 去 [Releases](../../releases) 页面下载最新版：
 - `F1 Race Engineer Setup x.x.x.exe` — 安装版（推荐）
-- `F1 Race Engineer-x.x.x-portable.exe` — 绿色版，解压即用
+- `F1 Race Engineer-x.x.x-portable.exe` — 单文件便携版，启动时会自解压
+
+Actions 的 `F1-Race-Engineer-Unpacked` 下载包解压后可直接运行目录内的 `F1 Race Engineer.exe`，后续启动无需重复自解压。请保留整个目录。
+
+工程师内置固定版本 DSH `0.1.7-rc.2`，复用 Electron 自带的 Node，无需安装 DSH 或 Node，也不读取电脑上独立 DSH 的配置。模型接口仅支持 OpenAI Chat Completions；不包含 Anthropic、Gemini、Bedrock 或 OpenAI Responses 协议。AI 仅开放遥测、历史、截图和无线电工具。
 
 > 首次运行 Windows SmartScreen 可能提示"未知发布者"（因为没签名）→ 点"更多信息" → "仍要运行"。
 

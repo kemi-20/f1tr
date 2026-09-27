@@ -21,7 +21,7 @@ for (const capability of ['sandbox', 'sandbox-policy', 'subprocess', 'pty', 'ter
 const home = await mkdtemp(join(tmpdir(), 'f1tr-dsh-ci-'))
 const startedAt = performance.now()
 const child = spawn(process.env.F1TR_DSH_EXEC_PATH || process.execPath, [
-  join(runtime, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
+  join(runtime, 'launch.mjs'),
   '--profile', 'sdk-minimal', '--patch', join(runtime, 'race-engineer.cordis.patch.yml')
 ], {
   cwd: home,
