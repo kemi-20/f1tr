@@ -533,14 +533,10 @@ body {
 
 .origin-style-car .suspension {
   fill: none;
+  stroke: rgba(177, 193, 204, 0.58);
   stroke-width: 1.7;
   stroke-linecap: round;
 }
-
-.origin-style-car .suspension-fl { stroke: var(--brake-fl); color: var(--brake-fl); }
-.origin-style-car .suspension-fr { stroke: var(--brake-fr); color: var(--brake-fr); }
-.origin-style-car .suspension-rl { stroke: var(--brake-rl); color: var(--brake-rl); }
-.origin-style-car .suspension-rr { stroke: var(--brake-rr); color: var(--brake-rr); }
 
 .origin-style-car .temp-wheel .tyre-surface-band {
   stroke: currentColor;
@@ -563,25 +559,25 @@ body {
   color: var(--surface-fl);
 }
 .origin-style-car .temp-wheel-fl .tyre-inner-band { fill: var(--inner-fl); }
-.origin-style-car .temp-wheel-fl .brake-temp-block { fill: var(--brake-fl); }
+.origin-style-car .temp-wheel-fl .brake-temp-block { fill: var(--brake-fl); color: var(--brake-fl); }
 
 .origin-style-car .temp-wheel-fr {
   color: var(--surface-fr);
 }
 .origin-style-car .temp-wheel-fr .tyre-inner-band { fill: var(--inner-fr); }
-.origin-style-car .temp-wheel-fr .brake-temp-block { fill: var(--brake-fr); }
+.origin-style-car .temp-wheel-fr .brake-temp-block { fill: var(--brake-fr); color: var(--brake-fr); }
 
 .origin-style-car .temp-wheel-rl {
   color: var(--surface-rl);
 }
 .origin-style-car .temp-wheel-rl .tyre-inner-band { fill: var(--inner-rl); }
-.origin-style-car .temp-wheel-rl .brake-temp-block { fill: var(--brake-rl); }
+.origin-style-car .temp-wheel-rl .brake-temp-block { fill: var(--brake-rl); color: var(--brake-rl); }
 
 .origin-style-car .temp-wheel-rr {
   color: var(--surface-rr);
 }
 .origin-style-car .temp-wheel-rr .tyre-inner-band { fill: var(--inner-rr); }
-.origin-style-car .temp-wheel-rr .brake-temp-block { fill: var(--brake-rr); }
+.origin-style-car .temp-wheel-rr .brake-temp-block { fill: var(--brake-rr); color: var(--brake-rr); }
 
 .origin-style-car .engine-core path:first-child {
   fill: var(--engine-temp);
