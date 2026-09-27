@@ -9,12 +9,13 @@ import { captureF1Screenshot } from '../screenshot/ScreenshotService'
 import { logger } from '../logging/Logger'
 import type { TelemetryHistory } from './TelemetryHistory'
 import { TELEMETRY_TOOLS, executeTelemetryTool } from './TelemetryHarness'
+import type { ReasoningEffort } from '@shared/index'
 
 export interface LlmConfig {
   baseURL: string // e.g. https://api.deepseek.com/v1
   apiKey: string
   model: string // e.g. deepseek-v4-flash
-  temperature: number
+  reasoningEffort: ReasoningEffort
   contextLimit: number
   visionSupported: boolean // whether the configured model can accept image input
 }
@@ -137,7 +138,6 @@ export class LlmClient implements EngineerBackend {
         const base = {
           model: this.config.model,
           messages,
-          temperature: this.config.temperature,
           stream: true as const,
           stream_options: { include_usage: true },
           ...(isLastRound ? {} : { tools })

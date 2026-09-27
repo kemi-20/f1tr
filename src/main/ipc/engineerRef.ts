@@ -27,7 +27,7 @@ export function getLlm(): DshBackend | null {
 }
 
 /** Build/rebuild the LLM client from current config + secrets; inject into the engineer.
- *  Called at boot and whenever config (model/baseURL/key/temperature/language) changes.
+ *  Called at boot and whenever config (model/baseURL/key/reasoning level/language) changes.
  *  Effective key = UI override if set, else .env. */
 export async function wireLlm(cfg: AppConfig): Promise<void> {
   if (!svc) return
@@ -54,7 +54,7 @@ export async function wireLlm(cfg: AppConfig): Promise<void> {
   }
   const model = cfg.llm.model
   llm = new DshBackend(
-    { baseURL, apiKey, model, temperature: cfg.llm.temperature, contextLimit: cfg.llm.contextLimit, visionSupported: cfg.llm.visionSupported },
+    { baseURL, apiKey, model, reasoningEffort: cfg.llm.reasoningEffort, contextLimit: cfg.llm.contextLimit, visionSupported: cfg.llm.visionSupported },
     svc.telemetryHistory,
     buildVisionClient(cfg),
     (text, firing) => svc?.acceptRadio(text, firing),

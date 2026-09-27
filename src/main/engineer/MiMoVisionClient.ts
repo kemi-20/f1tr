@@ -42,6 +42,7 @@ export class MiMoVisionClient {
           ]
         }
       ],
+      reasoning_effort: 'none',
       max_tokens: 600,
       temperature: 0.3
     }

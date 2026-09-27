@@ -78,7 +78,8 @@ body {
     @apply rounded-md border border-white/[0.05] bg-white/[0.02];
   }
   .label {
-    @apply text-[10px] font-semibold uppercase text-white/40;
+    @apply text-[10px] font-semibold uppercase;
+    color: #7d879a;
     letter-spacing: 0;
   }
   .num-display {
@@ -334,7 +335,7 @@ body {
   padding: 6px 12px;
   font-family: 'F1 Bold';
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.32);
+  color: #7b8494;
 }
 
 .hud-drs-ready {

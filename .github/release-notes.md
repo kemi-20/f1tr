@@ -21,8 +21,8 @@
 
 ## 安装
 
-- **安装版**：`F1 Race Engineer Setup 0.2.0.exe`
-- **便携版**：`F1 Race Engineer-0.2.0-portable.exe`（绿色免安装）
+- **安装版**：`F1 Race Engineer Setup 0.3.0.exe`
+- **便携版**：`F1 Race Engineer-0.3.0-portable.exe`（绿色免安装）
 
 ## 配置
 

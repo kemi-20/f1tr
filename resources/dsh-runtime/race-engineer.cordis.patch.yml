@@ -50,5 +50,10 @@
               - id: !!js process.env.F1TR_MODEL_NAME
                 name: Race Engineer Model
                 contextWindow: !!js Number(process.env.F1TR_CONTEXT_LIMIT) || 200000
+                # Capability declaration only: these values pass through unchanged.
+                reasoningEfforts:
+                  off: none
+                  low: low
+                  max: max
     - id: race-tools
       name: ./plugin/index.mjs

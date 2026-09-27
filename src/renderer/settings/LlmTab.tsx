@@ -1,5 +1,12 @@
 import { useConfigStore } from '../store'
 import { Field, TextInput, TestButton } from './SettingsModal'
+import type { ReasoningEffort } from '@shared/index'
+
+const THINKING_LEVELS: { id: ReasoningEffort; label: string; color: string }[] = [
+  { id: 'none', label: 'NONE', color: '#8A94A6' },
+  { id: 'low', label: 'LOW', color: '#00D2BE' },
+  { id: 'max', label: 'MAX', color: '#FF3B3B' }
+]
 
 export function LlmTab(): React.ReactElement {
   const config = useConfigStore((s) => s.config)
@@ -74,18 +81,32 @@ export function LlmTab(): React.ReactElement {
         />
       </Field>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label={`温度 (temperature: ${llm.temperature.toFixed(2)})`}>
-          <input
-            type="range"
-            min={0}
-            max={2}
-            step={0.05}
-            value={llm.temperature}
-            onChange={(e) => void patch({ llm: { temperature: Number(e.target.value) } })}
-            className="h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-accent-carbon"
-          />
-        </Field>
+      <div className="flex flex-col gap-4">
+        <div>
+          <div className="label mb-2">思考等级</div>
+          <div className="grid grid-cols-3 gap-2">
+            {THINKING_LEVELS.map((level) => {
+              const active = llm.reasoningEffort === level.id
+              return (
+                <button
+                  key={level.id}
+                  type="button"
+                  onClick={() => void patch({ llm: { reasoningEffort: level.id } })}
+                  className={`flex items-center gap-2 rounded-lg border p-3 transition ${
+                    active ? 'border-accent-carbon/60 bg-accent-carbon/10' : 'border-white/[0.06] bg-white/[0.02] hover:border-white/20'
+                  }`}
+                >
+                  <span
+                    className="h-4 w-4 rounded-full"
+                    style={{ background: level.color, boxShadow: active ? `0 0 8px ${level.color}` : 'none' }}
+                  />
+                  <span className={`text-xs ${active ? 'text-white' : 'text-white/60'}`}>{level.label}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="mt-1 text-[10px] text-white/30">none 关闭思考，low 平衡速度与强度，max 使用模型最高推理强度</div>
+        </div>
         <Field label={`上下文限制 (${Math.round(llm.contextLimit / 1000)}k)`} hint="默认 200k：DSH 的模型上下文窗口，不再限制单次回复">
           <TextInput
             type="number"

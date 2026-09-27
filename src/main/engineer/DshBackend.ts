@@ -231,7 +231,8 @@ export class DshBackend implements EngineerBackend {
         }
         this.releaseHome(ownedHome)
       })
-      await this.request('initialize', { cwd: this.home, provider: 'race-gateway', model: this.config.model }, 20_000)
+      const reasoningEffort = this.config.reasoningEffort === 'none' ? 'off' : this.config.reasoningEffort
+      await this.request('initialize', { cwd: this.home, provider: 'race-gateway', model: this.config.model, reasoningEffort }, 20_000)
       logger.info(`Private DSH runtime ready in ${Math.round(performance.now() - startedAt)} ms`)
     } catch (error) {
       this.stop()

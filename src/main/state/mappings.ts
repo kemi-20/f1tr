@@ -1,4 +1,4 @@
-import type { TyreCompound } from '@shared/index'
+import type { PacketFormat, TyreCompound } from '@shared/index'
 
 /**
  * Map F1 25 `m_actualTyreCompound` to our weekend label.
@@ -59,6 +59,43 @@ const LEGACY_VISUAL_COMPOUND_MAP: Record<number, TyreCompound> = {
   3: 'soft',
   4: 'medium',
   5: 'hard'
+}
+
+/**
+ * F1 2019+ sends the weekend's display compound in `m_visualTyreCompound`.
+ * That is the authoritative S/M/H mapping: it already reflects each track's
+ * C1-C6 nomination and can differ between F1 25 and F1 26.
+ */
+const VISUAL_COMPOUND_MAP: Record<number, TyreCompound> = {
+  7: 'inter',
+  8: 'wet',
+  15: 'wet',
+  16: 'soft',
+  17: 'medium',
+  18: 'hard',
+  19: 'soft', // legacy Super Soft display
+  20: 'soft',
+  21: 'medium',
+  22: 'hard'
+}
+
+/** Resolve the display compound the same way the .origin overlay does. */
+export function resolveCompound(
+  actualId: number,
+  visualId: number | undefined,
+  trackId: number | undefined,
+  packetFormat: PacketFormat
+): TyreCompound {
+  const visual = visualId == null ? undefined : VISUAL_COMPOUND_MAP[visualId]
+  if (visual) return visual
+
+  // Wet tyres are independent of the dry C-compound allocation.
+  const wet = WET_COMPOUND_MAP[actualId]
+  if (wet) return wet
+
+  // The 2025 allocation table must never be applied to 2026: nominations changed.
+  if (packetFormat === 2026) return 'unknown'
+  return mapCompound(actualId, trackId)
 }
 
 export function mapCompound(id: number, trackId?: number): TyreCompound {

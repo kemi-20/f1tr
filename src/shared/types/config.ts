@@ -7,6 +7,8 @@ export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends (infer U)[] ? U[] : T[P] extends object ? DeepPartial<T[P]> : T[P]
 }
 
+export type ReasoningEffort = 'none' | 'low' | 'max'
+
 /**
  * User-editable application config, persisted to userData/config.json via electron-store.
  *
@@ -20,7 +22,7 @@ export interface AppConfig {
    baseURL: string // resolved from AI_API_BASE_URL, editable in UI
    apiKeyOverride: string // '' = use .env AI_API_KEY; otherwise this wins
    model: string // resolved from AI_MODEL
-   temperature: number
+   reasoningEffort: ReasoningEffort
    contextLimit: number // DSH model contextWindow budget in tokens
    hasSecret: boolean // whether a key is available (.env or override)
     visionSupported: boolean // whether the configured model can accept image input
@@ -43,7 +45,6 @@ export interface AppConfig {
     host: string
     rendererPaintHz: number
     forwardMotion: boolean
-    formatOverride: 'auto' | 2025 | 2026
   }
   triggers: TriggerConfig
   audio: {
@@ -68,15 +69,14 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  llm: { baseURL: '', apiKeyOverride: '', model: '', temperature: 0.55, contextLimit: 200_000, hasSecret: false, visionSupported: false, audioSupported: false },
+  llm: { baseURL: '', apiKeyOverride: '', model: '', reasoningEffort: 'low', contextLimit: 200_000, hasSecret: false, visionSupported: false, audioSupported: false },
   tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false },
   language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气', engineerStyle: 'gp' },
   telemetry: {
     port: 20777,
     host: '127.0.0.1',
     rendererPaintHz: 12,
-    forwardMotion: false,
-    formatOverride: 'auto'
+    forwardMotion: false
   },
   triggers: {
     tyreWearLevels: [50, 70, 90],

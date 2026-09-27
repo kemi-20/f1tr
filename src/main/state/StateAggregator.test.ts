@@ -3,6 +3,7 @@ import { constants, F1TelemetryClient } from '@z0mt3c/f1-telemetry-client'
 import { StateAggregator } from './StateAggregator'
 import { DigestBuilder } from '../engineer/DigestBuilder'
 import type { AnyParsedPacket } from '../telemetry/UdpReceiver'
+import { resolveCompound } from './mappings'
 
 function parsedPacket(format: 2025 | 2026, id: number): AnyParsedPacket {
   const name = (constants.PACKET_ID_TO_PACKET as Record<number, string>)[id]
@@ -80,5 +81,12 @@ describe('2026 telemetry state', () => {
     expect(rival.team).toBe('485')
     expect(rival.teamName).toBe('Audi 26')
     expect(rival.teamColor).toBe('#ff2d00')
+  })
+
+  it('prefers the game visual compound and never applies the 2025 dry table to 2026', () => {
+    expect(resolveCompound(18, 17, 0, 2026)).toBe('medium')
+    expect(resolveCompound(18, undefined, 0, 2026)).toBe('unknown')
+    expect(resolveCompound(7, undefined, 0, 2026)).toBe('inter')
+    expect(resolveCompound(18, undefined, 0, 2025)).toBe('hard')
   })
 })

@@ -106,7 +106,7 @@ app.whenReady().then(() => {
     cfg.telemetry.port,
     cfg.triggers,
     cfg.telemetry.rendererPaintHz,
-    cfg.telemetry.formatOverride,
+    'auto',
     (firing) => {
       // fire on the main event loop — serialize through the engineer's queue
       const state = telemetry!.aggregator.getState()

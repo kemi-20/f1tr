@@ -3,7 +3,7 @@
 一个 Windows 桌面应用：监听 F1 25 的 UDP 遥测，用 AI 扮演比赛工程师，实时给出策略建议，并通过 MiMo TTS 用语音播报。支持语音输入、游戏截图、全局热键，配有深色赛车驾驶舱界面。
 
 ![platform](https://img.shields.io/badge/platform-Windows-2DD4BF)
-![version](https://img.shields.io/badge/version-0.2.0-FF6A00)
+![version](https://img.shields.io/badge/version-0.3.0-FF6A00)
 ![license](https://img.shields.io/badge/license-MIT-2DD4BF)
 
 ## 它能做什么

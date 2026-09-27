@@ -51,6 +51,7 @@ export class MiMoAsrClient {
         }
       ],
       asr_options: { language: 'auto' },
+      reasoning_effort: 'none',
       max_tokens: 500
     }
 

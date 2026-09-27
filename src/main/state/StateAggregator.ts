@@ -2,7 +2,7 @@ import type { RaceState, RecentEvent, PacketFormat, TrackPosition, RivalState } 
 import { getTrack } from '@shared/index'
 import { constants } from '@z0mt3c/f1-telemetry-client'
 import { emptyRaceState } from './defaults'
-import { mapCompound, decodeSafetyCar, sessionTypeLabel } from './mappings'
+import { resolveCompound, decodeSafetyCar, sessionTypeLabel } from './mappings'
 import type { AnyParsedPacket } from '../telemetry/UdpReceiver'
 import type { PacketHeader } from '../telemetry/HeaderTypes'
 import { nanoid } from 'nanoid'
@@ -397,7 +397,12 @@ export class StateAggregator {
         pl.fuelMix = (st.m_fuelMix ?? 1) as 0 | 1 | 2 | 3
         pl.drsAllowed = (st.m_drsAllowed ?? 0) !== 0
         pl.tyres.rawCompoundId = typeof st.m_actualTyreCompound === 'number' ? st.m_actualTyreCompound : -1
-        pl.tyres.compound = mapCompound(pl.tyres.rawCompoundId, this.state.session.trackId)
+        pl.tyres.compound = resolveCompound(
+          pl.tyres.rawCompoundId,
+          st.m_visualTyreCompound,
+          this.state.session.trackId,
+          this.state.packetFormat
+        )
         pl.tyres.ageLaps = st.m_tyresAgeLaps ?? pl.tyres.ageLaps
         // ERS store energy is in joules, capacity ~4e6 J
         pl.ersPercent = clamp01((st.m_ersStoreEnergy ?? 0) / 4_000_000)
@@ -407,7 +412,12 @@ export class StateAggregator {
       } else {
         // update rival's tyre compound
         const r = this.ensureRival(i)
-        r.tyreCompound = mapCompound(st.m_actualTyreCompound ?? -1, this.state.session.trackId)
+        r.tyreCompound = resolveCompound(
+          st.m_actualTyreCompound ?? -1,
+          st.m_visualTyreCompound,
+          this.state.session.trackId,
+          this.state.packetFormat
+        )
       }
     }
   }
