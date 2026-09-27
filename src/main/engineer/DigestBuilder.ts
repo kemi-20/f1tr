@@ -103,7 +103,8 @@ export class DigestBuilder {
         (d.player.gapBehind ? ` • behind ${d.player.gapBehind}` : '') +
         ` • last ${d.player.lastLap} best ${d.player.bestLap} • fuel ${d.player.fuel} • engine ${d.player.engineTemp} • pits ${d.player.pits}` +
         ` • ERS ${d.player.ers}` +
-        (d.player.drs ? ` • DRS ${d.player.drs}` : '')
+        (d.player.drs ? ` • DRS ${d.player.drs}` : '') +
+        (d.player.aero ? ` • ${d.player.aero}` : '')
     )
     lines.push(
       `  TYRE: ${d.player.tyre.compound} ${d.player.tyre.age} • wear ${d.player.tyre.wear}` +

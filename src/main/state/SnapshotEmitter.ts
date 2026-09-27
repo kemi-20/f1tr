@@ -57,6 +57,11 @@ export class SnapshotEmitter {
         ersPercent: p.ersPercent,
         drsActive: p.drsActive,
         drsAllowed: p.drsAllowed,
+        regulations2026: p.regulations2026,
+        activeAeroMode: p.activeAeroMode,
+        activeAeroAvailable: p.activeAeroAvailable,
+        overtakeAvailable: p.overtakeAvailable,
+        overtakeActive: p.overtakeActive,
         throttle: p.throttle,
         brake: p.brake,
         revLightsPercent: p.revLightsPercent

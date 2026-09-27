@@ -14,6 +14,7 @@ export function DriverHud(): React.ReactElement {
   const ers = snap?.ersPercent ?? 0
   const drsActive = snap?.drsActive ?? false
   const drsAllowed = snap?.drsAllowed ?? false
+  const regulations2026 = snap?.regulations2026 ?? false
 
   // 15 shift lights
   const litCount = Math.round(revPct * 15)
@@ -32,12 +33,21 @@ export function DriverHud(): React.ReactElement {
           <div className="label">Telemetry</div>
           <div className="hud-mode">LIVE CAR</div>
         </div>
-        <div
-          className={`hud-drs ${
-            drsActive ? 'hud-drs-active' : drsAllowed ? 'hud-drs-ready' : ''
-          }`}
-        >
-          DRS
+        <div className="flex items-center gap-2">
+          {regulations2026 ? (
+            <>
+              <div className={`hud-drs ${snap?.activeAeroMode === 'straight' ? 'hud-drs-active' : snap?.activeAeroAvailable ? 'hud-drs-ready' : ''}`}>
+                AERO {snap?.activeAeroMode === 'straight' ? 'STRAIGHT' : 'CORNER'}
+              </div>
+              <div className={`hud-drs ${snap?.overtakeActive ? 'hud-drs-active' : snap?.overtakeAvailable ? 'hud-drs-ready' : ''}`}>
+                OVERTAKE
+              </div>
+            </>
+          ) : (
+            <div className={`hud-drs ${drsActive ? 'hud-drs-active' : drsAllowed ? 'hud-drs-ready' : ''}`}>
+              DRS
+            </div>
+          )}
         </div>
       </div>
 

@@ -25,6 +25,8 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Test
+        run: npm test
       - name: Build (vite)
         run: npm run build
 
@@ -47,6 +49,8 @@ jobs:
         run: npm ci
       - name: Install private DSH runtime
         run: npm ci --prefix resources/dsh-runtime
+      - name: Remove unused DSH plugins and dependencies
+        run: node .github/prune-dsh-runtime.mjs
       - name: Stage private DSH plugin
         shell: pwsh
         run: |

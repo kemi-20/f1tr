@@ -44,6 +44,11 @@ export interface SnapshotPayload {
   ersPercent: number
   drsActive: boolean
   drsAllowed: boolean
+  regulations2026: boolean
+  activeAeroMode: 'corner' | 'straight' | null
+  activeAeroAvailable: boolean
+  overtakeAvailable: boolean
+  overtakeActive: boolean
   throttle: number
   brake: number
   revLightsPercent: number

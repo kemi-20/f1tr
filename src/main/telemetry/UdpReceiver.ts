@@ -86,7 +86,7 @@ export class UdpReceiver {
     try {
       const parsed = F1TelemetryClient.parseBufferMessage(msg, true)
       const data = parsed?.data as AnyParsedPacket | undefined
-      if (!data?.m_header || parsed.name !== name) {
+      if (!data?.m_header || parsed?.name !== name) {
         this.packetsDropped++
         return
       }
