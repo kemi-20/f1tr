@@ -355,6 +355,7 @@ export class DshBackend implements EngineerBackend {
       id = req.id
       if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id) || req.token !== this.token ||
           typeof req.name !== 'string' || !this.current || socket.destroyed) throw new Error('Tool unavailable')
+      if (req.name === 'capture_screenshot') socket.setTimeout(65_000)
       const active = this.current
       if (++active.calls > 16) throw new Error('Tool budget exceeded')
       const args = req.args && typeof req.args === 'object' && !Array.isArray(req.args) ? req.args as JsonRecord : {}

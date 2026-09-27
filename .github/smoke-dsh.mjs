@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-const runtime = resolve('resources/dsh-runtime')
+const runtime = resolve(process.env.F1TR_DSH_RUNTIME_DIR || 'resources/dsh-runtime')
 const patch = await readFile(join(runtime, 'race-engineer.cordis.patch.yml'), 'utf8')
 if (!patch.includes('personaPrefix: !!js process.env.F1TR_PERSONA ??') ||
     !patch.includes('You are an original F1 race engineer supporting a driver, not a real team employee.')) {
@@ -82,6 +82,9 @@ try {
       params: { cwd: home, provider: 'race-gateway', model: 'f1tr-ci-smoke' }
     }) + '\n')
   })
+  if (/failed to import|did not activate/i.test(diagnostics)) {
+    throw new Error(`Private DSH profile loaded with missing plugins: ${diagnostics}`)
+  }
   console.log(`Private DSH profile initialized successfully in ${Math.round(performance.now() - startedAt)} ms`)
 } finally {
   child.kill()

@@ -24,7 +24,6 @@ extraResources:
       - '!node.exe'
       - '!**/*.map'
       - '!**/*.ts'
-      - '!**/lib/types/**'
       - '!package-lock.json'
       - '!**/.bin/**'
 win:

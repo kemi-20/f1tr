@@ -88,6 +88,18 @@ jobs:
         run: npm run typecheck
       - name: Build & package Windows (portable + NSIS)
         run: npm run build:win
+      - name: Smoke check packaged DSH runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $unpacked = Get-ChildItem -Path release -Directory -Recurse -Filter win-unpacked | Select-Object -First 1
+          if (-not $unpacked) { throw 'Unpacked Windows app is missing.' }
+          $env:F1TR_DSH_RUNTIME_DIR = Join-Path $unpacked.FullName 'resources/dsh-runtime'
+          $env:F1TR_DSH_EXEC_PATH = Join-Path $unpacked.FullName 'F1 Race Engineer.exe'
+          & node .github/smoke-dsh.mjs
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Packaged DSH runtime failed JSON-RPC initialization.'
+          }
       - name: List built executables
         shell: pwsh
         run: Get-ChildItem -Recurse release -Filter "*.exe" | Select-Object FullName, Length
