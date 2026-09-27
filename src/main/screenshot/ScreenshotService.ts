@@ -14,9 +14,9 @@ export async function captureF1Screenshot(): Promise<string | null> {
       fetchWindowIcons: false
     })
 
-    // Try to find the F1 25 game window by name
+    // The game's title includes a registered-trademark symbol on Windows.
     const f1Source = sources.find((s) =>
-      /f1\s*2*5|formula\s*1|f1\s*25|f1\s*26/i.test(s.name)
+      /\bF1\s*[®™]?\s*(?:25|26)\b|\bFormula\s*1\b/i.test(s.name)
     )
     const source = f1Source
 

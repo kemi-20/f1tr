@@ -31,16 +31,16 @@ export function TrackMap(): React.ReactElement {
               <polyline
                 points={geometry.fusedPoints}
                 fill="none"
-                stroke="rgba(45,212,191,0.18)"
-                strokeWidth={marker * 2.6}
+                stroke="rgba(6,12,18,0.96)"
+                strokeWidth={marker * 3.3}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
               <polyline
                 points={geometry.fusedPoints}
                 fill="none"
-                stroke="rgba(245,247,250,0.88)"
-                strokeWidth={marker * 1.05}
+                stroke="rgba(250,252,255,0.98)"
+                strokeWidth={marker * 1.25}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
@@ -48,8 +48,8 @@ export function TrackMap(): React.ReactElement {
                 <polyline
                   points={geometry.pitPoints}
                   fill="none"
-                  stroke="rgba(255,255,255,0.24)"
-                  strokeWidth={marker * 0.48}
+                  stroke="rgba(255,255,255,0.58)"
+                  strokeWidth={marker * 0.6}
                   strokeDasharray={`${marker * 0.9} ${marker * 0.75}`}
                   strokeLinejoin="round"
                   strokeLinecap="round"
@@ -61,7 +61,7 @@ export function TrackMap(): React.ReactElement {
                   points={line}
                   fill="none"
                   stroke={SECTOR_STROKES[idx]}
-                  strokeWidth={marker * 0.42}
+                  strokeWidth={marker * 0.7}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
@@ -86,15 +86,15 @@ export function TrackMap(): React.ReactElement {
                 <g key={p.carIndex}>
                   {isP && (
                     <>
-                      <circle cx={pt.x} cy={pt.y} r={marker * 2.9} fill="none" stroke="#FFE600" strokeWidth={marker * 0.32}>
-                        <animate attributeName="r" values={`${marker * 2.4};${marker * 3.7};${marker * 2.4}`} dur="1.4s" repeatCount="indefinite" />
+                      <circle cx={pt.x} cy={pt.y} r={marker * 3.5} fill="none" stroke="#FFE600" strokeWidth={marker * 0.38}>
+                        <animate attributeName="r" values={`${marker * 2.9};${marker * 4.3};${marker * 2.9}`} dur="1.4s" repeatCount="indefinite" />
                         <animate attributeName="opacity" values="1;0.25;1" dur="1.4s" repeatCount="indefinite" />
                       </circle>
-                      <circle cx={pt.x} cy={pt.y} r={marker * 2.05} fill="none" stroke="#FFE600" strokeWidth={marker * 0.34} />
+                      <circle cx={pt.x} cy={pt.y} r={marker * 2.6} fill="none" stroke="#FFE600" strokeWidth={marker * 0.42} />
                     </>
                   )}
-                  <circle cx={pt.x} cy={pt.y} r={isP ? marker * 1.62 : marker * 1.2} fill={colour} stroke="rgba(0,0,0,0.95)" strokeWidth={marker * 0.42} />
-                  <circle cx={pt.x - marker * 0.3} cy={pt.y - marker * 0.3} r={marker * 0.28} fill="rgba(255,255,255,0.65)">
+                  <circle cx={pt.x} cy={pt.y} r={isP ? marker * 2.05 : marker * 1.6} fill={colour} stroke="#071017" strokeWidth={marker * 0.55} />
+                  <circle cx={pt.x - marker * 0.38} cy={pt.y - marker * 0.38} r={marker * 0.35} fill="rgba(255,255,255,0.7)">
                     {isP && (
                       <animate attributeName="opacity" values="0.9;0;0.9" dur="1.6s" repeatCount="indefinite" />
                     )}
@@ -112,8 +112,8 @@ export function TrackMap(): React.ReactElement {
               const colour = teamColorForCar(race?.rivals[p.carIndex]?.team)
               return (
                 <g key={p.carIndex}>
-                  {p.isPlayer && <circle cx={pt.x} cy={pt.y} r="4.4" fill="none" stroke="#FFE600" strokeWidth="0.9" />}
-                  <circle cx={pt.x} cy={pt.y} r={p.isPlayer ? 2.7 : 2.1} fill={colour} stroke="rgba(0,0,0,0.95)" strokeWidth="0.9" />
+                  {p.isPlayer && <circle cx={pt.x} cy={pt.y} r="5.4" fill="none" stroke="#FFE600" strokeWidth="1.1" />}
+                  <circle cx={pt.x} cy={pt.y} r={p.isPlayer ? 3.3 : 2.7} fill={colour} stroke="#071017" strokeWidth="1" />
                 </g>
               )
             })}
@@ -129,6 +129,9 @@ export function TrackMap(): React.ReactElement {
 
 interface TrackGeometry {
   bounds: TrackBounds
+  sourceBounds: TrackBounds
+  sourceFused: TrackPoint[]
+  project: (p: TrackPoint) => TrackPoint
   viewBox: string
   fused: TrackPoint[]
   cumulative: number[]
@@ -146,21 +149,47 @@ const SECTOR_STROKES = [
 ] as const
 
 function buildGeometry(trackMap: CalibratedTrackMap): TrackGeometry {
-  const cumulative = cumulativeDistances(trackMap.fusedLine)
+  const project = displayProjection(trackMap)
+  const fused = trackMap.fusedLine.map(project)
+  const bounds = projectedBounds(trackMap.bounds, project)
+  const cumulative = cumulativeDistances(fused)
   const totalLength = cumulative[cumulative.length - 1] ?? 0
   return {
-    bounds: trackMap.bounds,
-    viewBox: viewBoxWithTrackMargin(trackMap.bounds),
-    fused: trackMap.fusedLine,
+    bounds,
+    sourceBounds: trackMap.bounds,
+    sourceFused: trackMap.fusedLine,
+    project,
+    viewBox: viewBoxWithTrackMargin(bounds),
+    fused,
     cumulative,
     totalLength,
-    fusedPoints: pointsAttr(trackMap.fusedLine),
-    pitPoints: trackMap.pitLine?.length ? pointsAttr(trackMap.pitLine) : null,
+    fusedPoints: pointsAttr(fused),
+    pitPoints: trackMap.pitLine?.length ? pointsAttr(trackMap.pitLine.map(project)) : null,
     sectorPoints: [trackMap.sector1Line, trackMap.sector2Line, trackMap.sector3Line]
       .filter((line): line is TrackPoint[] => Boolean(line?.length))
-      .map(pointsAttr),
-    start: point(trackMap.fusedLine[0] ?? [0, 0])
+      .map(line => pointsAttr(line.map(project))),
+    start: point(fused[0] ?? [0, 0])
   }
+}
+
+function displayProjection(trackMap: CalibratedTrackMap): (p: TrackPoint) => TrackPoint {
+  if (trackMap.id !== 3) return p => p
+  const [minX, minY, maxX, maxY] = trackMap.bounds
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  return ([x, y]) => [cx + y - cy, cy - x + cx]
+}
+
+function projectedBounds(bounds: TrackBounds, project: (p: TrackPoint) => TrackPoint): TrackBounds {
+  const [minX, minY, maxX, maxY] = bounds
+  const corners = [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]] as TrackPoint[]
+  const points = corners.map(project)
+  return [
+    Math.min(...points.map(p => p[0])),
+    Math.min(...points.map(p => p[1])),
+    Math.max(...points.map(p => p[0])),
+    Math.max(...points.map(p => p[1]))
+  ]
 }
 
 function pointForPosition(
@@ -170,10 +199,10 @@ function pointForPosition(
   if (
     isFiniteNumber(p.worldX) &&
     isFiniteNumber(p.worldZ) &&
-    withinExpandedBounds(p.worldX, p.worldZ, geometry.bounds) &&
+    withinExpandedBounds(p.worldX, p.worldZ, geometry.sourceBounds) &&
     isNearTrackLine(p.worldX, p.worldZ, geometry)
   ) {
-    return { x: p.worldX, y: p.worldZ }
+    return point(geometry.project([p.worldX, p.worldZ]))
   }
   return pointAtLapFraction(geometry, p.lapDistancePct)
 }
@@ -238,13 +267,13 @@ function withinExpandedBounds(x: number, y: number, bounds: TrackBounds): boolea
 
 function isNearTrackLine(x: number, y: number, geometry: TrackGeometry): boolean {
   if (geometry.fused.length < 2) return false
-  const [minX, minY, maxX, maxY] = geometry.bounds
+  const [minX, minY, maxX, maxY] = geometry.sourceBounds
   const shortestSide = Math.min(maxX - minX, maxY - minY)
   const tolerance = Math.max(22, shortestSide * 0.045)
   const toleranceSq = tolerance * tolerance
 
-  for (let i = 1; i < geometry.fused.length; i++) {
-    if (distanceToSegmentSq(x, y, geometry.fused[i - 1], geometry.fused[i]) <= toleranceSq) {
+  for (let i = 1; i < geometry.sourceFused.length; i++) {
+    if (distanceToSegmentSq(x, y, geometry.sourceFused[i - 1], geometry.sourceFused[i]) <= toleranceSq) {
       return true
     }
   }

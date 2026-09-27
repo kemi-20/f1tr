@@ -367,7 +367,11 @@ export class DshBackend implements EngineerBackend {
         if (socket.destroyed || this.current !== active) throw new Error('Engineer turn cancelled')
         const controller = new AbortController()
         socket.once('close', () => controller.abort())
-        result = png && this.vision ? await this.vision.describeImage(png, controller.signal) : 'Screenshot unavailable or visual description is not configured'
+        result = !png
+          ? 'F1 game window was not found; no screenshot was captured.'
+          : this.vision
+            ? await this.vision.describeImage(png, controller.signal)
+            : 'Screenshot captured, but no image-capable model is configured.'
       } else if (req.name === 'speak_radio') {
         if (++active.speeches > 2) throw new Error('Radio limit exceeded')
         const now = Date.now()

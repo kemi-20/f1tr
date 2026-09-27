@@ -716,6 +716,33 @@ body {
   align-items: center;
 }
 
+.engineer-markdown {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  user-select: text;
+}
+
+.engineer-markdown > :first-child { margin-top: 0; }
+.engineer-markdown > :last-child { margin-bottom: 0; }
+.engineer-markdown p,
+.engineer-markdown ul,
+.engineer-markdown ol,
+.engineer-markdown blockquote,
+.engineer-markdown pre { margin: 0.45em 0; }
+.engineer-markdown ul { list-style: disc; padding-left: 1.4em; }
+.engineer-markdown ol { list-style: decimal; padding-left: 1.4em; }
+.engineer-markdown li + li { margin-top: 0.2em; }
+.engineer-markdown strong { font-family: 'F1 Bold'; color: #f7f9ff; }
+.engineer-markdown a { color: #33ded0; text-decoration: underline; }
+.engineer-markdown blockquote { border-left: 2px solid #33ded0; padding-left: 0.7em; color: #b4c3cc; }
+.engineer-markdown code { font-family: ui-monospace, Consolas, monospace; font-size: 0.9em; }
+.engineer-markdown :not(pre) > code { border-radius: 3px; background: #ffffff12; padding: 0.08em 0.24em; }
+.engineer-markdown pre { overflow-x: auto; border-radius: 4px; background: #05080d; padding: 0.65em; }
+.engineer-markdown table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.engineer-markdown th,
+.engineer-markdown td { border: 1px solid #ffffff24; padding: 0.3em 0.5em; text-align: left; }
+.engineer-markdown th { font-family: 'F1 Bold'; }
+
 .engineer-action-btn {
   min-width: 58px;
   border-radius: 6px;

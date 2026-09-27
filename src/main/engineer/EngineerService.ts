@@ -69,6 +69,7 @@ export class EngineerService {
   /** The DSH radio tool is the sole speech entry point. */
   acceptRadio(text: string, firing: TriggerFiring): void {
     this.lastToolRadio = text
+    Sender.send('engineer:status', { status: 'idle' })
     Sender.send('engineer:advice', {
       id: nanoid(10), text, firing: { code: firing.reasonCode, priority: firing.priority }, ts: Date.now()
     })
@@ -165,7 +166,7 @@ export class EngineerService {
     this.clearIdleTimer()
     Sender.send('engineer:status', { status: 'thinking' })
     const emitDelta = createDeltaEmitter(firing, (delta) => {
-      Sender.send('engineer:text', { id, delta })
+      if (!this.lastToolRadio) Sender.send('engineer:text', { id, delta })
     })
 
     try {
@@ -178,8 +179,13 @@ export class EngineerService {
       const text = cleanAutoTriggerAcknowledgement(rawText, firing)
 
       const cleanText = text.replace(/^【(NOW|HOLD)】/i, '').trim()
+      if (this.lastToolRadio) {
+        this.clearIdleTimer()
+        this.idleTimer = setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 6000)
+        return
+      }
       // Skip sending empty advice (e.g. model returned only a tool call with no text)
-      if (!cleanText || cleanText === this.lastToolRadio) {
+      if (!cleanText) {
         Sender.send('engineer:status', { status: 'idle' })
         this.clearIdleTimer()
         return

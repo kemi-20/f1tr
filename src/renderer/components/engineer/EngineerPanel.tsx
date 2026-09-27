@@ -3,6 +3,7 @@ import { api } from '../../ipc/ipcClient'
 import { useEngineerStore } from '../../store'
 import { StatusPills } from './StatusPills'
 import { AudioControls } from './AudioControls'
+import { EngineerMarkdown } from './EngineerMarkdown'
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder'
 
 export function EngineerPanel(): React.ReactElement {
@@ -57,7 +58,7 @@ export function EngineerPanel(): React.ReactElement {
               flex-col renders it at the top. The streaming bubble is placed first too. */}
           {streamingId && (
             <div className="animate-fade-in rounded-lg border border-accent-carbon/30 bg-accent-carbon/[0.06] px-3 py-2 text-sm text-white/90">
-              {streamingText}
+              <EngineerMarkdown text={streamingText} />
               <span className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-accent-carbon" />
             </div>
           )}
@@ -66,7 +67,7 @@ export function EngineerPanel(): React.ReactElement {
               <div className="num-mono mb-0.5 text-[9px] text-white/30">
                 {new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
-              {m.text}
+              <EngineerMarkdown text={m.text} />
             </div>
           ))}
         </div>

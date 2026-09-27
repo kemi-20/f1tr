@@ -66,6 +66,13 @@ export async function wireLlm(cfg: AppConfig): Promise<void> {
 
 /** Build a MiMo vision client from the TTS config (same base URL + key). */
 function buildVisionClient(cfg: AppConfig): MiMoVisionClient | null {
+  if (cfg.llm.visionSupported) {
+    const baseURL = normalizeURL(cfg.llm.baseURL)
+    const apiKey = ConfigStore.llmKey()
+    if (baseURL && apiKey && cfg.llm.model) {
+      return new MiMoVisionClient({ baseURL, apiKey, model: cfg.llm.model })
+    }
+  }
   const baseURL = normalizeURL(cfg.tts.baseURL)
   const apiKey = ConfigStore.ttsKey()
   if (!baseURL || !apiKey) return null

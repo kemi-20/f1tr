@@ -62,7 +62,12 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    void shell.openExternal(details.url)
+    try {
+      const url = new URL(details.url)
+      if (url.protocol === 'https:' || url.protocol === 'http:') {
+        void shell.openExternal(url.href)
+      }
+    } catch { /* Ignore invalid links from untrusted chat content. */ }
     return { action: 'deny' }
   })
 

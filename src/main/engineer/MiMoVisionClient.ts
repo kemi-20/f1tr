@@ -7,12 +7,10 @@ export interface MiMoVisionConfig {
 }
 
 /**
- * MiMoVisionClient — sends a screenshot to MiMo's multimodal model (mimo-v2.6-flash)
+ * MiMoVisionClient — describes a screenshot with an image-capable chat model.
  * and returns a detailed text description.
  *
- * Used when the default LLM does NOT support image input: the screenshot is
- * described by MiMo, then the description is passed back to the default model
- * as the tool result.
+ * The description is passed back to the DSH model as a text tool result.
  */
 export class MiMoVisionClient {
   constructor(private config: MiMoVisionConfig) {}
@@ -43,7 +41,7 @@ export class MiMoVisionClient {
         }
       ],
       reasoning_effort: 'none',
-      max_tokens: 600,
+      max_completion_tokens: 600,
       temperature: 0.3
     }
 
@@ -52,7 +50,7 @@ export class MiMoVisionClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'api-key': this.config.apiKey
+          authorization: `Bearer ${this.config.apiKey}`
         },
         signal,
         body: JSON.stringify(body)
