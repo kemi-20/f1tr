@@ -47,6 +47,10 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Install pinned Electron runtime
+        # Electron 44 ships its downloader as the `install-electron` bin instead
+        # of an npm lifecycle script.
+        run: node node_modules/electron/install.js
       - name: Install private DSH runtime
         run: npm ci --prefix resources/dsh-runtime
       - name: Link only the OpenAI Chat Completions provider
