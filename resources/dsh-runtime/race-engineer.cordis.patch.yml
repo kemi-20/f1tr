@@ -36,7 +36,7 @@
   config:
     includeHarnessIdentity: false
     includeRuntimeContext: false
-    personaPrefix: !!js process.env.F1TR_PERSONA ?? ''
+    personaPrefix: !!js process.env.F1TR_PERSONA ?? 'You are an original F1 race engineer supporting a driver, not a real team employee.'
 - insert:
     - id: race-llm
       name: '@deepseek-ai/dsh-llm-pi-ai'

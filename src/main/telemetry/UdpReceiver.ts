@@ -1,25 +1,10 @@
 import dgram from 'node:dgram'
-import { F1TelemetryClient, constants } from '@deltazeroproduction/f1-udp-parser'
+import { F1TelemetryClient, constants } from '@z0mt3c/f1-telemetry-client'
 import type { PacketHeader } from './HeaderTypes'
 import { logger } from '../logging/Logger'
 import type { PacketFormat } from '@shared/index'
 
-const { PACKETS, PACKET_SIZES } = constants
-// Build a map from numeric packetId -> event name (avoid relying on Object.keys order).
-// The library's PACKET_SIZES keys are event names; values are per-format size records.
-const PACKET_ID_TO_NAME = new Map<number, string>()
-const PACKET_ID_REVERSE: Record<string, number> = {}
-for (const name of Object.keys(PACKET_SIZES)) {
-  // PACKETS[name] is the library-exported packet ID string; parse to number.
-  const raw = (PACKETS as Record<string, string | number | undefined>)[name]
-  if (raw != null) {
-    const id = typeof raw === 'number' ? raw : Number(raw)
-    if (typeof id === 'number' && !isNaN(id)) {
-      PACKET_ID_TO_NAME.set(id, name)
-      PACKET_ID_REVERSE[name] = id
-    }
-  }
-}
+const { PACKETS, PACKET_SIZES, PACKET_ID_TO_PACKET } = constants
 
 export interface AnyParsedPacket {
   m_header: PacketHeader
@@ -85,34 +70,28 @@ export class UdpReceiver {
       return
     }
     const fmt = msg.readUInt16LE(0)
-    const effectiveFmt = this.formatOverride ?? (fmt === 2026 ? 2026 : 2025)
     const packetId = msg.readUInt8(6)
-    // 2026 season-pack packet 16 (CAR_TELEMETRY_2) is valid for that format but not registered
-    // by our reducers — don't count it as a dropped/error packet.
-    if (effectiveFmt === 2026 && packetId === 16) {
-      this.record(packetId, effectiveFmt)
+    if ((fmt !== 2025 && fmt !== 2026) || (this.formatOverride != null && fmt !== this.formatOverride)) {
+      this.packetsDropped++
       return
     }
-    const expected = this.expectedSize(packetId, effectiveFmt)
-    if (expected != null && msg.length < expected) {
+    const name = (PACKET_ID_TO_PACKET as Record<number, string | undefined>)[packetId]
+    const expected = name ? (PACKET_SIZES as Record<string, Record<number, number>>)[name]?.[fmt] : undefined
+    // Event payloads vary by event code; every event has a 29-byte header and 4-byte code.
+    if (!name || expected == null || msg.length < (packetId === 3 ? 33 : expected)) {
       // truncated datagram — drop instead of letting the parser throw
       this.packetsDropped++
       return
     }
     try {
-      const parsed = F1TelemetryClient.parseBufferMessage(msg)
-      if (!parsed) {
+      const parsed = F1TelemetryClient.parseBufferMessage(msg, true)
+      const data = parsed?.data as AnyParsedPacket | undefined
+      if (!data?.m_header || parsed.name !== name) {
         this.packetsDropped++
         return
       }
-      const { packetID, packetData } = parsed as { packetID: string; packetData: { data: AnyParsedPacket } }
-      const data = packetData?.data
-      if (!data || !data.m_header) {
-        this.packetsDropped++
-        return
-      }
-      this.record(packetId, effectiveFmt)
-      const cb = this.handlers.get(packetID)
+      this.record(packetId, fmt)
+      const cb = this.handlers.get(name)
       if (cb) cb(data)
       this.onDecoded(packetId, data)
     } catch (err) {
@@ -134,14 +113,6 @@ export class UdpReceiver {
   setFormatOverride(format: 'auto' | PacketFormat): void {
     this.formatOverride = format === 'auto' ? null : format
     this.currentFormat = null
-  }
-
-  private expectedSize(packetId: number, fmt: number): number | null {
-    const name = PACKET_ID_TO_NAME.get(packetId)
-    if (!name) return null
-    const sizes = (PACKET_SIZES as Record<string, Record<number, number>>)[name]
-    if (!sizes) return null
-    return sizes[fmt] ?? sizes[2025] ?? null
   }
 
   stop(): void {

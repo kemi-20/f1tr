@@ -1,4 +1,4 @@
-import { constants } from '@deltazeroproduction/f1-udp-parser'
+import { constants } from '@z0mt3c/f1-telemetry-client'
 import { UdpReceiver } from './UdpReceiver'
 import type { AnyParsedPacket } from './UdpReceiver'
 import { StateAggregator } from '../state/StateAggregator'
@@ -79,6 +79,7 @@ export class TelemetryService {
       this.checkFlashback(p)
     })
     this.receiver.on(P.carTelemetry, (p) => this.aggregator.onCarTelemetry(p))
+    this.receiver.on(P.carTelemetry2, (p) => this.aggregator.onCarTelemetry2(p))
     this.receiver.on(P.carStatus, (p) => this.aggregator.onCarStatus(p))
     this.receiver.on(P.carDamage, (p) => this.aggregator.onCarDamage(p))
     this.receiver.on(P.carSetups, (p) => this.aggregator.onCarSetup(p))

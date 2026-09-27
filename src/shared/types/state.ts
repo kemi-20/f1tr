@@ -83,6 +83,13 @@ export interface PlayerCarState {
   ersPercent: number // 0..1 deployment store
   drsActive: boolean
   drsAllowed: boolean
+  regulations2026: boolean
+  activeAeroMode: 'corner' | 'straight' | null
+  activeAeroAvailable: boolean
+  activeAeroActivationDistanceM: number
+  overtakeAvailable: boolean
+  overtakeActive: boolean
+  overtakeActivationDistanceM: number
   throttle: number
   brake: number
   revLightsPercent: number

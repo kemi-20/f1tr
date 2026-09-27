@@ -188,16 +188,15 @@ export class StateAggregator {
       if (trackLen > 0) {
         r.lapDistancePct = clamp01((d.m_lapDistance ?? 0) / Math.max(1, trackLen))
       }
-      // F1 25 (format 2024/2025) emits gap as TWO fields: m_deltaToCarInFrontMSPart + m_deltaToCarInFrontMinutesPart.
-      // The combined m_deltaToCarInFrontInMS only exists in the 2023 branch. Combine both defensively.
+      // Parser field names differ from the wire spec; combine the milliseconds and minutes.
       r.deltaToCarInFrontS = readGapS(d)
       r.deltaToCarBehindS = null
       r.pitStopCount = numOr(d.m_numPitStops, r.pitStopCount)
       r.pitStatus = numOr(d.m_pitStatus, r.pitStatus)
       // m_penalties is already in SECONDS (not ms) in the F1 spec — don't divide by 1000.
       r.penaltiesS = numOr(d.m_penalties, r.penaltiesS)
-      r.lastLapTimeS = msToS(d.m_lastLapTimeInMs)
-      r.currentLapTimeS = msToS(d.m_currentLapTimeInMs)
+      r.lastLapTimeS = msToS(d.m_lastLapTimeInMS)
+      r.currentLapTimeS = msToS(d.m_currentLapTimeInMS)
       r.gridPosition = numOr(d.m_gridPosition, r.gridPosition)
       r.resultStatus = numOr(d.m_resultStatus, r.resultStatus)
       r.status = rivalStatus(d.m_driverStatus, d.m_resultStatus)
@@ -233,8 +232,8 @@ export class StateAggregator {
       if (pldTrackLen > 0) {
         pl.lapDistancePct = clamp01((pld.m_lapDistance ?? 0) / Math.max(1, pldTrackLen))
       }
-      pl.currentLapTimeS = msToS(pld.m_currentLapTimeInMs)
-      pl.lastLapTimeS = msToS(pld.m_lastLapTimeInMs)
+      pl.currentLapTimeS = msToS(pld.m_currentLapTimeInMS)
+      pl.lastLapTimeS = msToS(pld.m_lastLapTimeInMS)
       pl.currentLapInvalid = pld.m_currentLapInvalid === 1
       pl.pitStatus = numOr(pld.m_pitStatus, pl.pitStatus)
       pl.pitTimerS = msToS(pld.m_pitStopTimerInMS)
@@ -305,7 +304,7 @@ export class StateAggregator {
     pl.throttle = t.m_throttle ?? pl.throttle
     pl.brake = t.m_brake ?? pl.brake
     pl.revLightsPercent = t.m_revLightsPercent ?? pl.revLightsPercent
-    pl.drsActive = ((t.m_drs ?? 0) & 2) !== 0
+    pl.drsActive = t.m_drs === 1
 
     const surf = (t.m_tyresSurfaceTemperature ?? []) as number[]
     const inner = (t.m_tyresInnerTemperature ?? []) as number[]
@@ -321,6 +320,20 @@ export class StateAggregator {
       const td = arr[tp.carIndex]
       if (td) tp.speedKmh = td.m_speed ?? tp.speedKmh
     }
+  }
+
+  onCarTelemetry2(p: AnyParsedPacket): void {
+    if (p.m_header.m_packetFormat !== 2026) return
+    const t = (p.m_carTelemetry2Data as AnyParsedPacket[] | undefined)?.[p.m_header.m_playerCarIndex]
+    if (!t) return
+    const pl = this.state.player
+    pl.regulations2026 = t.m_2026Regulations === 1
+    pl.activeAeroMode = t.m_activeAeroMode === 1 ? 'straight' : 'corner'
+    pl.activeAeroAvailable = t.m_activeAeroAvailable === 1
+    pl.activeAeroActivationDistanceM = t.m_activeAeroActivationDistance ?? 0
+    pl.overtakeAvailable = t.m_overtakeAvailable === 1
+    pl.overtakeActive = t.m_overtakeActive === 1
+    pl.overtakeActivationDistanceM = t.m_overtakeActivationDistance ?? 0
   }
 
   onMotion(p: AnyParsedPacket): void {
@@ -620,24 +633,12 @@ function msToS(ms: number | undefined | null): number | null {
   return ms / 1000
 }
 
-/**
- * Read the gap to the car in front as seconds.
- * F1 25 (format 2024/2025) splits it into m_deltaToCarInFrontMSPart (uint16) +
- * m_deltaToCarInFrontMinutesPart (uint8). The combined m_deltaToCarInFrontInMS
- * only exists in the 2023 branch. Read whichever is present (defensive across formats).
- */
+/** Read the split milliseconds/minutes gap under either parser's field names. */
 function readGapS(d: AnyParsedPacket): number | null {
-  // combined (2023) form
-  if (typeof d.m_deltaToCarInFrontInMS === 'number' && d.m_deltaToCarInFrontInMS > 0) {
-    return d.m_deltaToCarInFrontInMS / 1000
-  }
-  // split (2024/2025) form
-  const hasMinPart = typeof d.m_deltaToCarInFrontMinutesPart === 'number'
-  const hasMsPart = typeof d.m_deltaToCarInFrontMSPart === 'number'
-  if (!hasMinPart && !hasMsPart) return null
-  const minPart = hasMinPart ? d.m_deltaToCarInFrontMinutesPart : 0
-  const msPart = hasMsPart ? d.m_deltaToCarInFrontMSPart : 0
-  const totalMs = minPart * 60000 + msPart
+  const ms = d.m_deltaToCarInFrontInMS ?? d.m_deltaToCarInFrontMSPart
+  const minutes = d.m_deltaToCarInFrontMinutes ?? d.m_deltaToCarInFrontMinutesPart ?? 0
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || typeof minutes !== 'number' || !Number.isFinite(minutes)) return null
+  const totalMs = minutes * 60000 + ms
   return totalMs > 0 ? totalMs / 1000 : null
 }
 /** Convert a 0..100 percentage field (uint8 damage/wear) to 0..1, guarding NaN/undef. */

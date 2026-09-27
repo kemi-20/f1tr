@@ -46,7 +46,7 @@ export class DigestBuilder {
         engineTemp: p.engineTempC > 0 ? `${Math.round(p.engineTempC)}C` : '--',
         pits: p.pitStopCount,
         ers: fmtPct(p.ersPercent),
-        drs: raceSession && state.packetFormat === 2025
+        drs: raceSession && (state.packetFormat === 2025 || !p.regulations2026)
           ? drsBlockedByWeather
             ? 'disabled by rain/wet track'
             : p.drsActive
@@ -55,6 +55,9 @@ export class DigestBuilder {
                 ? 'available'
                 : 'no'
           : '',
+        aero: state.packetFormat === 2026 && p.regulations2026
+          ? `active aero ${p.activeAeroMode ?? 'unknown'} mode${p.activeAeroAvailable ? ' available' : ''}${p.activeAeroActivationDistanceM ? ` in ${p.activeAeroActivationDistanceM}m` : ''}; overtake ${p.overtakeActive ? 'active' : p.overtakeAvailable ? 'available' : 'unavailable'}${p.overtakeActivationDistanceM ? ` in ${p.overtakeActivationDistanceM}m` : ''}`
+          : undefined,
         position: {
           lapPct: Math.round(p.lapDistancePct * 100),
           sector: p.currentSector

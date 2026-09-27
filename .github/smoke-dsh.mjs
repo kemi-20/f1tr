@@ -1,10 +1,23 @@
 import { spawn } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 const runtime = resolve('resources/dsh-runtime')
+const patch = await readFile(join(runtime, 'race-engineer.cordis.patch.yml'), 'utf8')
+if (!patch.includes('personaPrefix: !!js process.env.F1TR_PERSONA ??') ||
+    !patch.includes('You are an original F1 race engineer supporting a driver, not a real team employee.')) {
+  throw new Error('Private DSH runtime is missing its F1 race engineer persona fallback')
+}
+for (const capability of ['sandbox', 'sandbox-policy', 'subprocess', 'pty', 'terminal-bash', 'terminal-pwsh',
+  'persistent-bash', 'persistent-pwsh', 'jobs', 'mcp-resources', 'sessions']) {
+  const lines = patch.split(/\r?\n/)
+  const row = lines.indexOf(`- id: ${capability}`)
+  if (row < 0 || lines[row + 1] !== '  disabled: true') {
+    throw new Error(`Private DSH runtime unexpectedly enables ${capability}`)
+  }
+}
 const home = await mkdtemp(join(tmpdir(), 'f1tr-dsh-ci-'))
 const child = spawn(process.execPath, [
   join(runtime, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
