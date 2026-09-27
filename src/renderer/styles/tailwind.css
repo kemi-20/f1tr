@@ -423,6 +423,8 @@ body {
 }
 
 .car-graphic {
+  min-height: 0;
+  min-width: 0;
   grid-column: 2;
   grid-row: 1 / span 2;
   align-self: stretch;
@@ -431,6 +433,8 @@ body {
 }
 
 .car-graphic svg {
+  height: 100%;
+  object-fit: contain;
   max-height: 100%;
   width: min(168px, 100%);
   filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.42));
@@ -442,20 +446,19 @@ body {
 }
 
 .origin-style-car {
-  overflow: visible;
+  overflow: hidden;
 }
 
 .origin-style-car .body-shell {
-  fill: url('#carBody');
+  fill: #28323b;
   stroke: rgba(255, 255, 255, 0.36);
   stroke-width: 1.2;
 }
 
 .origin-style-car .nose-highlight {
-  fill: url('#carSpine');
+  fill: #44515e;
   stroke: rgba(255, 255, 255, 0.22);
   stroke-width: 1;
-  filter: url('#carGlow');
 }
 
 .origin-style-car .front-wing-main,
@@ -480,15 +483,15 @@ body {
 }
 
 .origin-style-car .sidepod {
-  fill: rgba(255, 255, 255, 0.06);
+  fill: #34414a;
   stroke: rgba(255, 255, 255, 0.2);
   stroke-width: 1;
 }
 
 .origin-style-car .halo {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.24);
-  stroke-width: 1.4;
+  stroke: #b8c3cc;
+  stroke-width: 4;
 }
 
 .origin-style-car .cockpit {
@@ -519,9 +522,8 @@ body {
 
 .origin-style-car .suspension {
   fill: none;
-  stroke-width: 3;
+  stroke-width: 1.7;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 4px currentColor);
 }
 
 .origin-style-car .suspension-fl { stroke: var(--brake-fl); color: var(--brake-fl); }
@@ -533,7 +535,6 @@ body {
   stroke: currentColor;
   stroke-width: 3;
   fill: rgba(0, 0, 0, 0.28);
-  filter: drop-shadow(0 0 5px currentColor);
 }
 
 .origin-style-car .temp-wheel .tyre-inner-band {
@@ -575,7 +576,6 @@ body {
   fill: var(--engine-temp);
   stroke: rgba(255, 255, 255, 0.3);
   stroke-width: 1.1;
-  filter: drop-shadow(0 0 7px var(--engine-temp));
 }
 
 .origin-style-car .engine-core path:last-child {
@@ -592,6 +592,11 @@ body {
   stroke: rgba(0, 0, 0, 0.75);
   stroke-width: 3px;
 }
+
+.origin-style-car .car-intake { fill: #080d11; stroke: #61717e; stroke-width: 1; }
+.origin-style-car .driver-helmet { fill: #81919e; stroke: #dce3e8; stroke-width: 1; }
+.origin-style-car .mirror-arm { fill: none; stroke: #8595a0; stroke-width: 2; }
+.origin-style-car .engine-caption { fill: #9caebd; font: 10px sans-serif; letter-spacing: 0; }
 
 .tyre-map-corner {
   color: rgba(255, 255, 255, 0.72);

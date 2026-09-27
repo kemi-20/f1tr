@@ -1,0 +1,54 @@
+# The SDK-minimal bundle includes coding capabilities. Disable them for this app.
+- id: sandbox
+  disabled: true
+- id: sandbox-policy
+  disabled: true
+- id: subprocess
+  disabled: true
+- id: pty
+  disabled: true
+- id: terminal-bash
+  disabled: true
+- id: terminal-pwsh
+  disabled: true
+- id: persistent-bash
+  disabled: true
+- id: persistent-pwsh
+  disabled: true
+- id: jobs
+  disabled: true
+- id: mcp-resources
+  disabled: true
+- id: session-title
+  disabled: true
+- id: llm-deepseek
+  disabled: true
+# These three rows add metadata only to official DeepSeek API requests.
+- id: deepseek-llm-api-extensions
+  disabled: true
+- id: session-log-deepseek
+  disabled: true
+- id: plugin-package-inventory-deepseek
+  disabled: true
+- id: sessions
+  disabled: true
+- id: system-prompt
+  config:
+    includeHarnessIdentity: false
+    includeRuntimeContext: false
+    personaPrefix: !!js process.env.F1TR_PERSONA ?? ''
+- insert:
+    - id: race-llm
+      name: '@deepseek-ai/dsh-llm-pi-ai'
+      config:
+        providers:
+          race-gateway:
+            apiKeyEnv: F1TR_MODEL_KEY
+            api: openai-completions
+            baseURL: !!js process.env.F1TR_MODEL_URL
+            models:
+              - id: !!js process.env.F1TR_MODEL_NAME
+                name: Race Engineer Model
+                contextWindow: 131072
+    - id: race-tools
+      name: ./plugin/index.mjs

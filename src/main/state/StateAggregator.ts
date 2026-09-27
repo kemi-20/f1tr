@@ -235,6 +235,7 @@ export class StateAggregator {
       }
       pl.currentLapTimeS = msToS(pld.m_currentLapTimeInMs)
       pl.lastLapTimeS = msToS(pld.m_lastLapTimeInMs)
+      pl.currentLapInvalid = pld.m_currentLapInvalid === 1
       pl.pitStatus = numOr(pld.m_pitStatus, pl.pitStatus)
       pl.pitTimerS = msToS(pld.m_pitStopTimerInMS)
       pl.pitStopCount = numOr(pld.m_numPitStops, pl.pitStopCount)

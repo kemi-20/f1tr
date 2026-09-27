@@ -25,11 +25,18 @@ export class MiMoAsrClient {
 
   async transcribe(base64Audio: string, format: string): Promise<string> {
     if (!this.ready) throw new Error('MiMo ASR not configured (missing baseURL/apiKey)')
+    if (format !== 'mp3' || typeof base64Audio !== 'string' || base64Audio.length === 0 ||
+        base64Audio.length > 13_981_016 || base64Audio.length % 4 !== 0 ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(base64Audio)) {
+      throw new Error('Invalid MP3 audio input')
+    }
+    const header = Buffer.from(base64Audio.slice(0, 8), 'base64')
+    const hasId3 = header.length >= 3 && header[0] === 0x49 && header[1] === 0x44 && header[2] === 0x33
+    const hasFrame = header.length >= 2 && header[0] === 0xff && (header[1] & 0xe0) === 0xe0
+    if (!hasId3 && !hasFrame) throw new Error('Invalid MP3 audio input')
 
     const url = this.config.baseURL.replace(/\/+$/, '') + '/chat/completions'
-    // MiMo ASR: data:{MIME_TYPE};base64,$BASE64_AUDIO
-    const mimeType = format === 'mp3' ? 'audio/mpeg' : `audio/${format}`
-    const dataUrl = `data:${mimeType};base64,${base64Audio}`
+    const dataUrl = `data:audio/mpeg;base64,${base64Audio}`
     const body = {
       model: this.config.model,
       messages: [
@@ -59,17 +66,15 @@ export class MiMoAsrClient {
 
       if (!res.ok) {
         const status = res.status
-        const errText = await res.text().catch(() => '')
-        logger.error(`MiMo ASR HTTP ${status}: ${errText.slice(0, 500)}`)
-        throw new Error(`MiMo ASR HTTP ${status}: ${errText.slice(0, 200)}`)
+        throw new Error(`MiMo ASR HTTP ${status}`)
       }
 
       const json = (await res.json()) as { text?: string; choices?: Array<{ message?: { content?: string } }> }
       logger.info(`MiMo ASR response keys: ${Object.keys(json).join(',')}`)
       // Response may be { text: "..." } or { choices: [{ message: { content: "..." } }] }
       const text = json.text ?? json.choices?.[0]?.message?.content ?? ''
-      if (!text) throw new Error('MiMo ASR returned empty transcription')
-      logger.info(`MiMo ASR: transcribed ${text.length} chars: ${text.slice(0, 80)}`)
+      if (typeof text !== 'string' || !text.trim() || text.length > 4096) throw new Error('MiMo ASR returned invalid transcription')
+      logger.info(`MiMo ASR: transcribed ${text.length} chars`)
       return text
     } catch (err) {
       logger.error('MiMo ASR failed:', (err as Error)?.message ?? err)

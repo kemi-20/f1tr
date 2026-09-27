@@ -73,6 +73,7 @@ export interface PlayerCarState {
   currentSector: number // m_sector from LapData: 0=sector1, 1=sector2, 2=sector3
   onTrack: boolean
   currentLapTimeS: number | null
+  currentLapInvalid?: boolean
   lastLapTimeS: number | null
   bestLapTimeS: number | null
   speedKmh: number

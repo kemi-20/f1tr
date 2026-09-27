@@ -21,7 +21,7 @@ export class MiMoVisionClient {
     return !!this.config.baseURL && !!this.config.apiKey
   }
 
-  async describeImage(base64Png: string): Promise<string> {
+  async describeImage(base64Png: string, signal?: AbortSignal): Promise<string> {
     if (!this.ready) throw new Error('MiMo vision not configured (missing baseURL/apiKey)')
 
     const url = this.config.baseURL.replace(/\/+$/, '') + '/chat/completions'
@@ -33,7 +33,7 @@ export class MiMoVisionClient {
           content: [
             {
               type: 'text',
-              text: '这是一张F1 25游戏截图。请详细描述画面内容，包括：赛道名称和位置、当前排名和圈数、轮胎状态、天气条件、HUD显示的所有信息、车手在赛道上的位置、以及任何策略相关细节。'
+              text: '这是一张 F1 25 或 F1 26 游戏截图。请描述画面中能直接确认的赛道、排名、圈数、轮胎、天气、旗语和策略信息；看不清的内容不要猜测。'
             },
             {
               type: 'image_url',
@@ -53,19 +53,19 @@ export class MiMoVisionClient {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.config.apiKey}`
         },
+        signal,
         body: JSON.stringify(body)
       })
 
       if (!res.ok) {
-        const errText = await res.text().catch(() => '')
-        throw new Error(`MiMo vision HTTP ${res.status}: ${errText.slice(0, 200)}`)
+        throw new Error(`MiMo vision HTTP ${res.status}`)
       }
 
       const json = (await res.json()) as {
         choices?: Array<{ message?: { content?: string } }>
       }
       const description = json.choices?.[0]?.message?.content ?? ''
-      if (!description) throw new Error('MiMo vision returned empty description')
+      if (typeof description !== 'string' || !description.trim() || description.length > 20_000) throw new Error('MiMo vision returned invalid description')
       logger.info(`MiMo vision: described image (${description.length} chars)`)
       return description
     } catch (err) {

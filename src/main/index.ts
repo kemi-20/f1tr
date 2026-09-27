@@ -92,8 +92,11 @@ app.whenReady().then(() => {
   setAudio(audio)
   setTtsClient(null)
   engineer.setSpeakHandler((text, firing, voice, direction) => {
+    const audioSettings = ConfigStore.getAll().audio
+    if (audioSettings.muted || audioSettings.pause) return
     audio!.enqueue(text, firing.priority, voice, direction)
   })
+  engineer.setInterruptHandler(() => audio?.cancelAll())
   engineer.setLanguage(cfg.language.mode)
   engineer.setVoice(cfg.language.voice, cfg.language.direction)
   engineer.setEngineerStyle(cfg.language.engineerStyle)
@@ -111,6 +114,11 @@ app.whenReady().then(() => {
     }
   )
   setTelemetry(telemetry)
+  telemetry.onDecoded = (id, packet) => engineer!.telemetryHistory.recordPacket(id, packet)
+  telemetry.onObservation = (state) => {
+    engineer!.analysis.observe(state)
+    engineer!.telemetryHistory.observe(state)
+  }
   telemetry.start()
   registerHotkey(cfg.hotkeys.pushToTalk)
 
@@ -151,6 +159,7 @@ app.on('window-all-closed', () => {
 })
 
   app.on('before-quit', () => {
+    engineer?.cancel()
     telemetry?.stop()
     unregisterHotkey()
   })

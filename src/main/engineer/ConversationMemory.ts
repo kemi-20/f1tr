@@ -58,6 +58,7 @@ export class ConversationMemory {
   primeIfNeeded(state: RaceState): boolean {
     const uid = state.session.sessionUID
     if (this.primeText && this.primeSessionUID === uid) return false
+    this.recentTurns = []
     this.primeText = this.primeBuilder.build(state)
     this.primeSessionUID = uid
     logger.info(`session prime built for ${state.session.trackName || 'session'} (${uid || 'n/a'})`)
@@ -74,7 +75,8 @@ export class ConversationMemory {
 
   /** Record a completed user→assistant turn into the rolling window. */
   pushTurn(userDigest: string, assistantReply: string): void {
-    this.recentTurns.push({ user: userDigest, assistant: assistantReply })
+    const compact = userDigest.split('<telemetry_history_data>')[0].trim()
+    this.recentTurns.push({ user: compact, assistant: assistantReply })
     if (this.recentTurns.length > this.maxTurns) {
       this.recentTurns = this.maxTurns === 0 ? [] : this.recentTurns.slice(-this.maxTurns)
     }

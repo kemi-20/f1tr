@@ -1,0 +1,17 @@
+{
+  "name": "@f1tr/dsh-f1-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Bounded F1 telemetry and radio/screenshot Cordis tools for DSH.",
+  "main": "./index.mjs",
+  "exports": "./index.mjs",
+  "files": [
+    "index.mjs",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "0.1.7-rc.2"
+  }
+}

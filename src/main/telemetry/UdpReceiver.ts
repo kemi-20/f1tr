@@ -43,6 +43,7 @@ export class UdpReceiver {
   public packetsDropped = 0
   public lastPacketMs = 0
   public currentFormat: PacketFormat | null = null
+  onDecoded: (id: number, packet: AnyParsedPacket) => void = () => {}
   private formatOverride: PacketFormat | null = null
 
   constructor(private port = 20777, formatOverride: 'auto' | PacketFormat = 'auto') {
@@ -113,6 +114,7 @@ export class UdpReceiver {
       this.record(packetId, effectiveFmt)
       const cb = this.handlers.get(packetID)
       if (cb) cb(data)
+      this.onDecoded(packetId, data)
     } catch (err) {
       this.packetsDropped++
       logger.warn(`UDP packet dropped (id=${packetId} fmt=${fmt}, len=${msg.length}):`, (err as Error)?.message ?? err)

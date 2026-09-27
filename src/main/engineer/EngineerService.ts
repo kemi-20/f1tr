@@ -1,7 +1,8 @@
 import { nanoid } from 'nanoid'
 import { Sender } from '../ipc/sender'
 import { DigestBuilder } from './DigestBuilder'
-import { StubAdvice } from './StubAdvice'
+import { RaceAnalysis } from './RaceAnalysis'
+import { TelemetryHistory } from './TelemetryHistory'
 import { ConversationMemory } from './ConversationMemory'
 import { getEngineerSkill } from './EngineerSkillLibrary'
 import type { TriggerFiring } from '@shared/types/triggers'
@@ -18,15 +19,19 @@ import { logger } from '../logging/Logger'
  */
 export class EngineerService {
   private digestBuilder = new DigestBuilder()
-  private stub = new StubAdvice()
+  readonly analysis = new RaceAnalysis()
+  readonly telemetryHistory = new TelemetryHistory()
   private llm: EngineerBackend | null = null
   readonly memory = new ConversationMemory()
   private language: LanguageMode = 'zh'
   private voice = '冰糖'
   private direction = '冷静果断的 F1 赛车工程师语气'
   private inFlight: Promise<void> | null = null
+  private activePriority: TriggerFiring['priority'] | null = null
   private pending: { state: RaceState; firing: TriggerFiring; audioBase64?: string } | null = null
   private onSpeak: (text: string, firing: TriggerFiring, voice: string, direction: string) => void = () => {}
+  private onInterrupt: () => void = () => {}
+  private lastToolRadio = ''
   private idleTimer: NodeJS.Timeout | null = null
 
   /** P3 injects the real LLM backend here; null = stub mode. */
@@ -59,6 +64,18 @@ export class EngineerService {
     this.onSpeak = cb
   }
 
+  setInterruptHandler(cb: () => void): void { this.onInterrupt = cb }
+
+  /** The DSH radio tool is the sole speech entry point. */
+  acceptRadio(text: string, firing: TriggerFiring): void {
+    this.lastToolRadio = text
+    Sender.send('engineer:advice', {
+      id: nanoid(10), text, firing: { code: firing.reasonCode, priority: firing.priority }, ts: Date.now()
+    })
+    Sender.send('engineer:status', { status: 'speaking' })
+    this.onSpeak(text, firing, this.voice, this.direction)
+  }
+
   get currentLanguage(): LanguageMode {
     return this.language
   }
@@ -73,6 +90,11 @@ export class EngineerService {
     if (!this.inFlight) {
       void this.run(state, firing, audioBase64)
     } else {
+      if (firing.reasonCode === 'manual' || firing.priority === 'critical' ||
+          (firing.priority === 'high' && this.activePriority !== 'critical' && this.activePriority !== 'high')) {
+        this.llm?.cancel?.()
+        this.onInterrupt()
+      }
       // only replace pending if the new firing is higher-or-equal priority
       if (this.pending && !this.priorityGte(firing.priority, this.pending.firing.priority)) {
         return // existing pending is higher priority — keep it
@@ -87,11 +109,13 @@ export class EngineerService {
   }
 
   private async run(state: RaceState, firing: TriggerFiring, audioBase64?: string): Promise<void> {
+    this.activePriority = firing.priority
     this.inFlight = this.advise(state, firing, undefined, audioBase64)
     try {
       await this.inFlight
     } finally {
       this.inFlight = null
+      this.activePriority = null
       if (this.pending) {
         const next = this.pending
         this.pending = null
@@ -107,6 +131,7 @@ export class EngineerService {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const llm = this.llm as any
     llm?.cancel?.()
+    this.onInterrupt()
   }
 
   /** Clear the idle-settle timer to prevent a stale 'idle' status firing during a new request. */
@@ -128,9 +153,11 @@ export class EngineerService {
    * Throws on cancel/abort (caught by run()); never commits a truncated message.
    */
   async advise(state: RaceState, firing: TriggerFiring, manualPrompt?: string, audioBase64?: string): Promise<void> {
+    this.lastToolRadio = ''
     const id = nanoid(10)
     const digest = this.digestBuilder.build(state, firing)
-    const digestText = this.digestBuilder.toText(digest)
+    const digestText = this.digestBuilder.toText(digest) + '\n' + this.analysis.report(state) +
+      '\nTELEMETRY TOOLS inventory: ' + this.telemetryHistory.inventory()
 
     // ensure the session prime (cached baseline) is built / current before any LLM call
     this.memory.primeIfNeeded(state)
@@ -144,19 +171,15 @@ export class EngineerService {
     try {
       const rawText = this.llm
         ? await this.llm.generate(digest, digestText, firing, manualPrompt, emitDelta, audioBase64)
-        : this.simulateStream(this.stub.generate(digest), emitDelta)
+        : this.simulateStream(firing.reasonCode === 'manual'
+          ? this.language === 'en' ? '【NOW】AI engineer is not connected. Configure and test the model connection before requesting analysis.'
+            : '【NOW】AI 工程师尚未连接，请在设置中配置并测试模型连接，当前无法进行比赛分析。'
+          : '【HOLD】', emitDelta)
       const text = cleanAutoTriggerAcknowledgement(rawText, firing)
 
-      // Parse 【NOW】/【HOLD】 prefix: AI judges speak-immediately vs hold-for-straight
-      const isNow = /^【NOW】/i.test(text)
-      const isHold = /^【HOLD】/i.test(text)
       const cleanText = text.replace(/^【(NOW|HOLD)】/i, '').trim()
-      const isManual = firing.reasonCode === 'manual'
-      // Driver ASK is an explicit radio call, so always speak the answer.
-      // Auto triggers still let the model choose NOW vs HOLD.
-      const shouldSpeak = isManual || isNow || (!isHold && firing.priority === 'critical')
       // Skip sending empty advice (e.g. model returned only a tool call with no text)
-      if (!cleanText) {
+      if (!cleanText || cleanText === this.lastToolRadio) {
         Sender.send('engineer:status', { status: 'idle' })
         this.clearIdleTimer()
         return
@@ -168,9 +191,8 @@ export class EngineerService {
         firing: { code: firing.reasonCode, priority: firing.priority },
         ts: Date.now()
       })
-      Sender.send('engineer:status', { status: shouldSpeak ? 'speaking' : 'idle' })
-      logger.info(`engineer advice [${firing.reasonCode}] speak=${shouldSpeak}: ${cleanText.slice(0, 80)}`)
-      if (cleanText && shouldSpeak) this.onSpeak(cleanText, firing, this.voice, this.direction)
+      Sender.send('engineer:status', { status: 'idle' })
+      logger.info(`engineer advice [${firing.reasonCode}]: ${cleanText.slice(0, 80)}`)
       // settle to idle after the (approx) speaking window; clear any previous timer first
       this.clearIdleTimer()
       this.idleTimer = setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 6000)
@@ -201,6 +223,7 @@ export class EngineerService {
 
 /** Backend interface — stub implements it inline, LlmClient implements it in P3. */
 export interface EngineerBackend {
+  cancel?(): void
   generate(
     digest: ReturnType<DigestBuilder['build']>,
     digestText: string,

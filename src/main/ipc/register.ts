@@ -59,10 +59,10 @@ export function registerIpc(): void {
 
   ipcMain.handle('config:test:llm', async () => {
     const client = getLlm()
-    if (!client) return { ok: false, message: 'No AI_API_BASE_URL/AI_API_KEY in .env (stub advice active).' }
+    if (!client) return { ok: false, message: 'Model URL, model ID, or API key is missing or invalid.' }
     try {
       const ok = await client.ping()
-      return { ok, message: ok ? 'LLM reachable.' : 'LLM responded but no content.' }
+      return { ok, message: ok ? 'Private DSH runtime ready.' : 'Private DSH runtime could not start.' }
     } catch (err) {
       return { ok: false, message: `LLM error: ${(err as Error)?.message ?? err}` }
     }
@@ -98,6 +98,7 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle('engineer:request', async (_e, text?: string) => {
+    if (text !== undefined && (typeof text !== 'string' || text.length > 1024)) return
     const svc = getTelemetry()
     const eng = getEngineer()
     if (!svc || !eng) {
@@ -120,15 +121,7 @@ export function registerIpc(): void {
     const eng = getEngineer()
     if (!svc || !eng) return { ok: false, message: 'Engineer service not ready.' }
     const state = svc.aggregator.getState()
-    const cfg = ConfigStore.getAll()
-
-    // If the default model supports audio input, send the audio directly to it
-    if (cfg.llm.audioSupported) {
-      eng.enqueue(state, manualFiring('Voice message from driver'), base64Audio)
-      return { ok: true, text: '(audio sent to LLM)' }
-    }
-
-    // Otherwise, transcribe via MiMo ASR first
+    // DSH SDK accepts text and images; transcribe driver audio before admission.
     const asr = getAsrClient()
     if (!asr) return { ok: false, message: 'MiMo ASR not configured (check TTS base URL / API key).' }
     try {

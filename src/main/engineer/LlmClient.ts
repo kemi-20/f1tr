@@ -7,6 +7,8 @@ import type { ConversationMemory } from './ConversationMemory'
 import type { MiMoVisionClient } from './MiMoVisionClient'
 import { captureF1Screenshot } from '../screenshot/ScreenshotService'
 import { logger } from '../logging/Logger'
+import type { TelemetryHistory } from './TelemetryHistory'
+import { TELEMETRY_TOOLS, executeTelemetryTool } from './TelemetryHarness'
 
 export interface LlmConfig {
   baseURL: string // e.g. https://api.deepseek.com/v1
@@ -34,7 +36,8 @@ export class LlmClient implements EngineerBackend {
   constructor(
     private config: LlmConfig,
     private memory: ConversationMemory,
-    private visionClient: MiMoVisionClient | null = null
+    private visionClient: MiMoVisionClient | null = null,
+    private telemetryHistory?: TelemetryHistory
   ) {
     this.rebuildClient()
   }
@@ -123,7 +126,7 @@ export class LlmClient implements EngineerBackend {
         description: 'Capture a screenshot of the F1 25 game window. Use this when you need visual context beyond telemetry data (e.g., to see track position, weather effects, on-screen HUD, or damage details).',
         parameters: { type: 'object' as const, properties: {}, required: [] as string[] }
       }
-    }]
+    }, ...TELEMETRY_TOOLS]
 
     let finalText = ''
     const maxToolRounds = 3
@@ -170,6 +173,7 @@ export class LlmClient implements EngineerBackend {
                 if (tc.id) ex.id = tc.id
                 if (tc.function?.name) ex.name = tc.function.name
                 if (tc.function?.arguments) ex.arguments += tc.function.arguments
+                if (toolCallAcc.size > 4 || ex.arguments.length > 2048) throw new Error('Tool request limit exceeded')
               }
             }
             if (part.choices[0]?.finish_reason) finishReason = part.choices[0].finish_reason as string
@@ -196,6 +200,9 @@ export class LlmClient implements EngineerBackend {
             if (tc.name === 'capture_screenshot') {
               const toolResult = await this.executeScreenshotTool()
               messages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult } as ChatCompletionMessageParam)
+            } else if (TELEMETRY_TOOLS.some(t => t.function.name === tc.name)) {
+              const result = this.telemetryHistory ? executeTelemetryTool(this.telemetryHistory, tc.name, tc.arguments) : 'History unavailable'
+              messages.push({ role: 'tool', tool_call_id: tc.id, content: result })
             } else {
               // Unknown tool — must still return a tool result or the API will 400
               messages.push({ role: 'tool', tool_call_id: tc.id, content: `Unknown tool: ${tc.name}` } as ChatCompletionMessageParam)

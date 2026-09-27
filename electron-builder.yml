@@ -8,10 +8,17 @@ directories:
   output: release/${version}
 files:
   - out/**/*
-  - resources/**/*
   - package.json
   - "!**/*.{map,ts}"
 asar: true
+extraResources:
+  - from: resources/dsh-runtime
+    to: dsh-runtime
+    filter:
+      - '**/*'
+      - '!node.exe'
+  - from: resources/dsh-runtime/node.exe
+    to: dsh-runtime/node.exe
 win:
   target:
     - target: nsis

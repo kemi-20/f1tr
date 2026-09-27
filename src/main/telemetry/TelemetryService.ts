@@ -1,11 +1,13 @@
 import { constants } from '@deltazeroproduction/f1-udp-parser'
 import { UdpReceiver } from './UdpReceiver'
+import type { AnyParsedPacket } from './UdpReceiver'
 import { StateAggregator } from '../state/StateAggregator'
 import { SnapshotEmitter } from '../state/SnapshotEmitter'
 import { TriggerEngine } from '../triggers/TriggerEngine'
 import { Sender } from '../ipc/sender'
 import { logger } from '../logging/Logger'
 import type { PacketFormat, TriggerConfig, TriggerFiring, RecentEvent } from '@shared/index'
+import type { RaceState } from '@shared/types/state'
 
 const { PACKETS } = constants
 
@@ -29,6 +31,8 @@ export class TelemetryService {
   private udpStale = false
   private onUdpStale?: () => void
   private onUdpResume?: () => void
+  onObservation: (state: RaceState) => void = () => {}
+  onDecoded: (id: number, packet: AnyParsedPacket) => void = () => {}
   private readonly STALE_MS = 120_000 // 2 minutes
 
   constructor(
@@ -40,6 +44,7 @@ export class TelemetryService {
   ) {
     this.aggregator = new StateAggregator()
     this.receiver = new UdpReceiver(port, formatOverride)
+    this.receiver.onDecoded = (id, packet) => this.onDecoded(id, packet)
     this.triggers = new TriggerEngine(triggerConfig, onFiring)
     this.emitter = new SnapshotEmitter(
       this.aggregator,
@@ -132,6 +137,8 @@ export class TelemetryService {
     if (this.udpStale) return // skip trigger evaluation while stale
 
     this.aggregator.setFlashbackActive(this.triggers.isFlashbackActive())
+    this.onObservation(state)
+    if (!lastPacket || now - lastPacket > 5000) return
     this.triggers.evaluate(state)
     this.drainEvents()
   }

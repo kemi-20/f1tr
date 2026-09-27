@@ -48,7 +48,6 @@ export function TyreGrid(): React.ReactElement {
           <DamageLine label="FR WING" value={dmg?.frontRightWing ?? 0} />
           <DamageLine label="REAR WING" value={dmg?.rearWing ?? 0} />
           <DamageLine label="FLOOR" value={dmg?.floor ?? 0} />
-          <DamageLine label="DIFFUSER" value={Math.max(dmg?.floor ?? 0, dmg?.rearWing ?? 0) * 0.72} />
           <DamageLine label="SIDEPOD" value={Math.max(dmg?.sidepodL ?? 0, dmg?.sidepodR ?? 0)} />
         </div>
       </div>
@@ -119,68 +118,61 @@ function CarSilhouette(): React.ReactElement {
   } as CSSProperties
 
   return (
-    <svg className="origin-style-car" style={carStyle} viewBox="0 0 180 320" role="img">
-      <defs>
-        <linearGradient id="carBody" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#e7edf4" stopOpacity="0.28" />
-          <stop offset="0.5" stopColor="#56616d" stopOpacity="0.13" />
-          <stop offset="1" stopColor="#e7edf4" stopOpacity="0.22" />
-        </linearGradient>
-        <linearGradient id="carSpine" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.35" />
-          <stop offset="0.45" stopColor="#ffffff" stopOpacity="0.08" />
-          <stop offset="1" stopColor="#ffffff" stopOpacity="0.28" />
-        </linearGradient>
-        <filter id="carGlow" x="-40%" y="-20%" width="180%" height="140%">
-          <feGaussianBlur stdDeviation="2.2" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
+    <svg className="origin-style-car" style={carStyle} viewBox="0 0 220 580" role="img" aria-label="F1 car thermal map">
+      <title>Tyre surface, core, brake and engine temperatures</title>
+      <g strokeLinejoin="round">
+        {/* Multi-element front wing and curved endplates. */}
+        <path className="front-wing-main" d="M18 26 Q64 17 97 28 H123 Q156 17 202 26 L199 67 Q161 71 128 56 H92 Q59 71 21 67 Z" />
+        <path className="front-wing-flap" d="M23 37 Q60 29 94 39 M126 39 Q160 29 197 37 M23 48 Q58 42 94 49 M126 49 Q162 42 197 48 M25 60 Q60 55 91 56 M129 56 Q160 55 195 60" />
+        <path className="wing-endplate" d="M14 23 H21 L25 70 H18 Z M199 23 H206 L202 70 H195 Z" />
 
-      <g opacity="0.98">
-        <ellipse className="car-shadow" cx="90" cy="169" rx="48" ry="135" />
+        {/* Floor edge, venturi entrances and diffuser remain distinct from bodywork. */}
+        <path className="floor-plate" d="M81 191 L58 218 L48 259 L46 411 L66 457 L83 496 H137 L154 457 L174 411 L172 259 L162 218 L139 191 Z" />
+        <path className="floor-outline" d="M63 227 L54 267 L53 402 L72 449 M157 227 L166 267 L167 402 L148 449 M67 234 L62 270 M76 225 L71 264 M144 225 L149 264 M153 234 L158 270" />
+        <path className="floor-plate" d="M75 469 H145 L155 520 H65 Z" />
+        <path className="vent-lines" d="M79 480 L75 518 M94 480 L92 518 M110 481 V520 M126 480 L128 518 M141 480 L145 518" />
 
-        <path className="front-wing-main" d="M31 18 L90 34 L149 18 L149 62 C126 54 108 52 90 52 C72 52 54 54 31 62 Z" />
-        <path className="front-wing-flap" d="M39 29 L90 43 L141 29 M42 47 C66 40 114 40 138 47" />
-        <rect className="wing-endplate" x="20" y="12" width="8" height="55" rx="2" />
-        <rect className="wing-endplate" x="152" y="12" width="8" height="55" rx="2" />
+        {/* Double wishbones: inboard junctions, outboard brake temperature. */}
+        <path className="suspension suspension-fl" d="M48 139 L96 119 M48 144 L95 185 M48 148 L97 155" />
+        <path className="suspension suspension-fr" d="M172 139 L124 119 M172 144 L125 185 M172 148 L123 155" />
+        <path className="suspension suspension-rl" d="M48 462 L96 425 M48 468 L99 493 M48 465 L98 457" />
+        <path className="suspension suspension-rr" d="M172 462 L124 425 M172 468 L121 493 M172 465 L122 457" />
 
-        <path className="rear-wing-main" d="M35 273 H145 L154 306 H26 Z" />
-        <path className="rear-wing-flap" d="M45 283 H135 M50 294 H130" />
-        <rect className="wing-endplate" x="22" y="265" width="11" height="45" rx="2" />
-        <rect className="wing-endplate" x="147" y="265" width="11" height="45" rx="2" />
+        <path className="body-shell" d="M104 30 Q110 25 116 30 L122 114 L133 176 L138 219 L132 252 L127 283 L127 339 L137 397 L124 449 L119 501 H101 L96 449 L83 397 L93 339 V283 L88 252 L82 219 L87 176 L98 114 Z" />
+        <path className="nose-highlight" d="M105 37 H115 L118 112 L124 166 Q110 158 96 166 L102 112 Z" />
+        <path className="center-stripe" d="M110 38 V180 M110 283 V318 M110 398 V498" />
+        <path className="sidepod" d="M88 248 Q65 241 58 266 Q55 316 64 354 Q72 384 92 405 L99 384 L95 308 Z M132 248 Q155 241 162 266 Q165 316 156 354 Q148 384 128 405 L121 384 L125 308 Z" />
+        <path className="car-intake" d="M60 263 Q71 251 89 257 L91 271 Q72 267 60 278 Z M160 263 Q149 251 131 257 L129 271 Q148 267 160 278 Z" />
+        <path className="floor-outline" d="M62 290 Q63 347 88 384 M158 290 Q157 347 132 384" />
+        <path className="vent-lines" d="M69 303 L85 307 M70 313 L86 317 M71 323 L87 327 M73 333 L88 337 M151 303 L135 307 M150 313 L134 317 M149 323 L133 327 M147 333 L132 337" />
 
-        <TemperatureWheel corner="fl" x={16} y={78} />
-        <TemperatureWheel corner="fr" x={140} y={78} />
-        <TemperatureWheel corner="rl" x={16} y={216} />
-        <TemperatureWheel corner="rr" x={140} y={216} />
+        {/* Recessed cockpit, helmet, halo arch and centre pillar. */}
+        <path className="cockpit" d="M94 198 Q110 187 126 198 L127 235 Q125 259 110 266 Q95 259 93 235 Z" />
+        <ellipse className="driver-helmet" cx="110" cy="238" rx="9" ry="12" />
+        <path className="halo" d="M87 231 L86 209 Q86 186 110 186 Q134 186 134 209 L133 231 M110 188 V216" />
+        <path className="car-intake" d="M102 276 Q110 263 118 276 L116 289 H104 Z" />
+        <path className="mirror-arm" d="M86 225 L66 218 M134 225 L154 218" />
+        <rect className="wing-endplate" x="53" y="208" width="18" height="10" rx="3" />
+        <rect className="wing-endplate" x="149" y="208" width="18" height="10" rx="3" />
 
-        <path className="suspension suspension-fl" d="M43 99 L75 113 M43 127 L76 136 M46 112 H75" />
-        <path className="suspension suspension-fr" d="M137 99 L105 113 M137 127 L104 136 M134 112 H105" />
-        <path className="suspension suspension-rl" d="M43 237 L75 220 M43 263 L75 241 M46 250 H73" />
-        <path className="suspension suspension-rr" d="M137 237 L105 220 M137 263 L105 241 M134 250 H107" />
-
-        <path className="floor-plate" d="M66 76 H114 L128 264 L90 296 L52 264 Z" />
-        <path className="floor-outline" d="M60 92 C46 139 46 216 61 262 M120 92 C134 139 134 216 119 262" />
-        <path className="sidepod sidepod-left" d="M73 114 L55 139 L60 216 L76 238 C67 194 66 151 73 114 Z" />
-        <path className="sidepod sidepod-right" d="M107 114 L125 139 L120 216 L104 238 C113 194 114 151 107 114 Z" />
-
-        <path className="body-shell" d="M86 36 C86 24 94 24 94 36 L99 94 L113 130 L105 258 L90 293 L75 258 L67 130 L81 94 Z" />
-        <path className="nose-highlight" d="M90 36 C94 84 96 127 96 171 C96 221 93 262 90 292 C87 262 84 221 84 171 C84 127 86 84 90 36 Z" />
-        <path className="halo" d="M75 105 C78 85 102 85 105 105 C100 96 80 96 75 105 Z" />
-        <ellipse className="cockpit" cx="90" cy="126" rx="9" ry="22" />
-        <path className="center-stripe" d="M90 38 C88 84 87 126 87 174 C87 226 88 263 90 292 C92 263 93 226 93 174 C93 126 92 84 90 38 Z" />
-        <path className="vent-lines" d="M72 161 H108 M70 174 H110 M68 187 H112 M68 201 H112 M71 215 H109" />
-        <path className="plank-lines" d="M82 70 H98 M78 86 H102 M73 247 H107 M68 260 H112" />
-
+        {/* Compact engine thermal overlay, separate from aerodynamic silhouette. */}
         <g className="engine-core">
-          <path d="M90 145 L111 158 L107 184 L90 198 L73 184 L69 158 Z" />
-          <path d="M90 153 L101 161 L99 180 L90 188 L81 180 L79 161 Z" />
+          <path d="M98 350 H122 L129 360 V382 L119 395 H101 L91 382 V360 Z" />
+          <path d="M102 357 H118 V386 H102 Z" />
         </g>
-        <text className="engine-temp-label" x="90" y="141" textAnchor="middle">{engineTemp > 0 ? `${engineTemp}°C` : '--°C'}</text>
+        <text className="engine-caption" x="110" y="319" textAnchor="middle">ENGINE</text>
+        <text className="engine-temp-label" x="110" y="342" textAnchor="middle">{engineTemp > 0 ? `${engineTemp}°C` : '--°C'}</text>
+        <path className="car-intake" d="M105 501 H115 V519 H105 Z" />
+
+        <path className="rear-wing-main" d="M44 521 Q110 514 176 521 V553 Q110 562 44 553 Z" />
+        <path className="rear-wing-flap" d="M50 533 Q110 528 170 533 M50 544 Q110 548 170 544" />
+        <path className="wing-endplate" d="M38 516 H46 V560 H38 Z M174 516 H182 V560 H174 Z" />
+        <path className="mirror-arm" d="M101 495 V532 M119 495 V532" />
+
+        <TemperatureWheel corner="fl" x={16} y={112} />
+        <TemperatureWheel corner="fr" x={176} y={112} />
+        <TemperatureWheel corner="rl" x={12} y={431} />
+        <TemperatureWheel corner="rr" x={176} y={431} />
       </g>
     </svg>
   )
@@ -189,7 +181,7 @@ function CarSilhouette(): React.ReactElement {
 function TemperatureWheel({ corner, x, y }: { corner: keyof Corners; x: number; y: number }): React.ReactElement {
   const brakeX = corner === 'fr' || corner === 'rr' ? -10 : 27
   return (
-    <g className={`temp-wheel temp-wheel-${corner}`} transform={`translate(${x} ${y})`}>
+    <g className={`temp-wheel temp-wheel-${corner}`} transform={`translate(${x} ${y}) scale(${corner === 'rl' || corner === 'rr' ? '1.3 1.2' : '1.15 1'})`}>
       <rect className="tyre-surface-band" x="0" y="0" width="24" height="61" rx="5" />
       <rect className="tyre-inner-band" x="6" y="7" width="12" height="47" rx="3" />
       <rect className="brake-temp-block" x={brakeX} y="18" width="7" height="25" rx="2" />

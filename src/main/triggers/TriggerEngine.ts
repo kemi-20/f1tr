@@ -28,6 +28,8 @@ export class TriggerEngine {
   private lastPosition = 0
   private lastLap = 0
   private flashbackUntilMs = 0
+  private sessionUID = ''
+  private reviewLap = 0
   private onFiring: (f: TriggerFiring) => void
 
   constructor(
@@ -63,6 +65,11 @@ export class TriggerEngine {
 
   /** Called when the aggregator has updated state (throttled, e.g. once per tick). */
   evaluate(state: RaceState): void {
+    if (this.sessionUID !== state.session.sessionUID) {
+      this.sessionUID = state.session.sessionUID
+      this.setConfig(this.config)
+      this.reviewLap = state.player.lap
+    }
     if (this.inFlashback()) return
 
     this.evalTyreWear(state)
@@ -71,6 +78,7 @@ export class TriggerEngine {
     this.evalLowFuel(state)
     this.evalRain(state)
     this.evalPositionChange(state)
+    this.evalLapReview(state)
     this.evalHeartbeat(state)
   }
 
@@ -89,6 +97,17 @@ export class TriggerEngine {
         break
       case 'fastestLap':
         this.tryFire(state, 'fastest_lap', 'normal', 'fastest_lap', ev.text)
+        break
+      case 'yellowFlag':
+      case 'blueFlag':
+      case 'greenFlag':
+        this.tryFire(state, ev.type, ev.type === 'greenFlag' ? 'high' : 'critical', ev.type, ev.text)
+        break
+      case 'pitEntered':
+      case 'pitExited':
+      case 'damage':
+      case 'collision':
+        if (ev.carIndex === state.player.carIndex) this.tryFire(state, ev.type, 'high', ev.type, ev.text)
         break
       case 'penalty':
         if (ev.carIndex === state.player.carIndex) {
@@ -111,6 +130,7 @@ export class TriggerEngine {
 
   /** Called externally when a flashback is detected (frame id regressed). */
   noteFlashback(): void {
+    this.reviewLap = 0
     this.flashbackUntilMs = Date.now() + 3000
     // reset all edge states so we don't double-fire on the resumed timeline
     this.tyreWearLevel = 0
@@ -189,15 +209,16 @@ export class TriggerEngine {
   }
 
   private evalDefendAttack(state: RaceState): void {
-    if (!isRaceSession(state)) {
+    if (!isRaceSession(state) || state.player.pitStatus !== 0 || state.session.isSafetyCar ||
+      state.session.isVirtualSafetyCar || state.session.isRedFlag || ['yellow', 'red', 'blue'].includes(state.session.trackFlag)) {
       this.defendActive = false
       this.attackActive = false
       return
     }
 
     const playerPos = state.player.position
-    const ahead = Object.values(state.rivals).find((r) => r.position === playerPos - 1)
-    const behind = Object.values(state.rivals).find((r) => r.position === playerPos + 1)
+    const ahead = Object.values(state.rivals).find((r) => r.position === playerPos - 1 && r.status === 'running' && r.pitStatus === 0)
+    const behind = Object.values(state.rivals).find((r) => r.position === playerPos + 1 && r.status === 'running' && r.pitStatus === 0)
     // defending: car behind close (their gap to the car in front = gap to us)
     if (behind && behind.deltaToCarInFrontS != null) {
       const gap = behind.deltaToCarInFrontS
@@ -294,6 +315,15 @@ export class TriggerEngine {
 
   // ───────────────────────── dispatch ─────────────────────────
 
+  private evalLapReview(state: RaceState): void {
+    const lap = state.player.lap
+    if (this.reviewLap > 0 && lap === this.reviewLap + 1 && state.player.pitStatus === 0) {
+      this.tryFire(state, 'lap_review', 'normal', 'lap_review',
+        'Lap completed. Review pace, fuel projection, tyre/energy trends, rivals and previous instruction outcome. Speak only if the next decision changes; otherwise HOLD.')
+    }
+    this.reviewLap = lap
+  }
+
   private tryFire(
     state: RaceState,
     ruleId: string,
@@ -302,7 +332,7 @@ export class TriggerEngine {
     reason: string
   ): void {
     // suppressLastLapLowPriority: on the final lap, block non-critical triggers
-    if (this.config.suppressLastLapLowPriority && priority !== 'critical') {
+    if (this.config.suppressLastLapLowPriority && (priority === 'low' || priority === 'normal')) {
       const totalLaps = state.session.totalLaps
       if (totalLaps != null && totalLaps > 0 && state.player.lap >= totalLaps) return
     }

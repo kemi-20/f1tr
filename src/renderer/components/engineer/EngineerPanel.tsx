@@ -70,6 +70,7 @@ export function EngineerPanel(): React.ReactElement {
       <div className="engineer-input-row">
         <input
           value={draft}
+          maxLength={1024}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') sendManual()

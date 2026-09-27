@@ -46,7 +46,7 @@ export class DigestBuilder {
         engineTemp: p.engineTempC > 0 ? `${Math.round(p.engineTempC)}C` : '--',
         pits: p.pitStopCount,
         ers: fmtPct(p.ersPercent),
-        drs: raceSession
+        drs: raceSession && state.packetFormat === 2025
           ? drsBlockedByWeather
             ? 'disabled by rain/wet track'
             : p.drsActive

@@ -2,15 +2,14 @@ import { desktopCapturer } from 'electron'
 import { logger } from '../logging/Logger'
 
 /**
- * ScreenshotService — captures the F1 25 game window (or falls back to the
- * primary display) and returns a base64-encoded PNG.
+ * ScreenshotService — captures only a recognized F1 game window.
  *
  * Uses Electron's desktopCapturer API (main-process only).
  */
 export async function captureF1Screenshot(): Promise<string | null> {
   try {
     const sources = await desktopCapturer.getSources({
-      types: ['window', 'screen'],
+      types: ['window'],
       thumbnailSize: { width: 1280, height: 720 },
       fetchWindowIcons: false
     })
@@ -19,8 +18,7 @@ export async function captureF1Screenshot(): Promise<string | null> {
     const f1Source = sources.find((s) =>
       /f1\s*2*5|formula\s*1|f1\s*25|f1\s*26/i.test(s.name)
     )
-    const screen = sources.find((s) => /screen|display|entire/i.test(s.name))
-    const source = f1Source ?? screen ?? sources[0]
+    const source = f1Source
 
     if (!source) {
       logger.warn('ScreenshotService: no capture source found')
