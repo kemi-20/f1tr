@@ -61,8 +61,7 @@ export function registerIpc(): void {
     const client = getLlm()
     if (!client) return { ok: false, message: 'Model URL, model ID, or API key is missing or invalid.' }
     try {
-      const ok = await client.ping()
-      return { ok, message: ok ? 'Private DSH runtime ready.' : 'Private DSH runtime could not start.' }
+      return await client.testConnection()
     } catch (err) {
       return { ok: false, message: `LLM error: ${(err as Error)?.message ?? err}` }
     }

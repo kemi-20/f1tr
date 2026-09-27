@@ -47,7 +47,7 @@ export async function wireTts(cfg: AppConfig): Promise<void> {
   }
   client = new MiMoTtsClient({ baseURL, apiKey, model: cfg.tts.model })
   pipeline.setClient(client)
-  asrClient = new MiMoAsrClient({ baseURL, apiKey, model: 'mimo-v2.5-asr' })
+  asrClient = new MiMoAsrClient({ baseURL, apiKey, model: 'mimo-v2.6-flash' })
   pipeline.setPreemptOnHigh(cfg.audio.preemptOnHigh)
   pipeline.setMaxQueueDepth(cfg.advanced.maxQueueDepth)
   logger.info(`TTS backend ready: ${baseURL} (TTS + ASR)`)

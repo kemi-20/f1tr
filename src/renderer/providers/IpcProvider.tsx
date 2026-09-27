@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { api } from '../ipc/ipcClient'
 import { useConfigStore, useEngineerStore, useHealthStore, useRaceStore, useTelemetryStore } from '../store'
 import { wireAudioIpc } from '../audio/WebAudioEngine'
-import type { EngineerAdvice, EngineerStatus, EngineerToken, HealthPayload, RaceState, SnapshotPayload } from '@shared/index'
+import type { EngineerAdvice, EngineerStatusPayload, EngineerToken, HealthPayload, RaceState, SnapshotPayload } from '@shared/index'
 
 /**
  * Boot provider: loads config, subscribes to all main->renderer IPC streams,
@@ -35,10 +35,10 @@ export function IpcProvider({ children }: { children: React.ReactNode }): React.
       }),
       api.on('engineer:status', (p) => {
         // main sends { status: 'thinking'|'speaking'|'error'... } — unwrap to the string union
-        const payload = p as { status?: EngineerStatus }
-        const status: EngineerStatus = payload.status ?? 'idle'
+        const payload = p as EngineerStatusPayload
+        const status = payload.status ?? 'idle'
         const st = useEngineerStore.getState()
-        st.setStatus(status)
+        st.setStatus(status, payload.message)
         // on error/abort, drop the partial streaming bubble so an old-language
         // response doesn't stick after settings changes or Stop.
        if (status === 'error' || status === 'idle') st.clearStream()

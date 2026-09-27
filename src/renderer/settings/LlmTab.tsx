@@ -37,7 +37,7 @@ export function LlmTab(): React.ReactElement {
        <span className="text-[10px] text-white/30">
          {llm.visionSupported
            ? '截图直接发给此模型'
-           : '截图先经 MiMo mimo-v2.5 描述后再发'}
+           : '截图先经 MiMo mimo-v2.6-flash 描述后再发'}
        </span>
      </label>
 
@@ -52,7 +52,7 @@ export function LlmTab(): React.ReactElement {
         <span className="text-[10px] text-white/30">
           {llm.audioSupported
             ? '语音录音直接发给此模型'
-            : '语音先经 MiMo mimo-v2.5-asr 转文字后再发'}
+            : '语音先经 MiMo mimo-v2.6-flash 转文字后再发'}
         </span>
       </label>
 
@@ -86,13 +86,14 @@ export function LlmTab(): React.ReactElement {
             className="h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-accent-carbon"
           />
         </Field>
-        <Field label="最大回复 tokens" hint="默认 1400：单次可包含完整局势、动作和原因">
+        <Field label={`上下文限制 (${Math.round(llm.contextLimit / 1000)}k)`} hint="默认 200k：DSH 的模型上下文窗口，不再限制单次回复">
           <TextInput
             type="number"
-            value={llm.maxTokens}
-            min={16}
-            max={512}
-            onChange={(e) => void patch({ llm: { maxTokens: Number(e.target.value) } })}
+            value={llm.contextLimit}
+            min={8192}
+            max={2000000}
+            step={1000}
+            onChange={(e) => void patch({ llm: { contextLimit: Number(e.target.value) } })}
           />
         </Field>
       </div>

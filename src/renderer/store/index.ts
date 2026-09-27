@@ -47,10 +47,11 @@ interface EngineerMessage {
 
 interface EngineerState {
   status: EngineerStatus
+  statusMessage: string
   messages: EngineerMessage[]
   streamingId: string | null
   streamingText: string
-  setStatus: (s: EngineerStatus) => void
+  setStatus: (s: EngineerStatus, message?: string) => void
   startStream: (id: string) => void
   appendDelta: (delta: string) => void
   commit: (id: string, text: string) => void
@@ -61,11 +62,12 @@ interface EngineerState {
 
 export const useEngineerStore = create<EngineerState>((set) => ({
   status: 'idle',
+  statusMessage: '',
   messages: [],
   streamingId: null,
   streamingText: '',
   hotkeyTrigger: 0,
-  setStatus: (status) => set({ status }),
+  setStatus: (status, message = '') => set({ status, statusMessage: status === 'error' ? message : '' }),
   startStream: (id) => set({ streamingId: id, streamingText: '', status: 'thinking' }),
   appendDelta: (delta) =>
     set((s) => ({ streamingText: s.streamingText + delta })),

@@ -104,7 +104,7 @@ try {
       }
     })
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {
-      cwd: home, provider: 'race-gateway', model: 'f1tr-ci-smoke', maxTokens: 256
+      cwd: home, provider: 'race-gateway', model: 'f1tr-ci-smoke'
     } }) + '\n')
   })
   if (failure) throw failure

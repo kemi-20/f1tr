@@ -36,6 +36,11 @@ export const IPC = {
 
 export type EngineerStatus = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error'
 
+export interface EngineerStatusPayload {
+  status: EngineerStatus
+  message?: string
+}
+
 export interface SnapshotPayload {
   ts: number
   speedKmh: number

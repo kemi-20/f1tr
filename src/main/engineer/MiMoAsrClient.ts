@@ -3,11 +3,11 @@ import { logger } from '../logging/Logger'
 export interface MiMoAsrConfig {
   baseURL: string
   apiKey: string
-  model: string // mimo-v2.5-asr
+  model: string // mimo-v2.6-flash
 }
 
 /**
- * MiMoAsrClient — speech-to-text via MiMo's ASR model (mimo-v2.5-asr).
+ * MiMoAsrClient — speech-to-text via MiMo's multimodal model (mimo-v2.6-flash).
  *
  * MiMo ASR API spec:
  *   POST {baseURL}/chat/completions

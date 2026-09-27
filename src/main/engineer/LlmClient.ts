@@ -15,7 +15,7 @@ export interface LlmConfig {
   apiKey: string
   model: string // e.g. deepseek-v4-flash
   temperature: number
-  maxTokens: number
+  contextLimit: number
   visionSupported: boolean // whether the configured model can accept image input
 }
 
@@ -72,7 +72,6 @@ export class LlmClient implements EngineerBackend {
       const res = await this.client.chat.completions.create({
         model: this.config.model,
         messages: [{ role: 'user', content: 'ping' }],
-        max_tokens: 5,
         thinking: { type: 'disabled' }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
@@ -139,7 +138,6 @@ export class LlmClient implements EngineerBackend {
           model: this.config.model,
           messages,
           temperature: this.config.temperature,
-          max_tokens: this.config.maxTokens,
           stream: true as const,
           stream_options: { include_usage: true },
           ...(isLastRound ? {} : { tools })
@@ -233,7 +231,7 @@ export class LlmClient implements EngineerBackend {
   /**
    * Execute the capture_screenshot tool.
    * - If the model supports vision: return image content (base64 PNG).
-   * - If not: send to MiMo mimo-v2.5 for text description, return that.
+   * - If not: send to MiMo mimo-v2.6-flash for text description, return that.
    */
   private async executeScreenshotTool(): Promise<string | unknown[]> {
     const base64 = await captureF1Screenshot()

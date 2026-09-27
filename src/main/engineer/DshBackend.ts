@@ -43,10 +43,69 @@ export class DshBackend implements EngineerBackend {
   ) {}
 
   async ping(): Promise<boolean> {
-    try { await this.start(); return true } catch (error) {
-      logger.warn('Private DSH startup failed:', (error as Error).message)
-      return false
+    return (await this.testConnection()).ok
+  }
+
+  async testConnection(): Promise<{ ok: boolean; message: string }> {
+    try {
+      await this.start()
+    } catch (error) {
+      const message = (error as Error)?.message ?? String(error)
+      logger.warn('Private DSH startup failed:', message)
+      return { ok: false, message: `DSH runtime failed to start: ${message}` }
     }
+    try {
+      await this.probeUpstream()
+      return { ok: true, message: 'DSH runtime and upstream model are reachable.' }
+    } catch (error) {
+      const message = (error as Error)?.message ?? String(error)
+      logger.warn('Upstream model check failed:', message)
+      return { ok: false, message: `DSH runtime is ready, but the upstream model request failed: ${message}` }
+    }
+  }
+
+  private async probeUpstream(): Promise<void> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15_000)
+    try {
+      const base = this.config.baseURL.endsWith('/') ? this.config.baseURL : `${this.config.baseURL}/`
+      const endpoint = new URL('chat/completions', base)
+      if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password) {
+        throw new Error('Invalid model endpoint')
+      }
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${this.config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: this.config.model,
+          messages: [{ role: 'user', content: 'Reply with OK.' }],
+          max_tokens: 4,
+          stream: false
+        })
+      })
+      const body = await response.text()
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${this.sanitizeResponse(body).slice(0, 300)}`)
+    } catch (error) {
+      if ((error as Error)?.name === 'AbortError') throw new Error('request timed out after 15s')
+      throw error
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  private sanitizeResponse(body: string): string {
+    let detail = body
+    try {
+      const parsed = JSON.parse(body) as JsonRecord
+      const nested = parsed.error as JsonRecord | undefined
+      detail = typeof nested?.message === 'string' ? nested.message : typeof parsed.message === 'string' ? parsed.message : body
+    } catch { /* keep the raw body */ }
+    const redacted = this.config.apiKey ? detail.split(this.config.apiKey).join('[redacted]') : detail
+    return redacted.replace(/[\r\n]+/g, ' ').trim()
   }
 
   cancel(): void {
@@ -122,7 +181,8 @@ export class DshBackend implements EngineerBackend {
         F1TR_PERSONA: this.persona,
         F1TR_MODEL_KEY: this.config.apiKey,
         F1TR_MODEL_URL: this.config.baseURL,
-        F1TR_MODEL_NAME: this.config.model
+        F1TR_MODEL_NAME: this.config.model,
+        F1TR_CONTEXT_LIMIT: String(this.config.contextLimit)
       }
       this.stderrLines = 0
       const child = spawn(node, [bin, '--profile', 'sdk-minimal', '--patch', patch], {
@@ -171,7 +231,7 @@ export class DshBackend implements EngineerBackend {
         }
         this.releaseHome(ownedHome)
       })
-      await this.request('initialize', { cwd: this.home, provider: 'race-gateway', model: this.config.model, maxTokens: this.config.maxTokens }, 20_000)
+      await this.request('initialize', { cwd: this.home, provider: 'race-gateway', model: this.config.model }, 20_000)
       logger.info(`Private DSH runtime ready in ${Math.round(performance.now() - startedAt)} ms`)
     } catch (error) {
       this.stop()
@@ -226,6 +286,16 @@ export class DshBackend implements EngineerBackend {
     }
     if (frame.method !== 'session.event' || !p.event || typeof p.event !== 'object') return
     const event = p.event as JsonRecord
+    if (event.type === 'turn/end') {
+      const data = event.data as JsonRecord | undefined
+      const reason = data?.reason as JsonRecord | undefined
+      if (reason?.kind === 'error') {
+        const failure = reason.error as JsonRecord | undefined
+        const message = typeof failure?.message === 'string' ? failure.message : 'Private DSH turn failed'
+        this.finish(new Error(message.slice(0, 500)))
+      }
+      return
+    }
     if (event.type === 'assistant/message' && event.data && typeof event.data === 'object') {
       const message = (event.data as JsonRecord).message as JsonRecord | undefined
       const blocks = message?.content

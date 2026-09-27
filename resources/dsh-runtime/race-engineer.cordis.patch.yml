@@ -49,6 +49,6 @@
             models:
               - id: !!js process.env.F1TR_MODEL_NAME
                 name: Race Engineer Model
-                contextWindow: 131072
+                contextWindow: !!js Number(process.env.F1TR_CONTEXT_LIMIT) || 200000
     - id: race-tools
       name: ./plugin/index.mjs

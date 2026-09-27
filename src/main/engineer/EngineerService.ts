@@ -203,10 +203,10 @@ export class EngineerService {
         Sender.send('engineer:status', { status: 'idle' })
         return
       }
-      logger.error('engineer advice failed:', (err as Error)?.message ?? err)
-      Sender.send('engineer:status', { status: 'error' })
+      const message = (err as Error)?.message ?? String(err)
+      logger.error('engineer advice failed:', message)
+      Sender.send('engineer:status', { status: 'error', message: message.slice(0, 500) })
       this.clearIdleTimer()
-      this.idleTimer = setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 4000)
     }
   }
 

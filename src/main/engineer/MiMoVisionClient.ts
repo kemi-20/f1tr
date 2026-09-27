@@ -3,11 +3,11 @@ import { logger } from '../logging/Logger'
 export interface MiMoVisionConfig {
   baseURL: string // e.g. https://api.xiaomimimo.com/v1
   apiKey: string
-  model: string // mimo-v2.5
+  model: string // mimo-v2.6-flash
 }
 
 /**
- * MiMoVisionClient — sends a screenshot to MiMo's vision model (mimo-v2.5)
+ * MiMoVisionClient — sends a screenshot to MiMo's multimodal model (mimo-v2.6-flash)
  * and returns a detailed text description.
  *
  * Used when the default LLM does NOT support image input: the screenshot is
@@ -51,7 +51,7 @@ export class MiMoVisionClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.config.apiKey}`
+          'api-key': this.config.apiKey
         },
         signal,
         body: JSON.stringify(body)

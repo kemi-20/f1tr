@@ -59,7 +59,10 @@ class ConfigStoreImpl {
   }
 
   private upgradeQuietEngineerDefaults(config: AppConfig, stored: Partial<AppConfig>): void {
-    if (stored.llm?.maxTokens === 80) config.llm.maxTokens = DEFAULT_CONFIG.llm.maxTokens
+    const legacy = stored.llm as (Partial<AppConfig['llm']> & { maxTokens?: number }) | undefined
+    if (legacy?.maxTokens != null && legacy.contextLimit == null) {
+      config.llm.contextLimit = legacy.maxTokens >= 8_192 ? legacy.maxTokens : DEFAULT_CONFIG.llm.contextLimit
+    }
     if (stored.triggers?.heartbeatIntervalS === 60) config.triggers.heartbeatIntervalS = DEFAULT_CONFIG.triggers.heartbeatIntervalS
     if (stored.triggers?.globalMinGapS === 8) config.triggers.globalMinGapS = DEFAULT_CONFIG.triggers.globalMinGapS
     if (stored.triggers?.tyreColdC === 80) config.triggers.tyreColdC = DEFAULT_CONFIG.triggers.tyreColdC

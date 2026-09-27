@@ -10,6 +10,7 @@ export function EngineerPanel(): React.ReactElement {
   const streamingId = useEngineerStore((s) => s.streamingId)
   const streamingText = useEngineerStore((s) => s.streamingText)
   const status = useEngineerStore((s) => s.status)
+  const statusMessage = useEngineerStore((s) => s.statusMessage)
   const hotkeyTrigger = useEngineerStore((s) => s.hotkeyTrigger)
   const [draft, setDraft] = useState('')
   const { state: recState, toggle: toggleRec } = useVoiceRecorder()
@@ -47,6 +48,11 @@ export function EngineerPanel(): React.ReactElement {
           </div>
         )}
         <div className="flex flex-col gap-2">
+          {status === 'error' && statusMessage && (
+            <div className="rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-xs leading-relaxed text-red-200">
+              {statusMessage}
+            </div>
+          )}
           {/* store prepends newest message to the front of the array, so a normal
               flex-col renders it at the top. The streaming bubble is placed first too. */}
           {streamingId && (

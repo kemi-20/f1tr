@@ -71,7 +71,7 @@ try {
     })
     child.stdin.write(JSON.stringify({
       jsonrpc: '2.0', id: 1, method: 'initialize',
-      params: { cwd: home, provider: 'race-gateway', model: 'f1tr-ci-smoke', maxTokens: 128 }
+      params: { cwd: home, provider: 'race-gateway', model: 'f1tr-ci-smoke' }
     }) + '\n')
   })
   console.log(`Private DSH profile initialized successfully in ${Math.round(performance.now() - startedAt)} ms`)
