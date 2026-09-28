@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { constants } from '@z0mt3c/f1-telemetry-client'
+import { constants, F1TelemetryClient } from '@z0mt3c/f1-telemetry-client'
 import { UdpReceiver } from './UdpReceiver'
 
 const packetSizes = constants.PACKET_SIZES as Record<string, Record<number, number> | undefined>
@@ -20,6 +20,23 @@ function deliver(receiver: UdpReceiver, data: Buffer): void {
 }
 
 describe('UDP format boundary', () => {
+  it.each([2025, 2026] as const)('exposes every supported packet type in format %s to the harness', format => {
+    const receiver = new UdpReceiver()
+    const ids: number[] = []
+    receiver.onDecoded = id => ids.push(id)
+    const count = format === 2026 ? 17 : 16
+    for (let id = 0; id < count; id++) {
+      const size = F1TelemetryClient.getPacketSize(format, id)
+      const data = Buffer.alloc(size)
+      data.writeUInt16LE(format, 0)
+      data.writeUInt8(id, 6)
+      if (id === 3) data.write('SSTA', 29, 'ascii')
+      deliver(receiver, data)
+    }
+    expect(ids).toEqual(Array.from({ length: count }, (_, id) => id))
+    expect(receiver.packetsDropped).toBe(0)
+  })
+
   it('forces loopback when constructed with a non-local bind address', () => {
     const receiver = new UdpReceiver(20777, 'auto', '192.168.0.42')
 

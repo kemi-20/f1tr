@@ -27,6 +27,7 @@ export interface AppConfig {
    model: string // resolved from AI_MODEL
    reasoningEffort: ReasoningEffort
    contextLimit: number // DSH model contextWindow budget in tokens
+   useNativeWebSearch: boolean // use a verified native search endpoint instead of MiMo's China search
    hasSecret: boolean // whether a key is available (.env or override)
    keySource: KeySource // 'override' | 'env' | 'none' — computed in the main process
     visionSupported: boolean // whether the configured model can accept image input
@@ -71,7 +72,7 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  llm: { baseURL: '', apiKeyOverride: '', model: '', reasoningEffort: 'low', contextLimit: 200_000, hasSecret: false, keySource: 'none', visionSupported: false },
+  llm: { baseURL: '', apiKeyOverride: '', model: '', reasoningEffort: 'low', contextLimit: 200_000, useNativeWebSearch: false, hasSecret: false, keySource: 'none', visionSupported: false },
   tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false, keySource: 'none' },
   language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气', engineerStyle: 'gp' },
   telemetry: {

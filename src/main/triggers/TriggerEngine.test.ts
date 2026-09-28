@@ -72,6 +72,7 @@ describe('TriggerEngine — cooldown vs hysteresis', () => {
   it('does not latch a threshold suppressed on the final lap', () => {
     const { engine, firings } = makeEngine({ suppressLastLapLowPriority: true })
     const state = emptyRaceState()
+    state.session.sessionType = 13
     state.session.totalLaps = 10
     state.player.lap = 10
     state.player.tyres.innerTempC = { rl: 130, rr: 130, fl: 130, fr: 130 }

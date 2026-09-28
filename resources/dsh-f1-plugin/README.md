@@ -1,6 +1,6 @@
 # F1TR DSH plugin
 
-This package registers eight Cordis tools and has no shell, filesystem, generic IPC, or arbitrary method-dispatch tool. Its only runtime dependency is the DSH tool API; all other imports are Node built-ins.
+This package registers bounded race tools and has no shell, filesystem, generic IPC, or arbitrary method-dispatch tool. Tool imports use the DSH tool API and Node built-ins.
 
 ## DSH API
 
@@ -10,7 +10,7 @@ The DSH parameter root is implicitly open, and its author schema DSL does not ex
 
 ## Staging
 
-The host can copy `index.mjs` to `resources/dsh-runtime/plugin/index.mjs` and reference `./plugin/index.mjs` from `resources/dsh-runtime/race-engineer.cordis.patch.yml`. Node ESM package resolution from that staged path reaches `resources/dsh-runtime/node_modules/@deepseek-ai/dsh-tools` without a plugin-local `node_modules` directory.
+CI stages the package's `.mjs` and `.md` files into `resources/dsh-runtime/plugin`. The patch loads `index.mjs` for tools and `bind-preset.mjs` for the native `f1-race-engineer` preset. The binder registers `preset.mjs` through the pinned DSH agent-preset registry; that plugin reads the shipped `race-engineer.md` policy. Missing policy fails startup. Communication preferences are separate from this policy. Node ESM resolution reaches the runtime's pinned dependencies without a plugin-local `node_modules` directory.
 
 ## Pipe contract
 

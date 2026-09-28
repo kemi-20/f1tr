@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { registerHotkey, unregisterHotkey } from './hotkey/GlobalHotkeyManager'
 import { logger } from './logging/Logger'
 import { ConfigStore } from './config/ConfigStore'
+import { loadSecrets, normalizeURL } from './config/env'
 import { registerIpc } from './ipc/register'
 import { setTelemetry } from './ipc/telemetryRef'
 import { setEngineer, wireLlm } from './ipc/engineerRef'
@@ -11,6 +12,7 @@ import { TelemetryService } from './telemetry/TelemetryService'
 import { EngineerService } from './engineer/EngineerService'
 import { AudioPipeline } from './audio/AudioPipeline'
 import { Sender } from './ipc/sender'
+import { configureWebSearchClient, WebSearchClient } from './engineer/WebSearchClient'
 
 let mainWindow: BrowserWindow | null = null
 let telemetry: TelemetryService | null = null
@@ -97,6 +99,19 @@ Menu.setApplicationMenu(null)
 
 app.whenReady().then(() => {
   registerIpc()
+  const secrets = loadSecrets()
+  configureWebSearchClient(new WebSearchClient(() => {
+    const current = ConfigStore.getAll()
+    return {
+      useNativeWebSearch: current.llm.useNativeWebSearch,
+      llmBaseURL: normalizeURL(current.llm.baseURL),
+      llmApiKey: ConfigStore.llmKey(),
+      llmModel: current.llm.model,
+      mimoApiKey: secrets.mimoKey,
+      ttsApiKey: current.tts.apiKeyOverride,
+      ttsBaseURL: current.tts.baseURL
+    }
+  }))
   createWindow()
 
   // start UDP telemetry ingest + trigger engine
@@ -131,8 +146,10 @@ app.whenReady().then(() => {
     cfg.telemetry.host
   )
   setTelemetry(telemetry)
+  engineer.setStateProvider(() => telemetry!.aggregator.getState())
   telemetry.onDecoded = (id, packet) => engineer!.telemetryHistory.recordPacket(id, packet)
   telemetry.onObservation = (state) => {
+    engineer!.observeRadioState(state)
     engineer!.analysis.observe(state)
     engineer!.telemetryHistory.observe(state)
   }

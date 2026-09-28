@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import type { RaceState, RecentEvent, TyreCompound } from '@shared/types/state'
 import { WeekendIdentity } from './WeekendIdentity'
 import type { WeekendIdentitySnapshot, WeekendIdentityTransition } from './WeekendIdentity'
@@ -20,6 +21,7 @@ interface StoredRecord {
 
 interface PacketSample extends StoredRecord {
   frame: number | null
+  sampledAt: number
 }
 
 interface Rollback {
@@ -58,6 +60,11 @@ const MAX_EVENTS = 8192
 const MAX_STINTS = 1024
 const MAX_SESSIONS = 64
 const MAX_PACKET_JSON_CHARS = 100_000
+const MAX_PACKET_TOOL_RESULT_BYTES = 53_000
+const MAX_PACKET_ARRAY_PAGE = 64
+const MAX_FIELD_DEPTH = 8
+const FIELD_SEGMENT_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
+const BLOCKED_FIELD_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor'])
 const MAX_REPORT_CHARS = 60_000
 const EVENT_TYPES = new Set<RecentEvent['type']>([
   'fastestLap', 'retirement', 'sessionEnded', 'penalty', 'raceWinner', 'safetyCar', 'vsc',
@@ -104,7 +111,7 @@ export class TelemetryHistory {
         latestTs: values[values.length - 1]?.ts ?? null,
         samples: values.length
       })),
-      limitations: 'In-memory current-weekend history only; older samples are retained at 5-second spacing. Packet 16 is not decoded by the current receiver. Restricted/default zeros are not confirmed healthy data.'
+      limitations: 'In-memory current-weekend history only; there is no raw UDP archive. Packet snapshots are decoded JSON, strings truncated to 256 characters, up to 12 samples per packet key with a live latest value and older samples at 5-second spacing. Normalized state covers packets 0-7, 10, 11 and 16; packets 8, 9 and 12-15 are decoded and readable only through read_telemetry_packet. Packet 16 (carTelemetry2) exists only in the 2026 format. Large packets must be read with field/arrayOffset/arrayLimit. Restricted or default zeros are not confirmed healthy data.'
     })
   }
 
@@ -204,9 +211,17 @@ export class TelemetryHistory {
     if (json.length > MAX_PACKET_JSON_CHARS) return
     const last = entries[entries.length - 1]
     if (last && ((frame !== null && frame === last.frame && (packetId !== 3 || json === last.data)) || json === last.data)) return
-    if (last && now - last.ts < OLDER_INTERVAL_MS && packetId !== 3) return
 
-    const record: PacketSample = { ts: now, data: json, frame, key, bytes: estimatedRecordBytes(json, key) }
+    const record: PacketSample = { ts: now, data: json, frame, sampledAt: now, key, bytes: estimatedRecordBytes(json, key) }
+    // Keep the newest sample live between 5-second buckets so offset 0 is fresh,
+    // while older entries keep their recorded spacing.
+    if (last && packetId !== 3 && now - last.sampledAt < OLDER_INTERVAL_MS) {
+      const refreshed = { ...record, sampledAt: last.sampledAt }
+      entries[entries.length - 1] = refreshed
+      this.memoryBytes += refreshed.bytes - last.bytes
+      this.enforceMemoryBudget()
+      return
+    }
     entries.push(record)
     this.packets.set(key, entries)
     this.memoryBytes += record.bytes
@@ -216,15 +231,53 @@ export class TelemetryHistory {
 
   query(args: unknown): string {
     if (!args || typeof args !== 'object' || Array.isArray(args)) return 'Invalid history query'
-    const { packet, offset = 0 } = args as Record<string, unknown>
+    const input = args as Record<string, unknown>
+    const allowed = new Set(['packet', 'offset', 'field', 'arrayOffset', 'arrayLimit'])
+    if (Reflect.ownKeys(input).some(key => typeof key !== 'string' || !allowed.has(key))) return 'Invalid history query'
+    const { packet, field } = input
+    const offset = input.offset ?? 0
+    const hasArrayOptions = Object.prototype.hasOwnProperty.call(input, 'arrayOffset') ||
+      Object.prototype.hasOwnProperty.call(input, 'arrayLimit')
+    const arrayOffset = input.arrayOffset ?? 0
+    const arrayLimit = input.arrayLimit ?? 16
     if (typeof packet !== 'string' || !/^\d{1,2}(?::\d{1,2})?$/.test(packet) ||
-      typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0 || offset >= MAX_PACKET_SAMPLES) {
+      typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0 || offset >= MAX_PACKET_SAMPLES ||
+      (field !== undefined && !isFieldPath(field)) ||
+      (hasArrayOptions && field === undefined) ||
+      typeof arrayOffset !== 'number' || !Number.isInteger(arrayOffset) || arrayOffset < 0 || arrayOffset > 10_000 ||
+      typeof arrayLimit !== 'number' || !Number.isInteger(arrayLimit) || arrayLimit < 1 || arrayLimit > MAX_PACKET_ARRAY_PAGE) {
       return 'Invalid history query'
     }
     const entries = this.packets.get(packet)
     const result = entries?.[entries.length - 1 - offset]
     if (!result) return JSON.stringify({ unavailable: true, packet })
-    return JSON.stringify({ ts: result.ts, data: parseRecord(result.data) })
+    const data = parseRecord(result.data)
+    if (field === undefined) {
+      const encoded = JSON.stringify({ ts: result.ts, data })
+      return packetQueryFits(encoded) ? encoded : packetTooLarge(result.ts, packet)
+    }
+
+    const selection = readFieldPath(data, field)
+    if (!selection.found) return JSON.stringify({ unavailable: true, packet, field })
+    if (Array.isArray(selection.value)) {
+      const items = selection.value.slice(arrayOffset, arrayOffset + arrayLimit)
+      const payload = {
+        ts: result.ts,
+        packet,
+        field,
+        data: {
+          total: selection.value.length,
+          offset: arrayOffset,
+          items,
+          nextOffset: arrayOffset + items.length < selection.value.length ? arrayOffset + items.length : null
+        }
+      }
+      const encoded = JSON.stringify(payload)
+      return packetQueryFits(encoded) ? encoded : packetTooLarge(result.ts, packet, field)
+    }
+    if (hasArrayOptions) return 'Invalid history query: array paging requires an array field'
+    const encoded = JSON.stringify({ ts: result.ts, packet, field, data: selection.value })
+    return packetQueryFits(encoded) ? encoded : packetTooLarge(result.ts, packet, field)
   }
 
   observe(state: RaceState, now = Date.now()): void {
@@ -693,6 +746,43 @@ function identitySnapshot(transition: WeekendIdentityTransition): WeekendIdentit
 function estimatedRecordBytes(data: string, key: string): number {
   // UTF-16 upper bound for retained strings plus a conservative object/array allowance.
   return data.length * 2 + key.length * 2 + 512
+}
+
+/**
+ * Field paths are dotted own-property names. Segments are restricted to a plain
+ * identifier shape and the prototype keys are rejected outright, so a model can
+ * never reach a prototype or a computed key.
+ */
+function isFieldPath(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 256) return false
+  const segments = value.split('.')
+  return segments.length <= MAX_FIELD_DEPTH && segments.every(segment =>
+    FIELD_SEGMENT_PATTERN.test(segment) && !BLOCKED_FIELD_SEGMENTS.has(segment))
+}
+
+function readFieldPath(root: unknown, path: string): { found: boolean; value?: unknown } {
+  let cursor: unknown = root
+  for (const segment of path.split('.')) {
+    if (!cursor || typeof cursor !== 'object' || Array.isArray(cursor)) return { found: false }
+    const record = cursor as Record<string, unknown>
+    if (!Object.prototype.hasOwnProperty.call(record, segment)) return { found: false }
+    cursor = record[segment]
+  }
+  return { found: true, value: cursor }
+}
+
+function packetQueryFits(encoded: string): boolean {
+  return Buffer.byteLength(encoded, 'utf8') <= MAX_PACKET_TOOL_RESULT_BYTES
+}
+
+function packetTooLarge(ts: number, packet: string, field?: string): string {
+  return JSON.stringify({
+    ts,
+    packet,
+    ...(field ? { field } : {}),
+    truncated: true,
+    hint: 'Decoded sample exceeds the tool result budget. Pass field, and arrayOffset/arrayLimit for array fields, to read a bounded slice.'
+  })
 }
 
 function safePage(value: number, fallback: number): number {

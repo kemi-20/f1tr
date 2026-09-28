@@ -18,8 +18,12 @@ export const TELEMETRY_TOOLS = [
   tool('get_stint_history', 'Read tyre and fuel stint summaries across the current weekend, newest first.', {
     offset: { type: 'integer', minimum: 0, maximum: 8191 }, limit: { type: 'integer', minimum: 1, maximum: 20 }
   }, []),
-  tool('read_telemetry_packet', 'Read original decoded fields absent from the dashboard: sector/validity history, tyre sets, motion, setups, actual energy harvest/deploy and weather forecasts. Use an exact key from TELEMETRY TOOLS inventory. Offset 0 is latest; up to 12 normally 5-second samples per key.', {
-    packet: { type: 'string' }, offset: { type: 'integer', minimum: 0, maximum: 11 }
+  tool('read_telemetry_packet', 'Read original decoded fields absent from the dashboard: sector/validity history, tyre sets, motion, setups, actual energy harvest/deploy and weather forecasts. Use an exact key from the TELEMETRY TOOLS inventory (packetId or packetId:carIndex). Offset 0 is the live latest value; up to 12 samples per key at 5-second spacing. Large packets are rejected as too large: then re-query with field, and with arrayOffset/arrayLimit when that field is an array. Field paths are dot-separated own properties such as m_tyreSets or m_tyreWear.', {
+    packet: { type: 'string', pattern: '^\\d{1,2}(?::\\d{1,2})?$' },
+    offset: { type: 'integer', minimum: 0, maximum: 11 },
+    field: { type: 'string', minLength: 1, maxLength: 256 },
+    arrayOffset: { type: 'integer', minimum: 0, maximum: 10000 },
+    arrayLimit: { type: 'integer', minimum: 1, maximum: 64 }
   }, ['packet'])
 ]
 
@@ -36,7 +40,9 @@ export function executeTelemetryTool(history: TelemetryHistory, name: string, in
     if (!args || typeof args !== 'object' || Array.isArray(args)) return 'Invalid telemetry arguments'
     const a = args as Record<string, unknown>
     const historyOnly = name === 'get_race_events' || name === 'get_stint_history'
-    const allowed = name === 'read_telemetry_packet' ? ['packet', 'offset'] : name === 'get_race_state' ? ['section'] : historyOnly ? ['offset', 'limit'] : ['section', 'offset', 'limit']
+    const allowed = name === 'read_telemetry_packet'
+      ? ['packet', 'offset', 'field', 'arrayOffset', 'arrayLimit']
+      : name === 'get_race_state' ? ['section'] : historyOnly ? ['offset', 'limit'] : ['section', 'offset', 'limit']
     if (Object.keys(a).some(k => !allowed.includes(k))) return 'Invalid telemetry arguments: unknown field'
     if (name === 'read_telemetry_packet') return history.query(a)
     const section = typeof a.section === 'string' ? a.section : ''

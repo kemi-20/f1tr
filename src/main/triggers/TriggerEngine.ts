@@ -3,6 +3,8 @@ import type { TriggerFiring, TriggerConfig } from '@shared/types/triggers'
 import type { Priority } from '@shared/types/audio'
 import { Cooldown } from './Cooldown'
 import { logger } from '../logging/Logger'
+import { lapsToFlag, raceFuelMargin } from '@shared/util/raceDistance'
+import { holdQualifyingRadio, isQualifying } from '@shared/util/lapPhase'
 
 /**
  * TriggerEngine — evaluates rule conditions each tick + on events, applies
@@ -32,6 +34,7 @@ export class TriggerEngine {
   private flashbackUntilMs = 0
   private sessionUID = ''
   private reviewLap = 0
+  private approachingCars = new Map<number, { distance: number; ts: number }>()
   private onFiring: (f: TriggerFiring) => void
 
   constructor(
@@ -65,6 +68,7 @@ export class TriggerEngine {
     this.lastTyreAgeLaps = -1
     this.lastTyreCompound = ''
     this.lastHeartbeatMs = Date.now()
+    this.approachingCars.clear()
   }
 
   /** Called when the aggregator has updated state (throttled, e.g. once per tick). */
@@ -76,6 +80,7 @@ export class TriggerEngine {
     }
     if (this.inFlashback()) return
 
+    this.evalQualifyingTraffic(state)
     this.evalTyreWear(state)
     this.evalTyreTemp(state)
     this.evalDefendAttack(state)
@@ -134,6 +139,7 @@ export class TriggerEngine {
 
   /** Called externally when a flashback is detected (frame id regressed). */
   noteFlashback(): void {
+    this.approachingCars.clear()
     this.reviewLap = 0
     this.flashbackUntilMs = Date.now() + 3000
     // reset all edge states so we don't double-fire on the resumed timeline
@@ -280,12 +286,11 @@ export class TriggerEngine {
   private evalLowFuel(state: RaceState): void {
     const fuel = state.player.fuelRemainingKg
     if (fuel == null || fuel <= 0) return
-    const { totalLaps } = state.session
-    const estimatedLaps = state.player.fuelRemainingLaps
-    if (totalLaps != null && totalLaps > 0 && estimatedLaps != null && Number.isFinite(estimatedLaps)) {
-      const toFlag = totalLaps - state.player.lap + 1 - state.player.lapDistancePct
+    const toFlag = lapsToFlag(state)
+    const margin = raceFuelMargin(state)
+    if (toFlag === 0) { this.fuelLowActive = false; return }
+    if (toFlag != null && margin != null) {
       if (toFlag > 0) {
-        const margin = estimatedLaps - toFlag
         if (margin >= -0.15) { this.fuelLowActive = false; return }
         if (!this.fuelLowActive) {
           if (this.tryFire(state, 'low_fuel', 'high', 'low_fuel', `Fuel estimate short by ${Math.abs(margin).toFixed(2)} laps`)) {
@@ -295,9 +300,10 @@ export class TriggerEngine {
         return
       }
     }
-    // hysteresis: only fire on crossing below threshold, reset when above
+    // Without a race projection, a mass threshold is only a request to inspect
+    // consumption, never evidence that the car cannot reach the flag.
     if (!this.fuelLowActive && fuel < this.config.lowFuelKg) {
-      if (this.tryFire(state, 'low_fuel', 'high', 'low_fuel', `Fuel low (${fuel.toFixed(1)}kg)`)) {
+      if (this.tryFire(state, 'low_fuel', 'high', 'low_fuel', `Fuel mass ${fuel.toFixed(1)}kg; finish margin unavailable. Check actual laps left and measured consumption; do not request saving from mass alone.`)) {
         this.fuelLowActive = true
       }
     } else if (this.fuelLowActive && fuel > this.config.lowFuelKg + 2) {
@@ -361,6 +367,47 @@ export class TriggerEngine {
 
   // ───────────────────────── dispatch ─────────────────────────
 
+  private evalQualifyingTraffic(state: RaceState): void {
+    const now = Date.now()
+    const p = state.player
+    const length = state.session.trackLengthM
+    if (!isQualifying(state) || !['out', 'cooling', 'in'].includes(p.lapPhase ?? '') ||
+        p.pitStatus !== 0 || !p.onTrack || !p.lapDataUpdatedAt || now - p.lapDataUpdatedAt > 2500 ||
+        state.session.isRedFlag || state.session.isSafetyCar || state.session.isVirtualSafetyCar ||
+        !Number.isFinite(length) || length <= 0 || !Number.isFinite(p.lapDistancePct)) {
+      this.approachingCars.clear()
+      return
+    }
+    const seen = new Set<number>()
+    const threats: { car: number; distance: number; eta: number }[] = []
+    for (const r of Object.values(state.rivals)) {
+      if (r.carIndex === p.carIndex || r.pitStatus !== 0 || r.status !== 'running' ||
+          r.lapPhase !== 'flying' || r.currentLapInvalid !== false || !r.lapDataUpdatedAt ||
+          now - r.lapDataUpdatedAt > 2500 || !Number.isFinite(r.lapDistancePct) ||
+          r.lapDistancePct < 0 || r.lapDistancePct > 1) continue
+      const distance = ((p.lapDistancePct - r.lapDistancePct + 1) % 1) * length
+      if (distance < 1 || distance > Math.min(800, length * 0.2)) continue
+      seen.add(r.carIndex)
+      const prev = this.approachingCars.get(r.carIndex)
+      if (!prev) { this.approachingCars.set(r.carIndex, { distance, ts: now }); continue }
+      const dt = (now - prev.ts) / 1000
+      if (dt < 1) continue
+      this.approachingCars.set(r.carIndex, { distance, ts: now })
+      if (dt > 3) continue
+      const closing = (prev.distance - distance) / dt
+      if (closing < 5 || closing > 120) continue
+      const eta = distance / closing
+      if (eta <= 12) threats.push({ car: r.carIndex, distance, eta })
+    }
+    for (const id of this.approachingCars.keys()) if (!seen.has(id)) this.approachingCars.delete(id)
+    const threat = threats.sort((a, b) => a.eta - b.eta)[0]
+    if (threat) {
+      const r = state.rivals[threat.car]
+      this.tryFire(state, `qualifying_yield_${threat.car}`, 'critical', 'qualifying_yield',
+        `${JSON.stringify(r.name.slice(0, 48))} is on a valid flying lap behind on track, ${Math.round(threat.distance)}m and closing; approximate catch ${Math.ceil(threat.eta)}s if rates persist. Player is ${p.lapPhase}. Warn briefly to leave room safely off the racing line, no sudden braking or unverified left/right instruction.`)
+    }
+  }
+
   private evalLapReview(state: RaceState): void {
     const lap = state.player.lap
     if (this.reviewLap > 0 && lap === this.reviewLap + 1 && state.player.pitStatus === 0) {
@@ -377,14 +424,15 @@ export class TriggerEngine {
     reasonCode: string,
     reason: string
   ): boolean {
+    if (holdQualifyingRadio(state, { ruleId, priority, reasonCode, reason, kind: 'threshold', ts: Date.now() })) return false
     // suppressLastLapLowPriority: on the final lap, block non-critical triggers
-    if (this.config.suppressLastLapLowPriority && (priority === 'low' || priority === 'normal')) {
+    if (isRaceSession(state) && this.config.suppressLastLapLowPriority && (priority === 'low' || priority === 'normal')) {
       const totalLaps = state.session.totalLaps
       if (totalLaps != null && totalLaps > 0 && state.player.lap >= totalLaps) return false
     }
     // heartbeat is rate-limited by its own interval (in evalHeartbeat) + the global gap;
     // it should NOT additionally suffer the 45s per-rule cooldown.
-    if (!this.cooldown.canFire(ruleId, priority, state.player.lap)) return false
+    if (!this.cooldown.canFire(ruleId, priority, isRaceSession(state) ? state.player.lap : 0)) return false
     this.cooldown.recordFire(ruleId, priority)
     const firing: TriggerFiring = {
       ruleId,

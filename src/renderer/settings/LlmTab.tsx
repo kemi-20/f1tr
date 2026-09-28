@@ -49,6 +49,23 @@ export function LlmTab(): React.ReactElement {
         </span>
       </label>
 
+      <label className="flex items-start gap-2 text-xs text-white/60">
+        <input
+          type="checkbox"
+          checked={llm.useNativeWebSearch}
+          onChange={(e) => void patch({ llm: { useNativeWebSearch: e.target.checked } })}
+          className="mt-0.5 h-4 w-4 accent-accent-carbon"
+        />
+        <span className="flex flex-col gap-1">
+          <span>支持网络搜索</span>
+          <span className="text-[10px] text-white/30">
+            {llm.useNativeWebSearch
+              ? '优先使用官方 MiMo / DeepSeek 原生搜索；其他模型或网关使用 MiMo'
+              : '使用 MiMo mimo-v2.6-flash 国内联网搜索；需要可用的 MiMo API Key'}
+          </span>
+        </span>
+      </label>
+
       <div className="flex flex-col gap-1 border-l-2 border-white/10 pl-3">
         <span className="label">语音输入</span>
         <span className="text-[10px] text-white/30">

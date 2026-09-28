@@ -8,6 +8,7 @@ import type { TriggerFiring } from '@shared/types/triggers'
 import type { RaceState } from '@shared/types/state'
 import type { LanguageMode } from '@shared/constants/voices'
 import { logger } from '../logging/Logger'
+import { holdQualifyingRadio, qualifyingYieldStillRelevant } from '@shared/util/lapPhase'
 
 /**
  * EngineerService — orchestrates digest -> advice -> UI streaming + (later) TTS enqueue.
@@ -31,6 +32,18 @@ export class EngineerService {
   private onInterrupt: () => void = () => {}
   private lastToolRadio = ''
   private idleTimer: NodeJS.Timeout | null = null
+  private latestState: (() => RaceState) | null = null
+  private lastRadioFiring: TriggerFiring | null = null
+
+  setStateProvider(provider: () => RaceState): void { this.latestState = provider }
+
+  observeRadioState(state: RaceState): void {
+    if (this.lastRadioFiring && (holdQualifyingRadio(state, this.lastRadioFiring) ||
+        !qualifyingYieldStillRelevant(state, this.lastRadioFiring))) {
+      this.onInterrupt()
+      this.lastRadioFiring = null
+    }
+  }
 
   /** P3 injects the real LLM backend here; null = stub mode. */
   setBackend(b: EngineerBackend | null): void {
@@ -62,6 +75,10 @@ export class EngineerService {
 
   /** The DSH radio tool is the sole speech entry point. */
   acceptRadio(text: string, firing: TriggerFiring): void {
+    const current = this.latestState?.()
+    if (current && holdQualifyingRadio(current, firing)) throw new Error('Radio held: driver is on a qualifying flying lap or phase is uncertain. Remain silent; reconsider after the push lap.')
+    if (current && !qualifyingYieldStillRelevant(current, firing)) throw new Error('Traffic warning expired or car no longer approaching behind. Remain silent.')
+    this.lastRadioFiring = firing
     this.lastToolRadio = text
     Sender.send('engineer:status', { status: 'idle' })
     Sender.send('engineer:advice', {
@@ -148,6 +165,7 @@ export class EngineerService {
    * Throws on cancel/abort (caught by run()); never commits a truncated message.
    */
   async advise(state: RaceState, firing: TriggerFiring, manualPrompt?: string, audioBase64?: string): Promise<void> {
+    if (holdQualifyingRadio(this.latestState?.() ?? state, firing)) return
     this.lastToolRadio = ''
     const id = nanoid(10)
     const digest = this.digestBuilder.build(state, firing)

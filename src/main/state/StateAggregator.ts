@@ -7,6 +7,7 @@ import type { AnyParsedPacket } from '../telemetry/UdpReceiver'
 import type { PacketHeader } from '../telemetry/HeaderTypes'
 import { nanoid } from 'nanoid'
 import { logger } from '../logging/Logger'
+import { LapPhaseTracker } from './LapPhaseTracker'
 
 const MAX_EVENTS = 12
 /** Same-frame event repeats are UDP duplicates; anything older than this is a new event. */
@@ -27,12 +28,14 @@ export class StateAggregator {
   private _prevRedFlagCount = 0
   private recentEventKeys = new Map<string, number>() // dedupe key -> seenAt ms
   private oncePerSessionKeys = new Set<string>()
+  private lapPhases = new LapPhaseTracker()
 
   getState(): RaceState {
     return this.state
   }
 
   setFlashbackActive(active: boolean): void {
+    if (active && !this.state.flashbackActive) this.lapPhases.reset()
     this.state.flashbackActive = active
   }
 
@@ -48,6 +51,7 @@ export class StateAggregator {
     this.lastSessionUID = ''
     this.recentEventKeys.clear()
     this.oncePerSessionKeys.clear()
+    this.lapPhases.reset()
     this.prevSC = 0
     this.prevTrackFlag = 'none'
     this.scActive = false
@@ -218,10 +222,24 @@ export class StateAggregator {
       r.gridPosition = numOr(d.m_gridPosition, r.gridPosition)
       r.resultStatus = numOr(d.m_resultStatus, r.resultStatus)
       r.status = rivalStatus(d.m_driverStatus, d.m_resultStatus)
+      r.driverStatus = Number.isInteger(d.m_driverStatus) && d.m_driverStatus >= 0 && d.m_driverStatus <= 4
+        ? d.m_driverStatus : undefined
+      r.currentLapInvalid = d.m_currentLapInvalid === 1
+      r.lapDataUpdatedAt = Date.now()
+      const phase = this.lapPhases.observe({
+        car: i, lap: r.lap, distance: r.lapDistancePct, time: r.currentLapTimeS ?? 0,
+        context: `${this.state.weather.weatherCode}:${r.tyreCompound}`,
+        status: r.driverStatus, pit: r.pitStatus, invalid: r.currentLapInvalid,
+        lastLap: r.lastLapTimeS, neutralised: this.state.session.isSafetyCar ||
+          this.state.session.isVirtualSafetyCar || this.state.session.isRedFlag || this.state.session.trackFlag === 'yellow'
+      })
+      r.lapPhase = phase.phase
+      r.lapPhaseEvidence = phase.evidence
       positions.push({
         carIndex: i,
         lapDistancePct: r.lapDistancePct,
-        speedKmh: i === playerIdx ? this.state.player.speedKmh : 0,
+        speedKmh: i === playerIdx ? this.state.player.speedKmh :
+          this.state.trackPositions.find(position => position.carIndex === i)?.speedKmh ?? 0,
         isPlayer: i === playerIdx,
         ...this.trackWorldPosition(i)
       })
@@ -253,6 +271,10 @@ export class StateAggregator {
       pl.currentLapTimeS = msToS(pld.m_currentLapTimeInMS)
       pl.lastLapTimeS = msToS(pld.m_lastLapTimeInMS)
       pl.currentLapInvalid = pld.m_currentLapInvalid === 1
+      pl.driverStatus = this.state.rivals[playerIdx].driverStatus
+      pl.lapPhase = this.state.rivals[playerIdx].lapPhase
+      pl.lapPhaseEvidence = this.state.rivals[playerIdx].lapPhaseEvidence
+      pl.lapDataUpdatedAt = this.state.rivals[playerIdx].lapDataUpdatedAt
       pl.pitStatus = numOr(pld.m_pitStatus, pl.pitStatus)
       pl.pitTimerS = msToS(pld.m_pitStopTimerInMS)
       pl.pitStopCount = numOr(pld.m_numPitStops, pl.pitStopCount)
@@ -598,23 +620,17 @@ export class StateAggregator {
   }
 
   onSessionHistory(p: AnyParsedPacket): void {
-    const h = p.m_header as PacketHeader
-    void h
     const carIdx = p.m_carIdx as number
+    if (!Number.isInteger(carIdx) || carIdx < 0 || carIdx >= (this.state.packetFormat === 2026 ? 24 : 22)) return
     const r = this.ensureRival(carIdx)
-    const laps = (p.m_lapHistoryData ?? []) as AnyParsedPacket[]
-    if (laps.length > 0) {
-      // treat non-positive lap times as empty slots (the parser zero-fills unused history entries)
-      const best = laps.reduce(
-        (min, l) => Math.min(min, l.m_lapTimeInMS > 0 ? l.m_lapTimeInMS : Infinity),
-        Infinity
-      )
-      const packetBestS = best === Infinity ? null : best / 1000
-      r.bestLapTimeS = minNullable(r.bestLapTimeS, packetBestS)
-    }
-    if (carIdx === this.state.player.carIndex && r.bestLapTimeS != null) {
-      this.state.player.bestLapTimeS = r.bestLapTimeS
-    }
+    const laps = ((p.m_lapHistoryData ?? []) as AnyParsedPacket[]).slice(0,
+      Number.isInteger(p.m_numLaps) ? Math.max(0, Math.min(100, p.m_numLaps)) : 0)
+    // Bit zero is full-lap validity. Recompute so deleted laps/flashbacks can remove a former best.
+    const validTimes = laps.filter(l => Number.isInteger(l.m_lapValidBitFlags) &&
+      (l.m_lapValidBitFlags & 1) !== 0 && Number.isFinite(l.m_lapTimeInMS) && l.m_lapTimeInMS > 0)
+      .map(l => l.m_lapTimeInMS as number)
+    r.bestLapTimeS = validTimes.length ? Math.min(...validTimes) / 1000 : null
+    if (carIdx === this.state.player.carIndex) this.state.player.bestLapTimeS = r.bestLapTimeS
   }
 
   // ───────────────────────── helpers ─────────────────────────
@@ -743,11 +759,6 @@ function finiteOrNull(v: unknown): number | null {
 function numOrNull(v: number | undefined | null): number | null {
   if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return null
   return Math.trunc(v)
-}
-function minNullable(a: number | null, b: number | null): number | null {
-  if (a == null) return b
-  if (b == null) return a
-  return Math.min(a, b)
 }
 function isRainWeatherCode(code: number): boolean {
   // F1 weather enum: 0 clear, 1 light cloud, 2 overcast, 3 light rain, 4 heavy rain, 5 storm.

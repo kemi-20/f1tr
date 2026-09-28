@@ -63,7 +63,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path resources/dsh-runtime/plugin -Force | Out-Null
-          Copy-Item -LiteralPath resources/dsh-f1-plugin/index.mjs -Destination resources/dsh-runtime/plugin/index.mjs -Force
+          Copy-Item -Path resources/dsh-f1-plugin/*.mjs,resources/dsh-f1-plugin/*.md -Destination resources/dsh-runtime/plugin -Force
       - name: Smoke check pinned DSH runtime
         shell: pwsh
         run: |

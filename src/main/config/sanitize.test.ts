@@ -12,6 +12,12 @@ describe('sanitizeConfigPatch', () => {
     expect(out.llm).toBeUndefined()
   })
 
+  it('accepts only a boolean native web-search preference', () => {
+    expect(sanitizeConfigPatch({ llm: { useNativeWebSearch: true } }).llm).toEqual({ useNativeWebSearch: true })
+    expect(sanitizeConfigPatch({ llm: { useNativeWebSearch: false } }).llm).toEqual({ useNativeWebSearch: false })
+    expect(sanitizeConfigPatch({ llm: { useNativeWebSearch: 'true' } }).llm).toBeUndefined()
+  })
+
   it('rejects out-of-range and non-finite numbers instead of persisting them', () => {
     expect(sanitizeConfigPatch({ telemetry: { port: 0 } }).telemetry).toBeUndefined()
     expect(sanitizeConfigPatch({ telemetry: { port: 70_000 } }).telemetry).toBeUndefined()

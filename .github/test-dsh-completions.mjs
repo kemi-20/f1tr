@@ -14,7 +14,7 @@ const home = await mkdtemp(join(tmpdir(), 'f1tr-completions-test-'))
 const token = randomBytes(32).toString('hex')
 const pipe = `\\\\.\\pipe\\f1tr-test-${randomUUID()}`
 const expectedTools = ['capture_screenshot', 'get_lap_history', 'get_race_events', 'get_race_state',
-  'get_stint_history', 'get_telemetry_history', 'read_telemetry_packet', 'speak_radio'].sort()
+  'get_stint_history', 'get_telemetry_history', 'read_telemetry_packet', 'speak_radio', 'web_search'].sort()
 let requests = 0
 const calls = []
 let failure
@@ -42,6 +42,12 @@ const api = httpServer(async (req, res) => {
     const request = JSON.parse(body)
     assert.equal(request.stream, true)
     assert.equal(request.model, 'f1tr-ci-smoke')
+    const system = JSON.stringify(request.messages.filter(message => ['system', 'developer'].includes(message.role)))
+    assert.ok(system.includes('Race-distance decision framework'), 'Native F1 agent preset was not bound')
+    assert.ok(system.includes('totalLaps - currentLap + 1 - lapDistancePct'), 'Distance policy missing')
+    assert.ok(system.includes('Pit windows, traffic and neutralisation'), 'Pit strategy policy missing')
+    assert.ok(system.includes('Qualifying run control'), 'Qualifying policy missing')
+    assert.ok(system.includes('Use only F1 tools.'), 'Communication preferences missing')
     assert.deepEqual(request.tools.map(tool => tool.function.name).sort(), expectedTools)
     requests++
     assert.ok(requests <= 3, 'Unexpected retry or agent loop')
@@ -93,7 +99,7 @@ try {
         const line = buffer.slice(0, at); buffer = buffer.slice(at + 1)
         let frame
         try { frame = JSON.parse(line) } catch { continue }
-        if (frame.error) { fail(new Error('RPC error')); return }
+        if (frame.error) { fail(new Error(`RPC error: ${JSON.stringify(frame.error)}; ${diagnostics}`)); return }
         if (frame.id === 1) child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'session/prompt', params: {
           sessionId: 'f1tr-integration', contentBlocks: [{ type: 'text', text: 'Check fuel then speak.' }]
         } }) + '\n')

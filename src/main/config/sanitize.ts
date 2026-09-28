@@ -21,6 +21,7 @@ export function sanitizeConfigPatch(patch: unknown): DeepPartial<AppConfig> {
     assign(next, 'model', pickString(llm.model, 128))
     assign(next, 'reasoningEffort', pickEnum(llm.reasoningEffort, ['none', 'low', 'high', 'max'] as const))
     assign(next, 'contextLimit', pickInt(llm.contextLimit, 8_192, 2_000_000))
+    assign(next, 'useNativeWebSearch', pickBool(llm.useNativeWebSearch))
     assign(next, 'visionSupported', pickBool(llm.visionSupported))
     if (Object.keys(next).length > 0) out.llm = next
   }

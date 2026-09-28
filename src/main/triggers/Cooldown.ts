@@ -46,6 +46,7 @@ export class Cooldown {
   private ruleCooldownMs(ruleId: string): number {
     const explicit = this.config.perRuleCooldownS[ruleId]
     if (explicit != null) return explicit * 1000
+    if (ruleId.startsWith('qualifying_yield_')) return 15_000
     return DEFAULT_COOLDOWN_MS
   }
 }

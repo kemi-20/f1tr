@@ -28,7 +28,7 @@ export class DigestBuilder {
         track: s.trackName || `track#${s.trackId}`,
         type: s.sessionTypeLabel,
         // practice has no lap limit — don't show "Lap X" (AI misreads as "last lap")
-        lap: s.totalLaps ? `${s.currentLap}/${s.totalLaps}` : '',
+        lap: raceSession && s.totalLaps ? `${s.currentLap}/${s.totalLaps}` : '',
         timeLeft: s.sessionTimeLeftS != null ? this.fmtClock(s.sessionTimeLeftS) : undefined,
         sc
       },
@@ -41,8 +41,8 @@ export class DigestBuilder {
       },
       player: {
         pos: `P${p.position}`,
-        gapAhead: this.fmtAheadGap(state),
-        gapBehind: this.fmtBehindGap(state),
+        gapAhead: raceSession ? this.fmtAheadGap(state) : '',
+        gapBehind: raceSession ? this.fmtBehindGap(state) : '',
         lastLap: fmtLapTime(p.lastLapTimeS ? p.lastLapTimeS * 1000 : null),
         bestLap: fmtLapTime(p.bestLapTimeS ? p.bestLapTimeS * 1000 : null),
         fuel: p.fuelRemainingKg != null ? `${p.fuelRemainingKg.toFixed(1)}kg` : '--',
@@ -145,7 +145,8 @@ export class DigestBuilder {
       pos: r.position,
       name: (r.name || `car${r.carIndex}`).toUpperCase(),
       tyre: r.tyreCompound,
-      gap: fmtGap(r.gapToPlayerS),
+      gap: this.isRaceSession(state) ? fmtGap(r.gapToPlayerS)
+        : `best valid ${fmtLapTime(r.bestLapTimeS != null && r.bestLapTimeS > 0 ? r.bestLapTimeS * 1000 : null)}`,
       pits: r.pitStopCount,
       pen: r.penaltiesS > 0 ? `${r.penaltiesS}s` : undefined,
       note:
@@ -153,7 +154,7 @@ export class DigestBuilder {
           ? 'DNF'
           : r.pitStatus === 2
             ? 'in pit'
-            : r.deltaToCarBehindS != null && Math.abs(r.deltaToCarBehindS) < 0.8
+            : this.isRaceSession(state) && r.deltaToCarBehindS != null && Math.abs(r.deltaToCarBehindS) < 0.8
               ? 'under pressure'
               : undefined
     }))

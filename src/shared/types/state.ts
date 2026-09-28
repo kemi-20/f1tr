@@ -4,6 +4,7 @@
  */
 
 export type PacketFormat = 2025 | 2026
+export type LapPhase = 'garage' | 'out' | 'flying' | 'cooling' | 'in' | 'unknown'
 
 export type TyreCompound = 'soft' | 'medium' | 'hard' | 'inter' | 'wet' | 'unknown'
 
@@ -74,6 +75,10 @@ export interface PlayerCarState {
   onTrack: boolean
   currentLapTimeS: number | null
   currentLapInvalid?: boolean
+  driverStatus?: number
+  lapPhase?: LapPhase
+  lapPhaseEvidence?: string
+  lapDataUpdatedAt?: number
   lastLapTimeS: number | null
   bestLapTimeS: number | null
   speedKmh: number
@@ -94,7 +99,7 @@ export interface PlayerCarState {
   brake: number
   revLightsPercent: number
   fuelRemainingKg: number | null
-  fuelRemainingLaps: number | null // game's current consumption-based estimate; not a guarantee
+  fuelRemainingLaps: number | null // raw MFD value: signed surplus/deficit to finish in race sessions
   fuelMix: 0 | 1 | 2 | 3
   pitStatus: number
   pitTimerS: number | null
@@ -107,6 +112,11 @@ export interface PlayerCarState {
 }
 
 export interface RivalState {
+  driverStatus?: number
+  currentLapInvalid?: boolean
+  lapPhase?: LapPhase
+  lapPhaseEvidence?: string
+  lapDataUpdatedAt?: number
   carIndex: number
   driverId?: number
   driverCode?: string

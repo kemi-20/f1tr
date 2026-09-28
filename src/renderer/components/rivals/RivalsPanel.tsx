@@ -1,25 +1,40 @@
 import { useRaceStore } from '../../store'
 import { compoundLabel, tyreWearColor } from '@shared/index'
 import type { RivalState, TyreCompound } from '@shared/types/state'
+import { formatBestLapDelta, isQualifyingOrPracticeSession, rankRivalsByBestLap } from '@shared/util/qualifyingRanking'
 import { teamColorForCar, teamMetaFor } from './teamMeta'
 
-function Row({ r, isPlayer }: { r: RivalState; isPlayer: boolean }): React.ReactElement {
+function Row({
+  r,
+  isPlayer,
+  lapRank,
+  lapDeltaS,
+  useLapRanking
+}: {
+  r: RivalState
+  isPlayer: boolean
+  lapRank: number | null
+  lapDeltaS: number | null
+  useLapRanking: boolean
+}): React.ReactElement {
   const mark = teamMetaFor(r.team) ?? { label: r.teamName || shortTeam(r.team), color: r.teamColor || '#E6EDF6' }
   const tyre = tyreCode(r.tyreCompound)
-  const gap = formatPlayerRelativeGap(r.gapToPlayerS)
+  const gap = useLapRanking ? formatBestLapDelta(lapDeltaS) : formatPlayerRelativeGap(r.gapToPlayerS)
   const tyreWear = formatTyreWear(r.tyreWearAvg)
   const retired = r.status === 'retired'
   const inPit = r.pitStatus === 1 || r.pitStatus === 2
+  const displayPosition = useLapRanking ? lapRank : r.position
+  const isLeader = useLapRanking ? lapRank === 1 : r.position === 1
 
   return (
     <div className={`broadcast-row ${isPlayer ? 'broadcast-row-player' : ''} ${retired ? 'broadcast-row-muted' : ''}`}>
-      <div className={`broadcast-pos ${r.position === 1 ? 'broadcast-pos-leader' : ''}`}>{r.position}</div>
+      <div className={`broadcast-pos ${isLeader ? 'broadcast-pos-leader' : ''}`}>{displayPosition ?? '--'}</div>
       <div className="broadcast-team" style={{ color: teamColorForCar(r.team, r.teamColor) }} title={mark.label}>
         {mark.logo ? <img src={mark.logo} alt={mark.label} /> : <span>{shortTeam(mark.label)}</span>}
       </div>
       <div className="broadcast-code" title={r.name || driverCode(r)}>{r.driverCode || driverCode(r)}</div>
       <div className="broadcast-wear" style={{ color: tyreWear.color }} title={tyreWear.title}>{tyreWear.text}</div>
-      <div className="broadcast-gap">{inPit ? 'PIT' : gap}</div>
+      <div className="broadcast-gap">{!useLapRanking && inPit ? 'PIT' : gap}</div>
       <div className={`broadcast-tyre tyre-${tyre.toLowerCase()}`}>{tyre}</div>
       {r.penaltiesS > 0 && <div className="broadcast-penalty">{r.penaltiesS}s</div>}
     </div>
@@ -30,17 +45,33 @@ export function RivalsPanel(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const rivals = race ? Object.values(race.rivals) : []
   const playerIdx = race?.player.carIndex ?? -1
-  const sorted = rivals
-    .filter((r) => r.position > 0)
+  const maxRows = race?.packetFormat === 2026 ? 24 : 22
+  const useLapRanking = race != null && isQualifyingOrPracticeSession(
+    race.session.sessionType,
+    race.session.sessionTypeLabel
+  )
+  const positionedRivals = rivals.filter((r) => r.position > 0)
+  const sorted = positionedRivals
     .sort((a, b) => a.position - b.position || a.carIndex - b.carIndex)
-    .slice(0, race?.packetFormat === 2026 ? 24 : 22)
+    .slice(0, maxRows)
+  const lapRanked = useLapRanking && race
+    ? rankRivalsByBestLap(positionedRivals, playerIdx, race.player.bestLapTimeS).slice(0, maxRows)
+    : null
+  const rows = lapRanked ?? sorted.map((r) => ({ rival: r, rank: r.position, deltaS: null }))
 
   return (
     <aside className="broadcast-tower h-full">
       <div className="broadcast-body">
-        {sorted.length === 0 && <div className="broadcast-empty">等待车手数据</div>}
-        {sorted.map((r) => (
-          <Row key={r.carIndex} r={r} isPlayer={r.carIndex === playerIdx} />
+        {rows.length === 0 && <div className="broadcast-empty">等待车手数据</div>}
+        {rows.map(({ rival: r, rank, deltaS }) => (
+          <Row
+            key={r.carIndex}
+            r={r}
+            isPlayer={r.carIndex === playerIdx}
+            lapRank={rank}
+            lapDeltaS={deltaS}
+            useLapRanking={useLapRanking}
+          />
         ))}
       </div>
     </aside>

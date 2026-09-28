@@ -17,6 +17,40 @@ function parsedPacket(format: 2025 | 2026, id: number): AnyParsedPacket {
 }
 
 describe('2026 telemetry state', () => {
+  it.each([2025, 2026] as const)('uses only valid laps and clears deleted best laps in %s history', format => {
+    const aggregator = new StateAggregator()
+    aggregator.reset(format)
+    const packet = parsedPacket(format, 11)
+    packet.m_carIdx = 0
+    packet.m_numLaps = 3
+    packet.m_lapHistoryData[0] = { m_lapTimeInMS: 80000, m_lapValidBitFlags: 14 }
+    packet.m_lapHistoryData[1] = { m_lapTimeInMS: 91000, m_lapValidBitFlags: 15 }
+    packet.m_lapHistoryData[2] = { m_lapTimeInMS: 93000, m_lapValidBitFlags: 1 }
+    aggregator.onSessionHistory(packet)
+    expect(aggregator.state.player.bestLapTimeS).toBe(91)
+    packet.m_lapHistoryData[1].m_lapValidBitFlags = 0
+    aggregator.onSessionHistory(packet)
+    expect(aggregator.state.player.bestLapTimeS).toBe(93)
+    packet.m_numLaps = 0
+    aggregator.onSessionHistory(packet)
+    expect(aggregator.state.player.bestLapTimeS).toBeNull()
+  })
+
+  it('preserves game lap phases and opponent speed when a new lap packet arrives', () => {
+    const aggregator = new StateAggregator()
+    const packet = parsedPacket(2026, 2)
+    packet.m_lapData[0].m_driverStatus = 3
+    packet.m_lapData[1].m_driverStatus = 1
+    aggregator.onLapData(packet)
+    const telemetry = parsedPacket(2026, 6)
+    telemetry.m_carTelemetryData[1].m_speed = 280
+    aggregator.onCarTelemetry(telemetry)
+    aggregator.onLapData(packet)
+    expect(aggregator.state.player.lapPhase).toBe('out')
+    expect(aggregator.state.rivals[1].lapPhase).toBe('flying')
+    expect(aggregator.state.trackPositions.find(p => p.carIndex === 1)?.speedKmh).toBe(280)
+  })
+
   it('combines split gap time and preserves millisecond lap times', () => {
     const aggregator = new StateAggregator()
     const packet = parsedPacket(2026, 2)

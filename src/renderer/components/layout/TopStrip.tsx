@@ -14,7 +14,8 @@ export function TopStrip(): React.ReactElement {
 
   const raceSignal = session ? getRaceSignal(session) : null
   const isPractice = session ? isPracticeSession(session.sessionType, session.sessionTypeLabel) : false
-  const lapText = isPractice
+  const isRace = session ? [13, 14, 15].includes(session.sessionType) : false
+  const lapText = !isRace
     ? String(session?.currentLap ?? 0)
     : `${session?.currentLap ?? 0}${session?.totalLaps ? `/${session.totalLaps}` : ''}`
 

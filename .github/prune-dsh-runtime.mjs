@@ -37,6 +37,7 @@ const roots = [
   '@deepseek-ai/dsh-system-prompt',
   '@deepseek-ai/dsh-tools',
   '@deepseek-ai/dsh-agent',
+  '@deepseek-ai/dsh-agent-preset-registry',
   '@deepseek-ai/dsh-llm-retry',
   '@deepseek-ai/dsh-invariants',
   '@deepseek-ai/dsh-scope',
@@ -140,7 +141,7 @@ while (queue.length) {
 }
 
 if (kept.has('node_modules/@deepseek-ai/dsh-agent-preset')) {
-  throw new Error('Unused DSH agent presets must not be packaged')
+  throw new Error('Unused DSH agent preset declarations must not be packaged')
 }
 const forbidden = [...kept].filter((key) =>
   /node_modules\/(?:@anthropic-ai\/|@aws-sdk\/|@aws-crypto\/|@smithy\/|@google\/genai$|bowser$|@earendil-works\/pi-ai$|@deepseek-ai\/dsh-llm-deepseek(?:-api-key)?$|@deepseek-ai\/dsh-deepseek-llm-api-extensions$)/.test(key)

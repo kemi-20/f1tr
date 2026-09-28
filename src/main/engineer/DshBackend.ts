@@ -12,6 +12,7 @@ import type { EngineerBackend } from './EngineerService'
 import type { TelemetryHistory } from './TelemetryHistory'
 import { executeTelemetryTool } from './TelemetryHarness'
 import { captureF1Screenshot } from '../screenshot/ScreenshotService'
+import { searchWeb } from './WebSearchClient'
 import type { MiMoVisionClient } from './MiMoVisionClient'
 import { logger } from '../logging/Logger'
 
@@ -37,7 +38,7 @@ export class DshBackend implements EngineerBackend {
   private nextId = 1
   private requests = new Map<number, Pending>()
   private sessionId = randomUUID()
-  private current: { firing: TriggerFiring; onDelta: (text: string) => void; resolve: (text: string) => void; reject: (e: Error) => void; text: string; calls: number; screenshots: number; speeches: number; corrected: boolean; timer: NodeJS.Timeout } | null = null
+  private current: { firing: TriggerFiring; onDelta: (text: string) => void; resolve: (text: string) => void; reject: (e: Error) => void; text: string; calls: number; screenshots: number; webSearches: number; webSearchControllers: Set<AbortController>; speeches: number; corrected: boolean; timer: NodeJS.Timeout } | null = null
   private starting: Promise<void> | null = null
   private radioTimes: number[] = []
   private closing = false
@@ -122,6 +123,8 @@ export class DshBackend implements EngineerBackend {
     this.current = null
     if (pending) {
       clearTimeout(pending.timer)
+      for (const controller of pending.webSearchControllers) controller.abort()
+      pending.webSearchControllers.clear()
       pending.reject(Object.assign(new Error('Engineer turn cancelled'), { name: 'AbortError' }))
     }
     this.stop()
@@ -138,7 +141,7 @@ export class DshBackend implements EngineerBackend {
     const prompt = `${manual ? 'SOURCE: driver_manual. The driver asked directly; call speak_radio with your answer.' : 'SOURCE: automatic_event. Speak only when an actionable radio message is warranted.'}\n${manual ? `DRIVER: ${driverText.slice(0, 1024)}\n` : ''}${digestText}`
     return new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => this.cancel(), manual ? 90_000 : 45_000)
-      this.current = { firing, onDelta, resolve, reject, text: '', calls: 0, screenshots: 0, speeches: 0, corrected: false, timer }
+      this.current = { firing, onDelta, resolve, reject, text: '', calls: 0, screenshots: 0, webSearches: 0, webSearchControllers: new Set(), speeches: 0, corrected: false, timer }
       void this.request('session/prompt', { sessionId: this.sessionId, contentBlocks: [{ type: 'text', text: prompt }] })
         .catch((error: Error) => { if (this.current) this.finish(error) })
     })
@@ -160,7 +163,9 @@ export class DshBackend implements EngineerBackend {
     const bin = join(root, 'launch.mjs')
     const patch = join(root, 'race-engineer.cordis.patch.yml')
     const plugin = join(root, 'plugin', 'index.mjs')
-    if (!existsSync(bin) || !existsSync(patch) || !existsSync(plugin)) {
+    const presetFiles = ['preset.mjs', 'bind-preset.mjs', 'race-engineer.md']
+    if (!existsSync(bin) || !existsSync(patch) || !existsSync(plugin) ||
+        presetFiles.some(file => !existsSync(join(root, 'plugin', file)))) {
       throw new Error('Private DSH runtime resources are missing')
     }
     this.home = mkdtempSync(join(tmpdir(), 'f1tr-dsh-'))
@@ -320,6 +325,8 @@ export class DshBackend implements EngineerBackend {
     const active = this.current
     this.current = null
     if (!active) return
+    for (const controller of active.webSearchControllers) controller.abort()
+    active.webSearchControllers.clear()
     clearTimeout(active.timer)
     if (error) active.reject(error)
     else active.resolve(active.text)
@@ -328,8 +335,10 @@ export class DshBackend implements EngineerBackend {
   private logChildStderr(line: string): void {
     const text = line.trim()
     if (!text || this.stderrLines++ >= 20) return
-    const redact = (value: string): string => value ? text.split(value).join('[redacted]') : text
-    const safe = [this.config.apiKey, this.token].reduce(redact, text).slice(0, 2_000)
+    const safe = [this.config.apiKey, this.token].reduce(
+      (message, secret) => secret ? message.split(secret).join('[redacted]') : message,
+      text
+    ).slice(0, 2_000)
     logger.warn(`Private DSH stderr: ${safe}`)
   }
 
@@ -356,6 +365,7 @@ export class DshBackend implements EngineerBackend {
       if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id) || req.token !== this.token ||
           typeof req.name !== 'string' || !this.current || socket.destroyed) throw new Error('Tool unavailable')
       if (req.name === 'capture_screenshot') socket.setTimeout(65_000)
+      if (req.name === 'web_search') socket.setTimeout(25_000)
       const active = this.current
       if (++active.calls > 16) throw new Error('Tool budget exceeded')
       const args = req.args && typeof req.args === 'object' && !Array.isArray(req.args) ? req.args as JsonRecord : {}
@@ -373,6 +383,17 @@ export class DshBackend implements EngineerBackend {
           : this.vision
             ? await this.vision.describeImage(png, controller.signal)
             : 'Screenshot captured, but no image-capable model is configured.'
+      } else if (req.name === 'web_search') {
+        if (Object.keys(args).some(key => key !== 'query')) throw new Error('Invalid web search arguments')
+        if (++active.webSearches > 1) throw new Error('Web search limit exceeded for this turn')
+        const controller = new AbortController()
+        active.webSearchControllers.add(controller)
+        socket.once('close', () => controller.abort())
+        try {
+          result = await searchWeb(args.query, controller.signal)
+        } finally {
+          active.webSearchControllers.delete(controller)
+        }
       } else if (req.name === 'speak_radio') {
         if (++active.speeches > 2) throw new Error('Radio limit exceeded')
         const now = Date.now()

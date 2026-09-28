@@ -4,7 +4,7 @@ import type { PacketHeader } from './HeaderTypes'
 import { logger } from '../logging/Logger'
 import type { PacketFormat } from '@shared/index'
 
-const { PACKETS, PACKET_SIZES, PACKET_ID_TO_PACKET } = constants
+const { PACKETS, PACKET_ID_TO_PACKET } = constants
 
 export interface AnyParsedPacket {
   m_header: PacketHeader
@@ -98,7 +98,7 @@ export class UdpReceiver {
       return
     }
     const name = (PACKET_ID_TO_PACKET as Record<number, string | undefined>)[packetId]
-    const expected = name ? (PACKET_SIZES as Record<string, Record<number, number>>)[name]?.[fmt] : undefined
+    const expected = name ? F1TelemetryClient.getPacketSize(fmt, packetId) : undefined
     // Event payloads vary by event code; every event has a 29-byte header and 4-byte code.
     if (!name || expected == null || msg.length < (packetId === 3 ? 33 : expected)) {
       // truncated datagram — drop instead of letting the parser throw
