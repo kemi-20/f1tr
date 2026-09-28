@@ -5,8 +5,8 @@ import type { ReasoningEffort } from '@shared/index'
 const THINKING_LEVELS: { id: ReasoningEffort; label: string; color: string }[] = [
   { id: 'none', label: 'NONE', color: '#8A94A6' },
   { id: 'low', label: 'LOW', color: '#00D2BE' },
-  { id: 'high', label: 'HIGH', color: '#FFB020' },
-  { id: 'max', label: 'MAX', color: '#FF3B3B' }
+  { id: 'high', label: 'HIGH', color: '#FF8700' },
+  { id: 'max', label: 'MAX', color: '#FF2800' }
 ]
 
 export function LlmTab(): React.ReactElement {
