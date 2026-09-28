@@ -12,6 +12,7 @@ export interface WebSearchSettings {
 
 type Fetcher = typeof fetch
 type Source = { title: string; url: string; snippet?: string; publishedAt?: string }
+type SearchResult = { text: string; sources: Source[] }
 
 /**
  * Everything provider-specific about a search. Both modes resolve one of these and then
@@ -33,13 +34,15 @@ interface SearchTarget {
 }
 
 const REQUEST_TIMEOUT_MS = 60_000
-const COOLDOWN_MS = 10_000
+const RATE_WINDOW_MS = 60_000
+const MAX_REQUESTS_PER_WINDOW = 12
 const CACHE_TTL_MS = 60_000
 const MAX_CACHE_ENTRIES = 16
 const MAX_QUERY_CHARS = 500
+const MAX_QUERIES = 4
 const MAX_RESPONSE_BYTES = 512_000
 const MAX_RESULT_BYTES = 8_000
-const MAX_SOURCES = 5
+const MAX_SOURCES = 8
 const MAX_TITLE_CHARS = 180
 const MAX_SNIPPET_CHARS = 500
 const MAX_TEXT_CHARS = 7_000
@@ -66,8 +69,8 @@ const MIMO_FALLBACK_MODEL = 'mimo-v2.6-flash'
 const COMPLETIONS_DIALECT_HOSTS = new Set(['api.xiaomimimo.com'])
 
 export class WebSearchClient {
-  private readonly cache = new Map<string, { result: string; expiresAt: number }>()
-  private lastRequestAt = Number.NEGATIVE_INFINITY
+  private readonly cache = new Map<string, { result: SearchResult; expiresAt: number }>()
+  private requestTimes: number[] = []
 
   constructor(
     private readonly getSettings: () => WebSearchSettings,
@@ -76,57 +79,69 @@ export class WebSearchClient {
   ) {}
 
   async search(value: unknown, parentSignal?: AbortSignal): Promise<string> {
-    const query = validateQuery(value)
+    const queries = validateQueries(value)
     if (parentSignal?.aborted) throw abortError()
 
-    // The only switch between the two providers. A failure below never crosses over.
-    const target = this.getSettings().useNativeWebSearch
-      ? resolveCurrentModelTarget(this.getSettings())
-      : resolveMimoTarget(this.getSettings())
+    const settings = this.getSettings()
+    const target = settings.useNativeWebSearch
+      ? resolveCurrentModelTarget(settings)
+      : resolveMimoTarget(settings)
     const now = this.now()
     this.pruneCache(now)
-    const cacheKey = `${target.cachePrefix}:${query}`
-    const cached = this.cache.get(cacheKey)
-    if (cached) return cached.result
-    if (now - this.lastRequestAt < COOLDOWN_MS) {
-      throw new Error('Web search is cooling down; try again shortly')
+    const keys = queries.map(query => `${target.cachePrefix}:${query}`)
+    const misses = keys.filter(key => !this.cache.has(key))
+    this.requestTimes = this.requestTimes.filter(time => now - time < RATE_WINDOW_MS)
+    if (this.requestTimes.length + misses.length > MAX_REQUESTS_PER_WINDOW) {
+      throw new Error('Web search rate limit reached; use existing sources or retry in a minute')
     }
-    this.lastRequestAt = now
+    this.requestTimes.push(...misses.map(() => now))
 
     const controller = new AbortController()
     const onParentAbort = (): void => controller.abort()
     parentSignal?.addEventListener('abort', onParentAbort, { once: true })
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    let timedOut = false
+    const timer = setTimeout(() => { timedOut = true; controller.abort() }, REQUEST_TIMEOUT_MS)
     try {
-      const response = await this.fetcher(target.endpoint, {
-        method: 'POST',
-        headers: target.headers,
-        body: JSON.stringify(buildSearchRequest(query, target)),
-        signal: controller.signal,
-        redirect: 'error'
-      })
-      if (!response.ok) {
-        void response.body?.cancel()
-        throw new Error(`Web search provider returned HTTP ${response.status}`)
+      const results = await Promise.all(queries.map((query, index) => {
+        const cached = this.cache.get(keys[index])
+        return cached ? cached.result : this.fetchResult(query, target, controller.signal)
+      }))
+      for (let i = 0; i < keys.length; i++) {
+        if (!this.cache.has(keys[i])) {
+          this.cache.set(keys[i], { result: results[i], expiresAt: this.now() + CACHE_TTL_MS })
+        }
       }
-      const body = await readBoundedResponse(response, controller.signal)
-      const result = formatSearchResult(parseSearchResult(body, target.dialect))
-      this.cache.set(cacheKey, { result, expiresAt: this.now() + CACHE_TTL_MS })
       while (this.cache.size > MAX_CACHE_ENTRIES) {
         const oldest = this.cache.keys().next().value
         if (oldest === undefined) break
         this.cache.delete(oldest)
       }
-      return result
+      return formatSearchResult(mergeSearchResults(queries, results))
     } catch (error) {
+      controller.abort()
       if (parentSignal?.aborted) throw abortError()
-      if (controller.signal.aborted) throw new Error('Web search timed out after 60 seconds')
+      if (timedOut) throw new Error('Web search timed out after 60 seconds')
       if (error instanceof Error && error.message.startsWith('Web search')) throw error
       throw new Error('Web search request failed')
     } finally {
       clearTimeout(timer)
       parentSignal?.removeEventListener('abort', onParentAbort)
     }
+  }
+
+  private async fetchResult(query: string, target: SearchTarget, signal: AbortSignal): Promise<SearchResult> {
+    const response = await this.fetcher(target.endpoint, {
+      method: 'POST',
+      headers: target.headers,
+      body: JSON.stringify(buildSearchRequest(query, target)),
+      signal,
+      redirect: 'error'
+    })
+    if (!response.ok) {
+      void response.body?.cancel()
+      throw new Error(`Web search provider returned HTTP ${response.status}`)
+    }
+    return parseSearchResult(await readBoundedResponse(response, signal), target.dialect)
   }
 
   private pruneCache(now: number): void {
@@ -154,6 +169,31 @@ function validateQuery(value: unknown): string {
     throw new Error('Invalid web-search query')
   }
   return query
+}
+
+function validateQueries(value: unknown): string[] {
+  const values = typeof value === 'string' ? [value] : value
+  if (!Array.isArray(values) || values.length < 1 || values.length > MAX_QUERIES) {
+    throw new Error('Invalid web-search queries: expected 1-4 queries')
+  }
+  return [...new Set(values.map(validateQuery))]
+}
+
+function mergeSearchResults(queries: string[], results: SearchResult[]): SearchResult {
+  if (results.length === 1) return results[0]
+  const sources: Source[] = []
+  for (let index = 0; sources.length < MAX_SOURCES; index++) {
+    let found = false
+    for (const result of results) {
+      const source = result.sources[index]
+      if (!source) continue
+      found = true
+      if (!sources.some(existing => existing.url === source.url)) sources.push(source)
+      if (sources.length >= MAX_SOURCES) break
+    }
+    if (!found) break
+  }
+  return { text: results.map((result, index) => `Query: ${queries[index]}\n${result.text}`).join('\n\n'), sources }
 }
 
 /**

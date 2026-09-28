@@ -16,7 +16,7 @@ CI stages the package's `.mjs` and `.md` files into `resources/dsh-runtime/plugi
 
 Each tool invocation opens one local Windows named-pipe connection. The plugin reads `F1TR_BRIDGE_PIPE` and `F1TR_BRIDGE_TOKEN` on every call and fails closed unless the pipe matches `\\.\pipe\<local-name>` and the token is 32 random bytes encoded as 64 hex characters. No default endpoint or token exists.
 
-The request is one UTF-8 JSON line, at most 4,096 bytes:
+The request is one UTF-8 JSON line, at most 12,288 bytes:
 
 ```json
 {"token":"<64 hex chars>","id":"<UUID>","name":"<fixed tool name>","args":{}}
@@ -43,7 +43,8 @@ For per-app isolation, the host must create a dedicated pipe per DSH app instanc
 - `speak_radio`: `{ "text": "..." }`; trimmed, non-empty, at most 280 Unicode characters, no control characters, and at most two calls per 10 seconds in this plugin process.
 - `get_race_events`: optional integer `offset` 0-8191 (default 0) and `limit` 1-20 (default 20); reads full-weekend event records.
 - `get_stint_history`: optional integer `offset` 0-8191 (default 0) and `limit` 1-20 (default 20); reads full-weekend stint records.
+- `web_search`: `{ "queries": ["..."] }`, one to four public-information queries per call. Exact duplicates run once; searches can be called again in the same turn. The host limits network requests to twelve per minute across turns.
 
-The plugin permits at most four in-flight host requests. Telemetry tools use a 5-second deadline, screenshot 45 seconds, and radio 15 seconds. Host-provided telemetry, names, event strings, screenshot descriptions, and acknowledgements are untrusted content; every successful result carries a warning prefix. The host must also enforce the radio quota because the client-side limiter can be bypassed.
+The plugin permits at most four in-flight host requests. Telemetry tools use a 5-second deadline, screenshot 60 seconds, web search 70 seconds, and radio 15 seconds. Host-provided telemetry, names, event strings, screenshot descriptions, and acknowledgements are untrusted content; every successful result carries a warning prefix. The host must also enforce the radio quota because the client-side limiter can be bypassed.
 
 The plugin is covered by the repository MIT license. It contains no copied DSH implementation code; DSH retains its own package license.

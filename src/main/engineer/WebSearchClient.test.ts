@@ -183,6 +183,17 @@ describe('WebSearchClient MiMo mode', () => {
     expect(body.stream).toBe(false)
   })
 
+  it('keeps every query in a batch on the configured MiMo search backend', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => completionsWithAnnotations())
+    await client({ useNativeWebSearch: false }, fetcher).search(['F1 25 tyre compounds', 'F1 25 pit rules'])
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    for (const [url, init] of fetcher.mock.calls) {
+      expect(String(url)).toBe('https://api.xiaomimimo.com/v1/chat/completions')
+      expect(init?.headers).toMatchObject({ 'api-key': 'mimo-env-test-key' })
+      expect(JSON.parse(String(init?.body)).model).toBe('mimo-v2.6-flash')
+    }
+  })
+
   it('never falls back to the Responses dialect or another provider', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('nope', { status: 400 }))
     await expect(client({ useNativeWebSearch: false }, fetcher).search('2026 F1 calendar')).rejects.toThrow('HTTP 400')
@@ -251,10 +262,10 @@ describe('WebSearchClient response handling', () => {
     }
   })
 
-  it('caps unique sources at five and bounds the response body size', async () => {
+  it('caps unique sources at eight and bounds the response body size', async () => {
     const many = Array.from({ length: 9 }, (_, i) => ({ url: `https://source${i}.example/page`, title: `Source ${i}` }))
     const result = await client({}, vi.fn<typeof fetch>().mockResolvedValue(responsesWithCitations(many))).search('query')
-    expect(result.match(/\d+\. \[/g)).toHaveLength(5)
+    expect(result.match(/\d+\. \[/g)).toHaveLength(8)
 
     const oversized = vi.fn<typeof fetch>().mockResolvedValue(new Response('x'.repeat(512_001), { status: 200 }))
     await expect(client({}, oversized).search('query')).rejects.toThrow('exceeded its size limit')
@@ -294,27 +305,80 @@ describe('WebSearchClient cache and controls', () => {
     expect(String(fetcher.mock.calls[1][0])).toBe('https://api.xiaomimimo.com/v1/chat/completions')
   })
 
+  it('does not extend source freshness when a cached query is repeated', async () => {
+    let now = 50_000
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
+    const search = client({}, fetcher, () => now)
+    await search.search('same source')
+    now += 50_000
+    await search.search('same source')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    now += 10_001
+    await search.search('same source')
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
   it('validates query length and controls before network access', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
     const search = client({}, fetcher)
     await expect(search.search('x'.repeat(501))).rejects.toThrow('Invalid web-search query')
     await expect(search.search('search\nwith controls')).rejects.toThrow('Invalid web-search query')
-    await expect(search.search({ query: 'not a string' })).rejects.toThrow('Invalid web-search query')
+    await expect(search.search({ query: 'not a string' })).rejects.toThrow('Invalid web-search queries')
+    await expect(search.search([])).rejects.toThrow('Invalid web-search queries')
+    await expect(search.search(['a', 'b', 'c', 'd', 'e'])).rejects.toThrow('Invalid web-search queries')
+    await expect(search.search(['valid', 42])).rejects.toThrow('Invalid web-search query')
     expect(fetcher).not.toHaveBeenCalled()
   })
 
-  it('cools down new requests and honors caller cancellation', async () => {
+  it('supports immediate follow-up searches with a per-minute request limit', async () => {
     let now = 50_000
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
     const search = client({}, fetcher, () => now)
     await search.search('cached query')
     await search.search('cached query')
     expect(fetcher).toHaveBeenCalledTimes(1)
-    await expect(search.search('different query')).rejects.toThrow('cooling down')
-    now += 10_001
-    await search.search('different query')
-    expect(fetcher).toHaveBeenCalledTimes(2)
+    for (let i = 1; i < 12; i++) await search.search(`follow-up ${i}`)
+    expect(fetcher).toHaveBeenCalledTimes(12)
+    await expect(search.search('one too many')).rejects.toThrow('rate limit reached')
+    expect(fetcher).toHaveBeenCalledTimes(12)
+    now += 60_001
+    await search.search('one too many')
+    expect(fetcher).toHaveBeenCalledTimes(13)
+  })
 
+  it('rejects a batch atomically when it would cross the request limit', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
+    const search = client({}, fetcher, () => 50_000)
+    for (let i = 0; i < 10; i++) await search.search(`query ${i}`)
+    await expect(search.search(['next 1', 'next 2', 'next 3'])).rejects.toThrow('rate limit reached')
+    expect(fetcher).toHaveBeenCalledTimes(10)
+  })
+
+  it('merges parallel queries, deduplicates repeats and cancels on a failed source', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { input: string }
+      const query = body.input.replace('Perform a web search for the query: ', '')
+      return responsesWithCitations([{ url: `https://example.com/${query}`, title: query }])
+    })
+    const result = await client({}, fetcher).search(['alpha', 'alpha', 'beta'])
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(result).toContain('https://example.com/alpha')
+    expect(result).toContain('https://example.com/beta')
+    expect(result.indexOf('https://example.com/alpha')).toBeLessThan(result.indexOf('https://example.com/beta'))
+
+    let siblingAborted = false
+    const failing = vi.fn<typeof fetch>().mockImplementation((_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { input: string }
+      if (body.input.endsWith('first')) return Promise.resolve(new Response('failed', { status: 503 }))
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => { siblingAborted = true; reject(new Error('aborted')) }, { once: true })
+      })
+    })
+    await expect(client({}, failing).search(['first', 'second'])).rejects.toThrow('HTTP 503')
+    expect(siblingAborted).toBe(true)
+  })
+
+  it('honors caller cancellation', async () => {
     const waiting = vi.fn<typeof fetch>((_input, init) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
     }))

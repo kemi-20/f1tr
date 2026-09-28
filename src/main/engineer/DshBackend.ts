@@ -39,7 +39,7 @@ export class DshBackend implements EngineerBackend {
   private nextId = 1
   private requests = new Map<number, Pending>()
   private sessionId = randomUUID()
-  private current: { firing: TriggerFiring; onDelta: (text: string) => void; resolve: (text: string) => void; reject: (e: Error) => void; text: string; calls: number; screenshots: number; webSearches: number; webSearchControllers: Set<AbortController>; speeches: number; corrected: boolean; timer: NodeJS.Timeout } | null = null
+  private current: { firing: TriggerFiring; onDelta: (text: string) => void; resolve: (text: string) => void; reject: (e: Error) => void; text: string; calls: number; screenshots: number; webSearchControllers: Set<AbortController>; speeches: number; corrected: boolean; timer: NodeJS.Timeout } | null = null
   private starting: Promise<void> | null = null
   private radioTimes: number[] = []
   private closing = false
@@ -141,8 +141,8 @@ export class DshBackend implements EngineerBackend {
     const driverText = manualPrompt ?? firing.reason
     const prompt = `${manual ? 'SOURCE: driver_manual. The driver asked directly; call speak_radio with your answer.' : 'SOURCE: automatic_event. Speak only when an actionable radio message is warranted.'}\n${manual ? `DRIVER: ${driverText.slice(0, 1024)}\n` : ''}${digestText}`
     return new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => this.cancel(), manual ? 120_000 : 90_000)
-      this.current = { firing, onDelta, resolve, reject, text: '', calls: 0, screenshots: 0, webSearches: 0, webSearchControllers: new Set(), speeches: 0, corrected: false, timer }
+      const timer = setTimeout(() => this.cancel(), manual ? 180_000 : 90_000)
+      this.current = { firing, onDelta, resolve, reject, text: '', calls: 0, screenshots: 0, webSearchControllers: new Set(), speeches: 0, corrected: false, timer }
       void this.request('session/prompt', { sessionId: this.sessionId, contentBlocks: [{ type: 'text', text: prompt }] })
         .catch((error: Error) => { if (this.current) this.finish(error) })
     })
@@ -368,7 +368,7 @@ export class DshBackend implements EngineerBackend {
       if (req.name === 'capture_screenshot') socket.setTimeout(65_000)
       if (req.name === 'web_search') socket.setTimeout(70_000)
       const active = this.current
-      if (++active.calls > 16) throw new Error('Tool budget exceeded')
+      if (++active.calls > 32) throw new Error('Tool budget exceeded')
       const args = req.args && typeof req.args === 'object' && !Array.isArray(req.args) ? req.args as JsonRecord : {}
       let result: string
       if (['get_race_state', 'get_track_layout', 'get_telemetry_history', 'get_lap_history', 'get_race_events', 'get_stint_history', 'read_telemetry_packet'].includes(req.name)) {
@@ -385,13 +385,12 @@ export class DshBackend implements EngineerBackend {
             ? await this.vision.describeImage(png, controller.signal)
             : 'Screenshot captured, but no image-capable model is configured.'
       } else if (req.name === 'web_search') {
-        if (Object.keys(args).some(key => key !== 'query')) throw new Error('Invalid web search arguments')
-        if (++active.webSearches > 1) throw new Error('Web search limit exceeded for this turn')
+        if (Object.keys(args).some(key => key !== 'queries')) throw new Error('Invalid web search arguments')
         const controller = new AbortController()
         active.webSearchControllers.add(controller)
         socket.once('close', () => controller.abort())
         try {
-          result = await searchWeb(args.query, controller.signal)
+          result = await searchWeb(args.queries, controller.signal)
         } finally {
           active.webSearchControllers.delete(controller)
         }
