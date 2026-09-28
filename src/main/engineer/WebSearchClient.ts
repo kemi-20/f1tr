@@ -52,14 +52,18 @@ const MIMO_RESPONSES_BASE = 'https://api.xiaomimimo.com/v1'
 const MIMO_FALLBACK_MODEL = 'mimo-v2.6-flash'
 
 /**
- * Providers allowlisted to the chat-completions web_search dialect, and only for the MiMo
- * search target. MiMo's gateway answers /v1/responses with HTTP 400
+ * The search dialect is a property of the provider, not of the ON/OFF setting. "Use the
+ * current model to search" means that model searches by whatever protocol its own vendor
+ * supports; it never means "use Responses" and never means "use MiMo's model instead".
+ *
+ * MiMo is listed here because its gateway answers /v1/responses with HTTP 400
  * responses_feature_not_supported for every web_search tool type (web_search,
- * web_search_preview, web_search_2025_08_26 — verified 2026-09-28), while the same key and
- * model return real citations over /v1/chat/completions. A custom gateway is never
- * allowlisted: it uses the Responses dialect like every other configured model.
+ * web_search_preview, web_search_2025_08_26 — retested 2026-09-28 with the documented
+ * tool-call shape across mimo-v2.6-flash, mimo-v2.6-pro and mimo-v2.5), while the same
+ * keys and models return real citations over /v1/chat/completions. A custom gateway is
+ * never listed: it uses the Responses dialect like every other configured model.
  */
-const MIMO_COMPLETIONS_SEARCH = new Set(['api.xiaomimimo.com'])
+const COMPLETIONS_DIALECT_HOSTS = new Set(['api.xiaomimimo.com'])
 
 export class WebSearchClient {
   private readonly cache = new Map<string, { result: string; expiresAt: number }>()
@@ -153,33 +157,43 @@ function validateQuery(value: unknown): string {
 }
 
 /**
- * Native mode: the user's own model searches. The checkbox is taken as the user stating
- * that this provider supports Responses web search, so no hostname or model allowlist is
- * consulted and no other provider is substituted if the call fails.
+ * Native mode: the user's own model searches, by the protocol its own vendor serves. The
+ * checkbox is taken as the user stating that this provider supports web search, so no
+ * model allowlist is consulted, the model is never swapped for another one, and no other
+ * provider is substituted if the call fails.
  */
 function resolveCurrentModelTarget(settings: WebSearchSettings): SearchTarget {
-  const endpoint = responsesEndpoint(settings.llmBaseURL)
-  if (!endpoint) throw new Error('Web search needs a valid https Responses base URL for the current model')
+  const base = baseEndpoint(settings.llmBaseURL)
+  if (!base) throw new Error('Web search needs a valid https base URL for the current model')
   if (!settings.llmApiKey) throw new Error('Web search needs an API key for the current model')
+  const completions = COMPLETIONS_DIALECT_HOSTS.has(base.hostname)
+  const endpoint = completions
+    ? new URL(`${base.href.replace(/\/+$/, '')}/chat/completions`)
+    : responsesEndpoint(base.href)
+  if (!endpoint) throw new Error('Web search could not build a search endpoint for the current model')
   return {
     endpoint,
     model: settings.llmModel,
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${settings.llmApiKey}` },
-    dialect: 'responses',
+    // A listed provider takes its documented auth header; every other model uses the
+    // project's standard OpenAI-compatible bearer auth.
+    headers: completions
+      ? { 'content-type': 'application/json', 'api-key': settings.llmApiKey }
+      : { 'content-type': 'application/json', authorization: `Bearer ${settings.llmApiKey}` },
+    dialect: completions ? 'completions' : 'responses',
     cachePrefix: `native:${endpoint.origin}${endpoint.pathname}:${settings.llmModel}`
   }
 }
 
 /**
  * MiMo mode: the same module and the same SearchTarget shape, aimed at MiMo's own endpoint
- * and credentials. Only the dialect differs, and only because MiMo is allowlisted for it.
+ * and credentials, with the MiMo model performing the search on the driver's behalf.
  */
 function resolveMimoTarget(settings: WebSearchSettings): SearchTarget {
   const apiKey = settings.mimoApiKey ||
     (isOfficialMimoBase(settings.ttsBaseURL) ? settings.ttsApiKey : '')
   if (!apiKey) throw new Error('MiMo web search requires MIMO_API_KEY or an API key configured for the official MiMo endpoint')
   const host = new URL(MIMO_RESPONSES_BASE).hostname
-  if (!MIMO_COMPLETIONS_SEARCH.has(host)) throw new Error('MiMo web search endpoint is not allowlisted')
+  if (!COMPLETIONS_DIALECT_HOSTS.has(host)) throw new Error('MiMo web search endpoint is not allowlisted for the completions dialect')
   const endpoint = new URL(`${MIMO_RESPONSES_BASE}/chat/completions`)
   return {
     endpoint,
@@ -195,12 +209,19 @@ function resolveMimoTarget(settings: WebSearchSettings): SearchTarget {
  * tolerated, and a base that already names the endpoint is not appended twice.
  */
 export function responsesEndpoint(baseURL: string): URL | null {
-  let url: URL
-  try { url = new URL(baseURL.trim()) } catch { return null }
-  if (url.protocol !== 'https:' || url.username || url.password) return null
+  const url = baseEndpoint(baseURL)
+  if (!url) return null
   const path = url.pathname.replace(/\/+$/, '')
   if (path.endsWith('/responses')) return new URL(`${url.origin}${path}`)
   return new URL(`${url.origin}${path}/responses`)
+}
+
+/** An https base URL with no embedded credentials; nothing provider-specific. */
+function baseEndpoint(baseURL: string): URL | null {
+  let url: URL
+  try { url = new URL(baseURL.trim()) } catch { return null }
+  if (url.protocol !== 'https:' || url.username || url.password) return null
+  return url
 }
 
 /**

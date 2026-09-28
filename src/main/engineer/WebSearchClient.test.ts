@@ -131,6 +131,40 @@ describe('WebSearchClient native mode', () => {
       .rejects.toThrow('API key for the current model')
     expect(fetcher).not.toHaveBeenCalled()
   })
+
+  it('lets an official MiMo model search natively over its own protocol', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(completionsWithAnnotations())
+    const result = await client({
+      useNativeWebSearch: true,
+      llmBaseURL: 'https://api.xiaomimimo.com/v1',
+      llmApiKey: 'mimo-native-key',
+      llmModel: 'mimo-v2.6-pro'
+    }, fetcher).search('2026 F1 season calendar')
+
+    const [url, init] = fetcher.mock.calls[0]
+    // The user's own model, on the protocol its vendor serves — not /responses, and not
+    // the fallback model.
+    expect(String(url)).toBe('https://api.xiaomimimo.com/v1/chat/completions')
+    expect(init?.headers).toMatchObject({ 'api-key': 'mimo-native-key' })
+    expect(requestBody(fetcher).model).toBe('mimo-v2.6-pro')
+    expect(requestBody(fetcher).tools).toEqual([{ type: 'web_search', max_keyword: 3, force_search: true, limit: 1 }])
+    expect(result).toContain('https://www.fia.com/rules')
+  })
+
+  it('keeps native MiMo on its own model even when the fallback key differs', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(completionsWithAnnotations())
+    await client({
+      useNativeWebSearch: true,
+      llmBaseURL: 'https://api.xiaomimimo.com/v1/',
+      llmApiKey: 'llm-key',
+      llmModel: 'mimo-v2.6-flash',
+      mimoApiKey: 'other-mimo-key'
+    }, fetcher).search('F1 news')
+
+    expect(requestBody(fetcher).model).toBe('mimo-v2.6-flash')
+    expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({ 'api-key': 'llm-key' })
+    expect(JSON.stringify(fetcher.mock.calls[0][1]?.headers)).not.toContain('other-mimo-key')
+  })
 })
 
 describe('WebSearchClient MiMo mode', () => {
