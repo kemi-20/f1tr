@@ -1,4 +1,5 @@
 import type { TelemetryHistory } from './TelemetryHistory'
+import { readTrackLayout, TRACK_LAYOUT_SECTIONS } from './TrackLayoutReport'
 
 const sections = ['all', 'player', 'rivals', 'weather', 'session', 'trackPositions', 'events']
 const sectionProperty = { type: 'string', enum: sections, description: 'Select the relevant data category to avoid unnecessary context.' }
@@ -10,6 +11,9 @@ const paging = {
 
 export const TELEMETRY_TOOLS = [
   tool('get_race_state', 'Read latest complete normalized telemetry: all cars, player tyres/temperatures/damage/setup/energy, weather, flags and positions. Returned ts is capture time, not execution time.', { section: sectionProperty }, ['section']),
+  tool('get_track_layout', 'Read calibrated circuit data for the current track: official lap length, sector boundaries, pit entry/exit, DRS/aero zones, overtake points, and the distance-from-start of every car. Use this before naming a location, a zone or a distance on track. distanceFromStartM comes from the game; sector and zone membership are derived from it.', {
+    section: { type: 'string', enum: ['summary', 'zones', 'positions', 'all'], description: 'Pick the narrowest section you need.' }
+  }, []),
   tool('get_telemetry_history', 'Inspect 5-second time samples from the last 5 minutes to test temperature, gap, energy, fuel or damage trends. Fields retain their real units and nulls. Returns newest first with pagination.', paging, ['section']),
   tool('get_lap_history', 'Inspect completed-lap boundary snapshots (up to 120 retained). Use player for pace/fuel/wear trends and rivals for opponent laps/stops; all includes conditions. These are observations, not guarantees of clean laps.', paging, ['section']),
   tool('get_race_events', 'Read recorded flags, pit entries/exits, penalties, damage and other race events across the current weekend, newest first.', {
@@ -35,15 +39,38 @@ function tool(name: string, description: string, properties: Record<string, unkn
 /** Read-only harness. Model-supplied names/arguments never reach filesystem, network or eval. */
 export function executeTelemetryTool(history: TelemetryHistory, name: string, input: string): string {
   if (input.length > 2048) return 'Invalid telemetry arguments: too large'
+  let args: unknown
   try {
-    const args: unknown = JSON.parse(input)
+    args = JSON.parse(input)
+  } catch {
+    return 'Invalid telemetry arguments: expected JSON object'
+  }
+  try {
+    return runTool(history, name, args)
+  } catch (error) {
+    // A storage-side fault must not be reported as a model argument mistake: the model
+    // would retry the same call forever instead of falling back to another tool.
+    return `Telemetry read failed: ${(error as Error).message.slice(0, 120)}`
+  }
+}
+
+function runTool(history: TelemetryHistory, name: string, args: unknown): string {
     if (!args || typeof args !== 'object' || Array.isArray(args)) return 'Invalid telemetry arguments'
     const a = args as Record<string, unknown>
     const historyOnly = name === 'get_race_events' || name === 'get_stint_history'
+    const layoutOnly = name === 'get_track_layout'
     const allowed = name === 'read_telemetry_packet'
       ? ['packet', 'offset', 'field', 'arrayOffset', 'arrayLimit']
+      : layoutOnly ? ['section']
       : name === 'get_race_state' ? ['section'] : historyOnly ? ['offset', 'limit'] : ['section', 'offset', 'limit']
     if (Object.keys(a).some(k => !allowed.includes(k))) return 'Invalid telemetry arguments: unknown field'
+    if (layoutOnly) {
+      const section = a.section ?? 'all'
+      if (typeof section !== 'string' || !TRACK_LAYOUT_SECTIONS.includes(section)) return 'Invalid telemetry section'
+      const state = history.latestState()
+      if (!state) return 'No live telemetry state is retained yet. Start or resume a session, then retry.'
+      return JSON.stringify({ dataOnly: true, queriedAt: Date.now(), result: readTrackLayout(state, { section }) })
+    }
     if (name === 'read_telemetry_packet') return history.query(a)
     const section = typeof a.section === 'string' ? a.section : ''
     if (!historyOnly && !sections.includes(section)) return 'Invalid telemetry section'
@@ -61,7 +88,4 @@ export function executeTelemetryTool(history: TelemetryHistory, name: string, in
     }
     const encoded = JSON.stringify({ dataOnly: true, queriedAt: Date.now(), result })
     return encoded.length <= 60000 ? encoded : 'Result exceeds context budget; select a narrower section or limit=1.'
-  } catch {
-    return 'Invalid telemetry arguments: expected JSON object'
-  }
 }

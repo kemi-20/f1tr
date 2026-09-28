@@ -26,10 +26,16 @@ function sample(pit = 0, loss = 0, time = 1000) {
 describe('StrategyObservations', () => {
   it('uses wrapped physical distance, independent of race order and lap count', () => {
     const s = sample()
-    s.rivals[1].lap = 2
+    // Same lap, just over the line: physically 200m AHEAD of the player.
+    s.rivals[1].lapDistancePct = 0.02
+    s.rivals[1].name = 'A. Rival'
+    // Rival 2 is 200m behind, on the same lap.
+    s.rivals[2].lapDistancePct = 0.94
+    s.rivals[2].name = 'B. Other'
     const report = new StrategyObservations().report(s).join('\n')
-    expect(report).toContain('Physical traffic ahead: carIndex 1, 200m')
-    expect(report).toContain('Physical traffic behind: carIndex 2, 200m')
+    expect(report).toContain('Physical traffic ahead: A. RIVAL P2, 200m ahead on track')
+    expect(report).toContain('Physical traffic behind:')
+    expect(report).toContain('200m behind on track')
     expect(report).toContain('NOT a time gap')
   })
 

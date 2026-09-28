@@ -1,5 +1,5 @@
 import type { Digest } from '@shared/index'
-import type { RaceState } from '@shared/types/state'
+import type { RaceState, RivalState } from '@shared/types/state'
 import type { TriggerFiring } from '@shared/types/triggers'
 import { fmtLapTime, fmtGap, fmtPct } from '@shared/util/format'
 
@@ -145,7 +145,7 @@ export class DigestBuilder {
       pos: r.position,
       name: (r.name || `car${r.carIndex}`).toUpperCase(),
       tyre: r.tyreCompound,
-      gap: this.isRaceSession(state) ? fmtGap(r.gapToPlayerS)
+      gap: this.isRaceSession(state) ? this.fmtRivalGap(state, r)
         : `best valid ${fmtLapTime(r.bestLapTimeS != null && r.bestLapTimeS > 0 ? r.bestLapTimeS * 1000 : null)}`,
       pits: r.pitStopCount,
       pen: r.penaltiesS > 0 ? `${r.penaltiesS}s` : undefined,
@@ -154,10 +154,26 @@ export class DigestBuilder {
           ? 'DNF'
           : r.pitStatus === 2
             ? 'in pit'
-            : this.isRaceSession(state) && r.deltaToCarBehindS != null && Math.abs(r.deltaToCarBehindS) < 0.8
-              ? 'under pressure'
+            : r.separationFromPlayerM != null
+              ? `${Math.round(Math.abs(r.separationFromPlayerM))}m ${r.separationFromPlayerM > 0 ? 'ahead' : 'behind'} on track`
               : undefined
     }))
+  }
+
+  /**
+   * Prefer physical distance. The game's timing chain glitches at the line, so a sub-second
+   * "gap" between cars that are clearly far apart is reported as a distance instead.
+   */
+  private fmtRivalGap(state: RaceState, r: RivalState): string {
+    const separation = r.separationFromPlayerM
+    if (separation == null) return r.gapToPlayerS != null ? fmtGap(r.gapToPlayerS) : '--'
+    const playerSpeed = state.player.speedKmh > 20 ? state.player.speedKmh / 3.6 : null
+    const gap = r.gapToPlayerS
+    // A gap that is physically impossible for the distance is a timing glitch: keep metres.
+    if (gap == null || (playerSpeed != null && Math.abs(gap) < Math.abs(separation) / playerSpeed * 0.5)) {
+      return `${Math.round(Math.abs(separation))}m`
+    }
+    return fmtGap(gap)
   }
 
   private fmtAheadGap(state: RaceState): string | undefined {

@@ -195,6 +195,9 @@ export class StateAggregator {
     const arr = (p.m_lapData ?? []) as AnyParsedPacket[]
     const playerIdx = h.m_playerCarIndex
     this.state.player.carIndex = playerIdx
+    // Carry forward the per-car speeds Motion recorded: rebuilding this list must not
+    // discard them, or the physical plausibility check below loses its input.
+    const speeds = new Map(this.state.trackPositions.map(tp => [tp.carIndex, tp.speedKmh]))
     const positions: TrackPosition[] = []
 
     for (let i = 0; i < arr.length; i++) {
@@ -210,6 +213,8 @@ export class StateAggregator {
       if (trackLen > 0) {
         r.lapDistancePct = clamp01((d.m_lapDistance ?? 0) / Math.max(1, trackLen))
       }
+      r.distanceFromStartM = finiteOrNull(d.m_lapDistance)
+      r.totalDistanceM = finiteOrNull(d.m_totalDistance)
       // Parser field names differ from the wire spec; combine the milliseconds and minutes.
       r.deltaToCarInFrontS = readGapS(d)
       r.deltaToCarBehindS = null
@@ -238,8 +243,7 @@ export class StateAggregator {
       positions.push({
         carIndex: i,
         lapDistancePct: r.lapDistancePct,
-        speedKmh: i === playerIdx ? this.state.player.speedKmh :
-          this.state.trackPositions.find(position => position.carIndex === i)?.speedKmh ?? 0,
+        speedKmh: i === playerIdx ? this.state.player.speedKmh : speeds.get(i) ?? 0,
         isPlayer: i === playerIdx,
         ...this.trackWorldPosition(i)
       })
@@ -268,6 +272,8 @@ export class StateAggregator {
       if (pldTrackLen > 0) {
         pl.lapDistancePct = clamp01((pld.m_lapDistance ?? 0) / Math.max(1, pldTrackLen))
       }
+      pl.distanceFromStartM = finiteOrNull(pld.m_lapDistance)
+      pl.totalDistanceM = finiteOrNull(pld.m_totalDistance)
       pl.currentLapTimeS = msToS(pld.m_currentLapTimeInMS)
       pl.lastLapTimeS = msToS(pld.m_lastLapTimeInMS)
       pl.currentLapInvalid = pld.m_currentLapInvalid === 1
@@ -285,12 +291,34 @@ export class StateAggregator {
 
     const playerPos = this.state.player.position
     const playerCarIndex = this.state.player.carIndex
+    const trackLen = this.state.session.trackLengthM
+    const playerTotal = this.state.player.totalDistanceM
+
+    // Lap-aware physical separation. m_deltaToCarInFrontInMS is only a time delta to the
+    // car ahead in running order; the game reports bogus values right at the line and
+    // between cars on different laps (a "0.07s" gap for cars hundreds of metres apart),
+    // so total distance is the authoritative geometric source.
+    if (playerTotal != null && trackLen > 0) {
+      for (const r of Object.values(this.state.rivals)) {
+        if (r.carIndex === playerCarIndex || r.totalDistanceM == null) continue
+        const raw = r.totalDistanceM - playerTotal
+        // Fold whole laps away, then re-apply them so a lapped car reads as a full lap
+        // plus its physical gap instead of a near-zero "gap".
+        r.separationFromPlayerM = raw > trackLen / 2
+          ? raw - trackLen
+          : raw < -trackLen / 2
+            ? raw + trackLen
+            : raw
+      }
+    }
+
     // Match by carIndex only — position fallback causes wrong matches in spectator mode
     // (playerCarIndex=255, position=0 would match the first AI car in the sorted list)
     const playerIdxInSorted = sorted.findIndex((r) => r.carIndex === playerCarIndex)
     if (playerIdxInSorted >= 0) {
       const playerRival = sorted[playerIdxInSorted]
       playerRival.gapToPlayerS = 0
+      playerRival.separationFromPlayerM = 0
 
       // Walk UP from the player. The first car ahead uses the player's own
       // delta-to-front; cars further ahead use the closer car's chained gap.
@@ -300,7 +328,11 @@ export class StateAggregator {
         const gap = i === playerIdxInSorted - 1
           ? playerRival.deltaToCarInFrontS
           : sorted[i].deltaToCarBehindS
-        if (gap != null) {
+        // Reject a delta the physical separation makes impossible (line-crossing glitch).
+        const sep = sorted[i].separationFromPlayerM
+        const speed = this.state.trackPositions.find(p => p.carIndex === sorted[i].carIndex)?.speedKmh ?? 0
+        const usable = gap != null && sep != null && speed > 20 ? !rejectsGap(gap, sep, speed) : true
+        if (gap != null && usable) {
           cumAhead += gap
           validAhead = true
         } else {
@@ -315,7 +347,10 @@ export class StateAggregator {
       let validBehind = false
       for (let i = playerIdxInSorted + 1; i < sorted.length; i++) {
         const gap = sorted[i].deltaToCarInFrontS
-        if (gap != null) {
+        const sep = sorted[i].separationFromPlayerM
+        const speed = this.state.trackPositions.find(p => p.carIndex === sorted[i].carIndex)?.speedKmh ?? 0
+        const usable = gap != null && sep != null && speed > 20 ? !rejectsGap(gap, Math.abs(sep), speed) : true
+        if (gap != null && usable) {
           cumBehind += gap
           validBehind = true
         } else {
@@ -651,6 +686,9 @@ export class StateAggregator {
         gridPosition: 0,
         lap: 0,
         lapDistancePct: 0,
+        distanceFromStartM: null,
+        totalDistanceM: null,
+        separationFromPlayerM: null,
         bestLapTimeS: null,
         lastLapTimeS: null,
         currentLapTimeS: null,
@@ -718,6 +756,17 @@ export class StateAggregator {
 function clamp01(x: number): number {
   if (!isFinite(x)) return 0
   return Math.max(0, Math.min(1, x))
+}
+
+/**
+ * A chained m_deltaToCarInFrontInMS is only believable when it is physically possible:
+ * even at the fastest speed the pack has reached, covering the physical gap cannot take
+ * less than this long. A smaller reported delta is a line-crossing glitch.
+ */
+function rejectsGap(deltaS: number, physicalMetres: number, speedKmh: number): boolean {
+  if (!(physicalMetres > 0) || !(speedKmh > 0)) return false
+  const floorS = physicalMetres / (speedKmh / 3.6)
+  return deltaS < floorS * 0.5
 }
 /** Prefer the packet value when it's a real number; otherwise keep the previous value. */
 function numOr(v: number | undefined | null, fallback: number): number {

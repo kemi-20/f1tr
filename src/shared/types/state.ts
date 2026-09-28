@@ -71,6 +71,10 @@ export interface PlayerCarState {
   position: number
   lap: number
   lapDistancePct: number
+  /** Raw m_lapDistance in metres. The engineer's sector/zone reasoning is anchored here. */
+  distanceFromStartM: number | null
+  /** Raw m_totalDistance in metres: cumulative laps + distance, the only lap-aware position. */
+  totalDistanceM: number | null
   currentSector: number // m_sector from LapData: 0=sector1, 1=sector2, 2=sector3
   onTrack: boolean
   currentLapTimeS: number | null
@@ -130,6 +134,12 @@ export interface RivalState {
   gridPosition: number
   lap: number
   lapDistancePct: number
+  /** Raw m_lapDistance in metres. */
+  distanceFromStartM: number | null
+  /** Raw m_totalDistance in metres: cumulative laps + distance, the only lap-aware position. */
+  totalDistanceM: number | null
+  /** Signed physical separation from the player in metres; >0 means ahead on track. */
+  separationFromPlayerM: number | null
   bestLapTimeS: number | null
   lastLapTimeS: number | null
   currentLapTimeS: number | null

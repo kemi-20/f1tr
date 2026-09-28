@@ -117,7 +117,15 @@ export class TelemetryHistory {
 
   readState(section: string): unknown {
     const latest = this.samples[this.samples.length - 1]
-    return latest ? { ts: latest.ts, data: selectSection(parseState(latest.data), section) } : { unavailable: true }
+    const state = latest ? tryParseState(latest.data) : null
+    return state ? { ts: latest.ts, data: selectSection(state, section) }
+      : { unavailable: latest ? 'corrupt telemetry sample' : true }
+  }
+
+  /** Latest normalized state, or null when nothing usable is retained. */
+  latestState(): RaceState | null {
+    const latest = this.samples[this.samples.length - 1]
+    return latest ? tryParseState(latest.data) : null
   }
 
   readHistory(section: string, offset: number, limit: number): unknown {
@@ -152,8 +160,9 @@ export class TelemetryHistory {
       nextOffset: safeOffset + safeLimit < recent.length ? safeOffset + safeLimit : null,
       laps: page.map(record => {
         const lap = parseRecord(record.data)
+        const boundary = tryParseState(lap.state)
         return { ts: record.ts, completedLap: lap.completedLap,
-          data: selectSection(parseState(lap.state), section) }
+          data: boundary ? selectSection(boundary, section) : { unavailable: 'corrupt lap boundary record' } }
       })
     }
   }
@@ -383,8 +392,9 @@ export class TelemetryHistory {
       history,
       lapBoundaries: latestLaps.map(record => {
         const lap = parseRecord(record.data)
+        const boundary = tryParseState(lap.state)
         return { ts: record.ts, completedLap: lap.completedLap,
-          sessionKey: record.key, state: parseState(lap.state) }
+          sessionKey: record.key, state: boundary ?? { unavailable: 'corrupt lap boundary record' } }
       }),
       events: this.events.slice(-64).map(record => ({
         ts: record.ts,
@@ -396,7 +406,8 @@ export class TelemetryHistory {
       })),
       sessionLaps: this.laps.slice(-64).map(record => {
         const lap = parseRecord(record.data)
-        const s = parseState(lap.state)
+        const s = tryParseState(lap.state)
+        if (!s) return { sessionKey: record.key, lap: lap.completedLap, unavailable: 'corrupt lap boundary record' }
         return { sessionKey: record.key, lap: lap.completedLap, seconds: s.player.lastLapTimeS,
           fuelKg: s.player.fuelRemainingKg, wear: s.player.tyres.wear, ers: s.player.ersPercent,
           tyre: s.player.tyres.compound, age: s.player.tyres.ageLaps, pits: s.player.pitStopCount,
@@ -452,7 +463,9 @@ export class TelemetryHistory {
 
   private addLap(sessionKey: string, completedLap: number, now: number, state: string): void {
     const key = `${sessionKey}:${completedLap}`
-    const data = serialize({ completedLap, state })
+    // The generic serializer truncates strings to 256 characters, which would cut this
+    // embedded state JSON in half and make every later readLaps() parse throw.
+    const data = embedRecord({ completedLap, state })
     if (!data) return
     const record: StoredRecord = { ts: now, data, key, bytes: estimatedRecordBytes(data, key) }
     this.laps.push(record)
@@ -714,6 +727,32 @@ function serialize(value: unknown): string | null {
 function parseState(json: unknown): RaceState {
   if (typeof json !== 'string') throw new TypeError('Stored race state must be a string')
   return JSON.parse(json) as RaceState
+}
+
+/** Same as parseState but returns null instead of throwing on a damaged record. */
+function tryParseState(json: unknown): RaceState | null {
+  try {
+    return parseState(json)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Record envelope for records that embed a full serialized RaceState. The generic
+ * serializer truncates strings at 256 characters, which would corrupt the embedded
+ * JSON; this one only guards against non-finite values.
+ */
+function embedRecord(value: unknown): string | null {
+  try {
+    return JSON.stringify(value, (_key, item: unknown) => {
+      if (typeof item === 'bigint') return item.toString()
+      if (typeof item === 'number' && !Number.isFinite(item)) return null
+      return item
+    })
+  } catch {
+    return null
+  }
 }
 
 function parseRecord(json: string): Record<string, unknown> {
