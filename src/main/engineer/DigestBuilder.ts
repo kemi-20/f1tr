@@ -154,8 +154,8 @@ export class DigestBuilder {
           ? 'DNF'
           : r.pitStatus === 2
             ? 'in pit'
-            : r.separationFromPlayerM != null
-              ? `${Math.round(Math.abs(r.separationFromPlayerM))}m ${r.separationFromPlayerM > 0 ? 'ahead' : 'behind'} on track`
+            : r.trackRelativeSeparationM != null
+              ? `${Math.round(Math.abs(r.trackRelativeSeparationM))}m ${r.trackRelativeSeparationM > 0 ? 'ahead' : 'behind'} on circuit (race-distance difference ${r.separationFromPlayerM != null ? `${Math.round(r.separationFromPlayerM)}m` : 'unknown'})`
               : undefined
     }))
   }
@@ -167,11 +167,14 @@ export class DigestBuilder {
   private fmtRivalGap(state: RaceState, r: RivalState): string {
     const separation = r.separationFromPlayerM
     if (separation == null) return r.gapToPlayerS != null ? fmtGap(r.gapToPlayerS) : '--'
+    if (Math.abs(separation) >= state.session.trackLengthM && state.session.trackLengthM > 0) {
+      return `${Math.trunc(Math.abs(separation) / state.session.trackLengthM)} lap(s)`
+    }
     const playerSpeed = state.player.speedKmh > 20 ? state.player.speedKmh / 3.6 : null
     const gap = r.gapToPlayerS
     // A gap that is physically impossible for the distance is a timing glitch: keep metres.
     if (gap == null || (playerSpeed != null && Math.abs(gap) < Math.abs(separation) / playerSpeed * 0.5)) {
-      return `${Math.round(Math.abs(separation))}m`
+      return `${Math.round(Math.abs(separation))}m race distance`
     }
     return fmtGap(gap)
   }

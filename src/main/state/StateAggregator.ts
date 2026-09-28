@@ -294,22 +294,15 @@ export class StateAggregator {
     const trackLen = this.state.session.trackLengthM
     const playerTotal = this.state.player.totalDistanceM
 
-    // Lap-aware physical separation. m_deltaToCarInFrontInMS is only a time delta to the
-    // car ahead in running order; the game reports bogus values right at the line and
-    // between cars on different laps (a "0.07s" gap for cars hundreds of metres apart),
-    // so total distance is the authoritative geometric source.
-    if (playerTotal != null && trackLen > 0) {
-      for (const r of Object.values(this.state.rivals)) {
-        if (r.carIndex === playerCarIndex || r.totalDistanceM == null) continue
-        const raw = r.totalDistanceM - playerTotal
-        // Fold whole laps away, then re-apply them so a lapped car reads as a full lap
-        // plus its physical gap instead of a near-zero "gap".
-        r.separationFromPlayerM = raw > trackLen / 2
-          ? raw - trackLen
-          : raw < -trackLen / 2
-            ? raw + trackLen
-            : raw
-      }
+    // Race progress and physical traffic are different coordinates. Preserve whole laps
+    // in the former; wrap only the latter around the start/finish line.
+    for (const r of Object.values(this.state.rivals)) {
+      r.separationFromPlayerM = playerTotal != null && r.totalDistanceM != null
+        ? r.totalDistanceM - playerTotal : null
+      r.trackRelativeSeparationM = validLapDistance(this.state.player.distanceFromStartM, trackLen) &&
+        validLapDistance(r.distanceFromStartM, trackLen)
+        ? shortestTrackSeparation(r.distanceFromStartM - this.state.player.distanceFromStartM, trackLen)
+        : null
     }
 
     // Match by carIndex only — position fallback causes wrong matches in spectator mode
@@ -319,6 +312,17 @@ export class StateAggregator {
       const playerRival = sorted[playerIdxInSorted]
       playerRival.gapToPlayerS = 0
       playerRival.separationFromPlayerM = 0
+      playerRival.trackRelativeSeparationM = 0
+
+      const pairIsUsable = (leader: RivalState, trailer: RivalState, gap: number | null): boolean => {
+        if (gap == null || leader.lap !== trailer.lap || leader.pitStatus !== 0 || trailer.pitStatus !== 0) return false
+        if (leader.totalDistanceM == null || trailer.totalDistanceM == null) return true
+        const metres = leader.totalDistanceM - trailer.totalDistanceM
+        if (metres < 0) return false
+        const leaderSpeed = speeds.get(leader.carIndex) ?? 0
+        const trailerSpeed = speeds.get(trailer.carIndex) ?? 0
+        return !rejectsGap(gap, metres, Math.max(leaderSpeed, trailerSpeed, 400))
+      }
 
       // Walk UP from the player. The first car ahead uses the player's own
       // delta-to-front; cars further ahead use the closer car's chained gap.
@@ -329,9 +333,7 @@ export class StateAggregator {
           ? playerRival.deltaToCarInFrontS
           : sorted[i].deltaToCarBehindS
         // Reject a delta the physical separation makes impossible (line-crossing glitch).
-        const sep = sorted[i].separationFromPlayerM
-        const speed = this.state.trackPositions.find(p => p.carIndex === sorted[i].carIndex)?.speedKmh ?? 0
-        const usable = gap != null && sep != null && speed > 20 ? !rejectsGap(gap, sep, speed) : true
+        const usable = pairIsUsable(sorted[i], sorted[i + 1], gap)
         if (gap != null && usable) {
           cumAhead += gap
           validAhead = true
@@ -347,9 +349,7 @@ export class StateAggregator {
       let validBehind = false
       for (let i = playerIdxInSorted + 1; i < sorted.length; i++) {
         const gap = sorted[i].deltaToCarInFrontS
-        const sep = sorted[i].separationFromPlayerM
-        const speed = this.state.trackPositions.find(p => p.carIndex === sorted[i].carIndex)?.speedKmh ?? 0
-        const usable = gap != null && sep != null && speed > 20 ? !rejectsGap(gap, Math.abs(sep), speed) : true
+        const usable = pairIsUsable(sorted[i - 1], sorted[i], gap)
         if (gap != null && usable) {
           cumBehind += gap
           validBehind = true
@@ -689,6 +689,7 @@ export class StateAggregator {
         distanceFromStartM: null,
         totalDistanceM: null,
         separationFromPlayerM: null,
+        trackRelativeSeparationM: null,
         bestLapTimeS: null,
         lastLapTimeS: null,
         currentLapTimeS: null,
@@ -758,9 +759,19 @@ function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x))
 }
 
+function shortestTrackSeparation(deltaM: number, lengthM: number): number {
+  const forward = ((deltaM % lengthM) + lengthM) % lengthM
+  return forward > lengthM / 2 ? forward - lengthM : forward
+}
+
+function validLapDistance(distanceM: number | null, lengthM: number): distanceM is number {
+  return distanceM != null && Number.isFinite(distanceM) && Number.isFinite(lengthM) &&
+    lengthM > 0 && distanceM >= -lengthM && distanceM <= lengthM * 2
+}
+
 /**
  * A chained m_deltaToCarInFrontInMS is only believable when it is physically possible:
- * even at the fastest speed the pack has reached, covering the physical gap cannot take
+ * even at a conservative 400 km/h reference, covering the physical gap cannot take
  * less than this long. A smaller reported delta is a line-crossing glitch.
  */
 function rejectsGap(deltaS: number, physicalMetres: number, speedKmh: number): boolean {

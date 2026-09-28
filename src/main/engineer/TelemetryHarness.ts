@@ -11,7 +11,7 @@ const paging = {
 
 export const TELEMETRY_TOOLS = [
   tool('get_race_state', 'Read latest complete normalized telemetry: all cars, player tyres/temperatures/damage/setup/energy, weather, flags and positions. Returned ts is capture time, not execution time.', { section: sectionProperty }, ['section']),
-  tool('get_track_layout', 'Read calibrated circuit data for the current track: official lap length, sector boundaries, pit entry/exit, DRS/aero zones, overtake points, and the distance-from-start of every car. Use this before naming a location, a zone or a distance on track. distanceFromStartM comes from the game; sector and zone membership are derived from it.', {
+  tool('get_track_layout', 'Read circuit sectors/zones plus each car\'s lap location, signed physical circuit separation, cumulative race-distance separation, lap difference, pit/phase and speed. Use before naming a location or assessing traffic. Physical proximity and race-order gap are different.', {
     section: { type: 'string', enum: ['summary', 'zones', 'positions', 'all'], description: 'Pick the narrowest section you need.' }
   }, []),
   tool('get_telemetry_history', 'Inspect 5-second time samples from the last 5 minutes to test temperature, gap, energy, fuel or damage trends. Fields retain their real units and nulls. Returns newest first with pagination.', paging, ['section']),

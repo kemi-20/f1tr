@@ -13,10 +13,13 @@ function sample(pit = 0, loss = 0, time = 1000) {
   s.player.carIndex = 0
   s.player.lap = 3
   s.player.lapDistancePct = 0.98
+  s.player.distanceFromStartM = 4900
   s.player.pitStatus = pit
+  s.player.onTrack = true
   for (const id of [1, 2]) {
     s.rivals[id] = {
       carIndex: id, position: id + 1, lap: 3, lapDistancePct: id === 1 ? 0.02 : 0.94,
+      distanceFromStartM: id === 1 ? 100 : 4700,
       gapToPlayerS: -5 * id + loss, pitStopCount: 0, pitStatus: 0, status: 'running'
     } as RivalState
   }
@@ -33,10 +36,33 @@ describe('StrategyObservations', () => {
     s.rivals[2].lapDistancePct = 0.94
     s.rivals[2].name = 'B. Other'
     const report = new StrategyObservations().report(s).join('\n')
-    expect(report).toContain('Physical traffic ahead: A. RIVAL P2, 200m ahead on track')
+    expect(report).toContain('Physical traffic ahead: A. RIVAL P2, 200m ahead on the circuit')
     expect(report).toContain('Physical traffic behind:')
-    expect(report).toContain('200m behind on track')
-    expect(report).toContain('NOT a time gap')
+    expect(report).toContain('200m behind on the circuit')
+    expect(report).toContain('Neither is a time gap')
+  })
+
+  it('identifies a lapped car physically ahead without calling it a race rival', () => {
+    const s = sample()
+    s.player.distanceFromStartM = 4900
+    s.player.totalDistanceM = 104900
+    s.rivals[1].distanceFromStartM = 100
+    s.rivals[1].totalDistanceM = 100100
+    s.rivals[1].lap = 2
+    s.rivals[1].separationFromPlayerM = -4800
+    s.rivals[2].pitStatus = 1
+    const report = new StrategyObservations().report(s).join('\n')
+    expect(report).toContain('Physical traffic ahead:')
+    expect(report).toContain('200m ahead on the circuit')
+    expect(report).toContain('race lap difference -1')
+    expect(report).toContain('Race-distance difference -4800m')
+  })
+
+  it('does not present a distant car as immediate physical traffic', () => {
+    const s = sample()
+    s.rivals[1].distanceFromStartM = 2200
+    s.rivals[2].distanceFromStartM = 3500
+    expect(new StrategyObservations().report(s).join('\n')).not.toContain('Physical traffic')
   })
 
   it.each(['GREEN', 'VSC', 'SC'] as const)('keeps %s gap-loss observations separate', regime => {
@@ -75,8 +101,14 @@ describe('StrategyObservations', () => {
 
   it('does not treat missing or invalid positions as physical traffic', () => {
     const s = sample()
-    s.rivals[1].lapDistancePct = Number.NaN
+    s.rivals[1].distanceFromStartM = null
     s.rivals[2].pitStatus = 1
+    expect(new StrategyObservations().report(s).join('\n')).not.toContain('Physical traffic')
+  })
+
+  it('does not report physical traffic while the player is in the garage', () => {
+    const s = sample()
+    s.player.onTrack = false
     expect(new StrategyObservations().report(s).join('\n')).not.toContain('Physical traffic')
   })
 })

@@ -26,7 +26,7 @@ export function readTrackLayout(state: RaceState, args: TrackLayoutArgs): unknow
     officialLengthM: layout.lengthM,
     sessionReportedLengthM: state.session.trackLengthM,
     lengthMismatch: trackLengthDisagrees(state.session.trackLengthM, layout),
-    note: 'Distances are official lap metres from the start/finish line. A zone whose end is below its start wraps the line. distanceFromStartM comes from the game; sector and zone membership are derived from it.'
+    note: 'distanceFromStartM and trackRelativeSeparationM describe physical circuit location. totalDistanceM and raceDistanceSeparationM describe cumulative race progress, including whole laps. Race position and timing-chain gap are separate again. A zone whose end is below its start wraps the line.'
   }
 
   if (section === 'summary') {
@@ -44,9 +44,18 @@ export function readTrackLayout(state: RaceState, args: TrackLayoutArgs): unknow
     player: describeCar('PLAYER', state.player.distanceFromStartM, state.player.totalDistanceM,
       state.player.lap, state.player.speedKmh, layout),
     rivals: Object.values(state.rivals)
-      .filter(r => r.carIndex !== state.player.carIndex && r.distanceFromStartM != null)
-      .map(r => describeCar(r.name || r.driverCode || `car${r.carIndex}`, r.distanceFromStartM,
-        r.totalDistanceM, r.lap, 0, layout))
+      .filter(r => r.carIndex !== state.player.carIndex && validLapDistance(r.distanceFromStartM, layout.lengthM))
+      .map(r => ({
+        ...describeCar(r.name || r.driverCode || `car${r.carIndex}`, r.distanceFromStartM,
+          r.totalDistanceM, r.lap, state.trackPositions.find(p => p.carIndex === r.carIndex)?.speedKmh ?? 0, layout),
+        carIndex: r.carIndex,
+        racePosition: r.position,
+        pitStatus: r.pitStatus,
+        lapPhase: r.lapPhase ?? null,
+        lapDifference: r.lap - state.player.lap,
+        raceDistanceSeparationM: r.separationFromPlayerM != null ? Math.round(r.separationFromPlayerM) : null,
+        trackRelativeSeparationM: r.trackRelativeSeparationM != null ? Math.round(r.trackRelativeSeparationM) : null
+      }))
   }
   if (section === 'positions') return { ...base, positions }
 
@@ -62,8 +71,11 @@ export function readTrackLayout(state: RaceState, args: TrackLayoutArgs): unknow
 }
 
 function describeCar(name: string, distanceM: number | null, totalM: number | null,
-  lap: number, speedKmh: number, layout: TrackLayout): unknown {
+  lap: number, speedKmh: number, layout: TrackLayout) {
   if (distanceM == null) return { name, distanceFromStartM: null, note: 'position unavailable' }
+  if (!validLapDistance(distanceM, layout.lengthM)) {
+    return { name, distanceFromStartM: null, note: 'invalid lap distance' }
+  }
   const d = wrapDistance(distanceM, layout.lengthM)
   return {
     name,
@@ -79,4 +91,9 @@ function describeCar(name: string, distanceM: number | null, totalM: number | nu
     speedKmh: speedKmh > 0 ? Math.round(speedKmh) : null,
     speedMPerS: speedKmh > 20 ? Math.round((speedKmh / 3.6) * 10) / 10 : null
   }
+}
+
+function validLapDistance(distanceM: number | null, lengthM: number): distanceM is number {
+  return distanceM != null && Number.isFinite(distanceM) &&
+    distanceM >= -lengthM && distanceM <= lengthM * 2
 }

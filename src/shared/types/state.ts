@@ -138,8 +138,10 @@ export interface RivalState {
   distanceFromStartM: number | null
   /** Raw m_totalDistance in metres: cumulative laps + distance, the only lap-aware position. */
   totalDistanceM: number | null
-  /** Signed physical separation from the player in metres; >0 means ahead on track. */
+  /** Signed cumulative race-distance difference; >0 means further into the race, not necessarily physically ahead. */
   separationFromPlayerM: number | null
+  /** Signed shortest distance on the circuit; >0 means physically ahead, independent of laps completed. */
+  trackRelativeSeparationM: number | null
   bestLapTimeS: number | null
   lastLapTimeS: number | null
   currentLapTimeS: number | null

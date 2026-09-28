@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EngineerService, manualFiring } from './EngineerService'
 import { emptyRaceState } from '../state/defaults'
 import type { TriggerFiring } from '@shared/types/triggers'
+import { Sender } from '../ipc/sender'
 
 vi.mock('../ipc/sender', () => ({ Sender: { send: vi.fn() } }))
 vi.mock('../logging/Logger', () => ({ logger: { info: vi.fn(), error: vi.fn() } }))
@@ -9,6 +10,20 @@ vi.mock('../logging/Logger', () => ({ logger: { info: vi.fn(), error: vi.fn() } 
 afterEach(() => vi.useRealTimers())
 
 describe('qualifying radio at playback time', () => {
+  it('does not show automatic prose when the model makes no radio call', async () => {
+    const state = emptyRaceState()
+    const service = new EngineerService()
+    const firing: TriggerFiring = { ruleId: 'heartbeat', reasonCode: 'heartbeat', reason: '',
+      priority: 'low', kind: 'heartbeat', ts: Date.now() }
+    vi.mocked(Sender.send).mockClear()
+    service.setBackend({ generate: async (_digest, _text, _firing, _prompt, onDelta) => {
+      onDelta('HOLD, no radio needed')
+      return 'HOLD, no radio needed'
+    } })
+    await service.advise(state, firing)
+    expect(vi.mocked(Sender.send).mock.calls.some(([channel]) =>
+      channel === 'engineer:text' || channel === 'engineer:advice')).toBe(false)
+  })
   it('holds an out-lap response when the driver starts flying while the model thinks', async () => {
     vi.useFakeTimers()
     const state = emptyRaceState()

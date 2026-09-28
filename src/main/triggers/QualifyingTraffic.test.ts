@@ -63,6 +63,7 @@ function addRival(state: RaceState, overrides: Partial<Rival> = {}): void {
     distanceFromStartM: null,
     totalDistanceM: null,
     separationFromPlayerM: null,
+    trackRelativeSeparationM: null,
     carClass: 0,
     position: 2,
     gridPosition: 2,

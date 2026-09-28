@@ -175,7 +175,7 @@ export class EngineerService {
     this.clearIdleTimer()
     Sender.send('engineer:status', { status: 'thinking' })
     const emitDelta = createDeltaEmitter(firing, (delta) => {
-      if (!this.lastToolRadio) Sender.send('engineer:text', { id, delta })
+      if (firing.reasonCode === 'manual' && !this.lastToolRadio) Sender.send('engineer:text', { id, delta })
     })
 
     try {
@@ -191,6 +191,11 @@ export class EngineerService {
       if (this.lastToolRadio) {
         this.clearIdleTimer()
         this.idleTimer = setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 6000)
+        return
+      }
+      if (firing.reasonCode !== 'manual') {
+        Sender.send('engineer:status', { status: 'idle' })
+        this.clearIdleTimer()
         return
       }
       // Skip sending empty advice (e.g. model returned only a tool call with no text)
