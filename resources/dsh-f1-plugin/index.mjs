@@ -95,7 +95,7 @@ const TOOL_SPECS = [
     parameters: {
       query: { type: 'string', required: true, description: 'One standalone public-information query, 1-500 Unicode characters.' },
     },
-    timeoutMs: 25_000,
+    timeoutMs: 70_000,
     readOnly: true,
   },
   {
@@ -373,7 +373,7 @@ function exchange(pipe, requestLine, id, signal, timeoutMs) {
         return
       }
       if (!response.ok) {
-        finish(new Error('F1 host operation failed'))
+        finish(new Error(response.error || 'F1 host operation failed'))
         return
       }
       finish(undefined, response.result)

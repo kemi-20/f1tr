@@ -28,7 +28,7 @@ The host returns one UTF-8 JSON line with no trailing frame data, at most 65,536
 {"id":"<same UUID>","ok":true,"result":"<plain text>"}
 ```
 
-`error`, when present, must be a string no longer than 512 UTF-8 bytes. The plugin requires the matching ID, a boolean `ok`, and a string `result`; it ignores error text and returns a generic failure instead of forwarding it. The rendered tool value is always a plain string and is capped at 60,000 UTF-8 bytes, including an untrusted-data warning. Screenshot results must be vision descriptions as text, never image bytes.
+`error`, when present, must be a string no longer than 512 UTF-8 bytes. The plugin requires the matching ID, a boolean `ok`, and a string `result`; it forwards host-provided tool errors so the model can distinguish invalid arguments, service failures, timeouts, and rate limits. The host redacts its credentials and bounds error text before sending it. The rendered tool value is always a plain string and is capped at 60,000 UTF-8 bytes, including an untrusted-data warning. Screenshot results must be vision descriptions as text, never image bytes.
 
 Cancellation is connection-scoped: when DSH aborts `exec.signal`, or the plugin's per-operation deadline expires, the plugin destroys that request's pipe connection. The host must treat peer disconnect as cancellation and stop owned work before releasing its request resources. It must not dispatch an operation before fully reading and authenticating the request.
 

@@ -13,6 +13,7 @@ import type { TelemetryHistory } from './TelemetryHistory'
 import { executeTelemetryTool } from './TelemetryHarness'
 import { captureF1Screenshot } from '../screenshot/ScreenshotService'
 import { searchWeb } from './WebSearchClient'
+import { safeToolError } from './ToolError'
 import type { MiMoVisionClient } from './MiMoVisionClient'
 import { logger } from '../logging/Logger'
 
@@ -140,7 +141,7 @@ export class DshBackend implements EngineerBackend {
     const driverText = manualPrompt ?? firing.reason
     const prompt = `${manual ? 'SOURCE: driver_manual. The driver asked directly; call speak_radio with your answer.' : 'SOURCE: automatic_event. Speak only when an actionable radio message is warranted.'}\n${manual ? `DRIVER: ${driverText.slice(0, 1024)}\n` : ''}${digestText}`
     return new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => this.cancel(), manual ? 90_000 : 45_000)
+      const timer = setTimeout(() => this.cancel(), manual ? 120_000 : 90_000)
       this.current = { firing, onDelta, resolve, reject, text: '', calls: 0, screenshots: 0, webSearches: 0, webSearchControllers: new Set(), speeches: 0, corrected: false, timer }
       void this.request('session/prompt', { sessionId: this.sessionId, contentBlocks: [{ type: 'text', text: prompt }] })
         .catch((error: Error) => { if (this.current) this.finish(error) })
@@ -365,7 +366,7 @@ export class DshBackend implements EngineerBackend {
       if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id) || req.token !== this.token ||
           typeof req.name !== 'string' || !this.current || socket.destroyed) throw new Error('Tool unavailable')
       if (req.name === 'capture_screenshot') socket.setTimeout(65_000)
-      if (req.name === 'web_search') socket.setTimeout(25_000)
+      if (req.name === 'web_search') socket.setTimeout(70_000)
       const active = this.current
       if (++active.calls > 16) throw new Error('Tool budget exceeded')
       const args = req.args && typeof req.args === 'object' && !Array.isArray(req.args) ? req.args as JsonRecord : {}
@@ -410,7 +411,9 @@ export class DshBackend implements EngineerBackend {
       if (Buffer.byteLength(result, 'utf8') > 54_000) result = 'Result exceeds context budget; use a narrower section or page.'
       socket.end(JSON.stringify({ id, ok: true, result }) + '\n')
     } catch (error) {
-      if (!socket.destroyed) socket.end(JSON.stringify({ id, ok: false, result: '', error: (error as Error).message.slice(0, 200) }) + '\n')
+      if (!socket.destroyed) {
+        socket.end(JSON.stringify({ id, ok: false, result: '', error: safeToolError(error, [this.config.apiKey, this.token]) }) + '\n')
+      }
     }
   }
 

@@ -32,12 +32,12 @@ interface SearchTarget {
   cachePrefix: string
 }
 
-const REQUEST_TIMEOUT_MS = 20_000
+const REQUEST_TIMEOUT_MS = 60_000
 const COOLDOWN_MS = 10_000
 const CACHE_TTL_MS = 60_000
 const MAX_CACHE_ENTRIES = 16
 const MAX_QUERY_CHARS = 500
-const MAX_RESPONSE_BYTES = 96_000
+const MAX_RESPONSE_BYTES = 512_000
 const MAX_RESULT_BYTES = 8_000
 const MAX_SOURCES = 5
 const MAX_TITLE_CHARS = 180
@@ -120,7 +120,7 @@ export class WebSearchClient {
       return result
     } catch (error) {
       if (parentSignal?.aborted) throw abortError()
-      if (controller.signal.aborted) throw new Error('Web search timed out after 20 seconds')
+      if (controller.signal.aborted) throw new Error('Web search timed out after 60 seconds')
       if (error instanceof Error && error.message.startsWith('Web search')) throw error
       throw new Error('Web search request failed')
     } finally {

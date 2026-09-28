@@ -256,8 +256,21 @@ describe('WebSearchClient response handling', () => {
     const result = await client({}, vi.fn<typeof fetch>().mockResolvedValue(responsesWithCitations(many))).search('query')
     expect(result.match(/\d+\. \[/g)).toHaveLength(5)
 
-    const oversized = vi.fn<typeof fetch>().mockResolvedValue(new Response('x'.repeat(96_001), { status: 200 }))
+    const oversized = vi.fn<typeof fetch>().mockResolvedValue(new Response('x'.repeat(512_001), { status: 200 }))
     await expect(client({}, oversized).search('query')).rejects.toThrow('exceeded its size limit')
+  })
+
+  it('accepts a large provider search response while keeping tool output bounded', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      output: [
+        { type: 'web_search_call', status: 'completed', action: { sources: 'x'.repeat(235_000) } },
+        { type: 'message', content: [{ type: 'output_text', text: 'Official regulations found.',
+          annotations: [{ type: 'url_citation', url: 'https://www.fia.com/regulations', title: 'FIA regulations' }] }] }
+      ]
+    })))
+    const result = await client({}, fetcher).search('FIA regulations')
+    expect(result).toContain('https://www.fia.com/regulations')
+    expect(Buffer.byteLength(result, 'utf8')).toBeLessThanOrEqual(8_000)
   })
 })
 
