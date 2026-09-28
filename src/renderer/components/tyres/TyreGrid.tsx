@@ -1,5 +1,6 @@
 import { useRaceStore } from '../../store'
 import { compoundCName, tyreWearColor, type Corners } from '@shared/index'
+import { teamColorForCar } from '../rivals/teamMeta'
 import type { CSSProperties } from 'react'
 
 const CORNERS: Array<{ key: keyof Corners; label: string; side: 'left' | 'right' }> = [
@@ -16,7 +17,8 @@ export function TyreGrid(): React.ReactElement {
   const playerName = race ? race.rivals[race.player.carIndex]?.name || 'DRIVER' : 'DRIVER'
   const compound = tyres?.compound ?? 'unknown'
   const rawId = tyres?.rawCompoundId ?? -1
-  const teamColor = teamColorForCar(race?.rivals[race.player.carIndex]?.team)
+  const player = race?.rivals[race.player.carIndex]
+  const teamColor = teamColorForCar(player?.team, player?.teamColor)
 
   return (
     <section className="car-status-panel h-full" style={{ '--team-color': teamColor } as CSSProperties}>
@@ -263,33 +265,4 @@ function compoundTitle(compound: string, rawId: number): string {
   if (compound === 'medium') return cName ? `MEDIUM · ${cName}` : 'MEDIUM'
   if (compound === 'hard') return cName ? `HARD · ${cName}` : 'HARD'
   return 'UNKNOWN TYRE'
-}
-
-const TEAM_COLOURS: Record<number, string> = {
-  0: '#00D2BE',
-  1: '#DC0000',
-  2: '#3671C6',
-  3: '#64C4FF',
-  4: '#229971',
-  5: '#0090FF',
-  6: '#6692FF',
-  7: '#FFFFFF',
-  8: '#FF8000',
-  9: '#B6BABD',
-  129: '#00D2BE',
-  185: '#00D2BE',
-  186: '#DC0000',
-  187: '#3671C6',
-  188: '#64C4FF',
-  189: '#229971',
-  190: '#0090FF',
-  191: '#6692FF',
-  192: '#FFFFFF',
-  193: '#FF8000',
-  194: '#B6BABD'
-}
-
-function teamColorForCar(teamId: string | undefined): string {
-  const id = Number(teamId)
-  return Number.isFinite(id) ? TEAM_COLOURS[id] ?? '#FF2F62' : '#FF2F62'
 }

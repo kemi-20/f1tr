@@ -25,8 +25,10 @@ export class TriggerEngine {
   private attackActive = false
   private rainImminentActive = false
   private fuelLowActive = false
-  private lastPosition = 0
+  private positionAtLapStart = 0
   private lastLap = 0
+  private lastTyreAgeLaps = -1
+  private lastTyreCompound = ''
   private flashbackUntilMs = 0
   private sessionUID = ''
   private reviewLap = 0
@@ -58,8 +60,10 @@ export class TriggerEngine {
     this.attackActive = false
     this.rainImminentActive = false
     this.fuelLowActive = false
-    this.lastPosition = 0
+    this.positionAtLapStart = 0
     this.lastLap = 0
+    this.lastTyreAgeLaps = -1
+    this.lastTyreCompound = ''
     this.lastHeartbeatMs = Date.now()
   }
 
@@ -140,9 +144,11 @@ export class TriggerEngine {
     this.attackActive = false
     this.rainImminentActive = false
     this.fuelLowActive = false
-    this.lastPosition = 0
+    this.positionAtLapStart = 0
     this.lastLap = -1 // use -1 so evalPositionChange's guard (lastLap !== 0) passes
                      // but lap === lastLap+1 won't match on the resumed timeline
+    this.lastTyreAgeLaps = -1
+    this.lastTyreCompound = ''
     this.lastHeartbeatMs = Date.now()
     logger.info('flashback detected — triggers suppressed for 3s, states reset')
   }
@@ -150,11 +156,21 @@ export class TriggerEngine {
   // ───────────────────────── threshold rules ─────────────────────────
 
   private evalTyreWear(state: RaceState): void {
+    const tyres = state.player.tyres
+    // A new set re-arms the thresholds. Tyre age going backwards (or a compound change)
+    // is the reliable signal — wear alone isn't, because a scrubbed set can go on with
+    // 25% wear and would otherwise never produce the 50/70/90% calls again.
+    if (tyres.ageLaps < this.lastTyreAgeLaps || tyres.compound !== this.lastTyreCompound) {
+      this.tyreWearLevel = 0
+    }
+    this.lastTyreAgeLaps = tyres.ageLaps
+    this.lastTyreCompound = tyres.compound
+
     const wear = Math.max(
-      state.player.tyres.wear.rl,
-      state.player.tyres.wear.rr,
-      state.player.tyres.wear.fl,
-      state.player.tyres.wear.fr
+      tyres.wear.rl,
+      tyres.wear.rr,
+      tyres.wear.fl,
+      tyres.wear.fr
     )
     const levels = this.config.tyreWearLevels // e.g. [50,70,90]
     let newLevel = 0
@@ -166,17 +182,18 @@ export class TriggerEngine {
       const idx = Math.min(newLevel - 1, levels.length - 1)
       const threshold = levels[idx]
       const prio: Priority = newLevel >= 3 ? 'high' : newLevel === 2 ? 'normal' : 'low'
-      this.tryFire(
+      const fired = this.tryFire(
         state,
         `tyre_wear_${threshold}`,
         prio,
         `tyre_wear_${threshold}`,
         `Tyre wear reached ${Math.round(wear)}% (threshold ${threshold}%)`
       )
+      // Only latch the level once the call actually went out — otherwise a cooldown
+      // rejection would silently swallow this threshold for the rest of the stint.
+      if (fired) this.tyreWearLevel = Math.max(this.tyreWearLevel, newLevel)
     }
-    // also drop the live level when wear falls well below (re-enter after a stop)
-    this.tyreWearLevel = Math.max(this.tyreWearLevel, newLevel)
-    // if wear dropped a lot (fresh tyres after stop), reset so we re-fire later
+    // fallback re-arm if wear drops a lot without an age/compound change
     if (wear < 20) this.tyreWearLevel = 0
   }
 
@@ -195,14 +212,16 @@ export class TriggerEngine {
       state.player.tyres.innerTempC.fr
     )
     if (!this.tyreHotActive && innerMax > this.config.tyreHotC) {
-      this.tyreHotActive = true
-      this.tryFire(state, 'tyre_hot', 'normal', 'tyre_hot', `Tyre inner/core temperature high (${Math.round(innerMax)}°C)`)
+      if (this.tryFire(state, 'tyre_hot', 'normal', 'tyre_hot', `Tyre inner/core temperature high (${Math.round(innerMax)}°C)`)) {
+        this.tyreHotActive = true
+      }
     } else if (this.tyreHotActive && innerMax < this.config.tyreHotC - 5) {
       this.tyreHotActive = false
     }
     if (!this.tyreColdActive && innerMin != null && innerMin < this.config.tyreColdC) {
-      this.tyreColdActive = true
-      this.tryFire(state, 'tyre_cold', 'normal', 'tyre_cold', `Tyre inner/core temperature low (${Math.round(innerMin)}°C)`)
+      if (this.tryFire(state, 'tyre_cold', 'normal', 'tyre_cold', `Tyre inner/core temperature low (${Math.round(innerMin)}°C)`)) {
+        this.tyreColdActive = true
+      }
     } else if (this.tyreColdActive && innerMin != null && innerMin > this.config.tyreColdC + 5) {
       this.tyreColdActive = false
     }
@@ -223,14 +242,14 @@ export class TriggerEngine {
     if (behind && behind.deltaToCarInFrontS != null) {
       const gap = behind.deltaToCarInFrontS
       if (!this.defendActive && gap < this.config.defendGapS && gap > 0) {
-        this.defendActive = true
-        this.tryFire(
+        const fired = this.tryFire(
           state,
           'defend_warning',
           'high',
           'defend_warning',
           `${behind.name || 'car behind'} within ${gap.toFixed(2)}s`
         )
+        if (fired) this.defendActive = true
       } else if (this.defendActive && gap > this.config.defendGapS + 0.3) {
         this.defendActive = false
       }
@@ -243,14 +262,14 @@ export class TriggerEngine {
     const attackGap = ahead?.deltaToCarBehindS
     if (attackGap != null && attackGap > 0) {
       if (!this.attackActive && attackGap < this.config.attackGapS) {
-        this.attackActive = true
-        this.tryFire(
+        const fired = this.tryFire(
           state,
           'attack_opportunity',
           'normal',
           'attack_opportunity',
           `${ahead?.name || 'car ahead'} within ${attackGap.toFixed(2)}s`
         )
+        if (fired) this.attackActive = true
       } else if (this.attackActive && attackGap > this.config.attackGapS + 0.3) {
         this.attackActive = false
       }
@@ -270,16 +289,18 @@ export class TriggerEngine {
         const margin = estimatedLaps - toFlag
         if (margin >= -0.15) { this.fuelLowActive = false; return }
         if (!this.fuelLowActive) {
-          this.fuelLowActive = true
-          this.tryFire(state, 'low_fuel', 'high', 'low_fuel', `Fuel estimate short by ${Math.abs(margin).toFixed(2)} laps`)
+          if (this.tryFire(state, 'low_fuel', 'high', 'low_fuel', `Fuel estimate short by ${Math.abs(margin).toFixed(2)} laps`)) {
+            this.fuelLowActive = true
+          }
         }
         return
       }
     }
     // hysteresis: only fire on crossing below threshold, reset when above
     if (!this.fuelLowActive && fuel < this.config.lowFuelKg) {
-      this.fuelLowActive = true
-      this.tryFire(state, 'low_fuel', 'high', 'low_fuel', `Fuel low (${fuel.toFixed(1)}kg)`)
+      if (this.tryFire(state, 'low_fuel', 'high', 'low_fuel', `Fuel low (${fuel.toFixed(1)}kg)`)) {
+        this.fuelLowActive = true
+      }
     } else if (this.fuelLowActive && fuel > this.config.lowFuelKg + 2) {
       this.fuelLowActive = false
     }
@@ -288,8 +309,9 @@ export class TriggerEngine {
   private evalRain(state: RaceState): void {
     const rainPct = state.weather.rainPercentage
     if (!this.rainImminentActive && rainPct >= this.config.rainImminentPct) {
-      this.rainImminentActive = true
-      this.tryFire(state, 'rain_imminent', 'high', 'rain_imminent', `Rain imminent (${Math.round(rainPct)}%)`)
+      if (this.tryFire(state, 'rain_imminent', 'high', 'rain_imminent', `Rain imminent (${Math.round(rainPct)}%)`)) {
+        this.rainImminentActive = true
+      }
     } else if (this.rainImminentActive && rainPct < this.config.rainImminentPct - 10) {
       this.rainImminentActive = false
     }
@@ -298,10 +320,18 @@ export class TriggerEngine {
   private evalPositionChange(state: RaceState): void {
     const pos = state.player.position
     const lap = state.player.lap
-    if (this.lastLap !== 0 && lap === this.lastLap + 1) {
-      // crossed into a new lap — compare position delta
-      const delta = this.lastPosition - pos // positive = gained places
-      if (Math.abs(delta) >= this.config.positionChangeDelta) {
+    if (this.lastLap === 0) {
+      // first observation — record the baseline, nothing to compare yet
+      this.positionAtLapStart = pos
+      this.lastLap = lap
+      return
+    }
+    if (lap !== this.lastLap) {
+      // Compare against the position held at the START of the lap that just ended.
+      // (Comparing the tick before the line with the tick after it measured ~0.5s,
+      // not a lap, so real position changes were missed and jitter was reported.)
+      const delta = this.positionAtLapStart - pos // positive = gained places
+      if (delta !== 0 && Math.abs(delta) >= this.config.positionChangeDelta) {
         this.tryFire(
           state,
           delta > 0 ? 'position_gain' : 'position_loss',
@@ -310,8 +340,8 @@ export class TriggerEngine {
           delta > 0 ? `Gained ${delta} place(s)` : `Lost ${Math.abs(delta)} place(s)`
         )
       }
+      this.positionAtLapStart = pos
     }
-    this.lastPosition = pos
     this.lastLap = lap
   }
 
@@ -322,8 +352,11 @@ export class TriggerEngine {
     // talk too often in normal races; real radio should stay quiet unless useful.
     if (state.player.lap <= 1) return
     if (due) {
-      this.lastHeartbeatMs = now
-      this.tryFire(state, 'heartbeat', 'low', 'heartbeat', 'Scheduled check-in')
+      // Only re-arm the interval once the check-in actually went out, so a cooldown
+      // rejection is retried on a later tick instead of skipping the whole interval.
+      if (this.tryFire(state, 'heartbeat', 'low', 'heartbeat', 'Scheduled check-in')) {
+        this.lastHeartbeatMs = now
+      }
     }
   }
 
@@ -344,15 +377,15 @@ export class TriggerEngine {
     priority: Priority,
     reasonCode: string,
     reason: string
-  ): void {
+  ): boolean {
     // suppressLastLapLowPriority: on the final lap, block non-critical triggers
     if (this.config.suppressLastLapLowPriority && (priority === 'low' || priority === 'normal')) {
       const totalLaps = state.session.totalLaps
-      if (totalLaps != null && totalLaps > 0 && state.player.lap >= totalLaps) return
+      if (totalLaps != null && totalLaps > 0 && state.player.lap >= totalLaps) return false
     }
     // heartbeat is rate-limited by its own interval (in evalHeartbeat) + the global gap;
     // it should NOT additionally suffer the 45s per-rule cooldown.
-    if (!this.cooldown.canFire(ruleId, priority, state.player.lap)) return
+    if (!this.cooldown.canFire(ruleId, priority, state.player.lap)) return false
     this.cooldown.recordFire(ruleId, priority)
     const firing: TriggerFiring = {
       ruleId,
@@ -364,6 +397,7 @@ export class TriggerEngine {
     }
     logger.debug(`trigger fired: ${ruleId} [${priority}] — ${reason}`)
     this.onFiring(firing)
+    return true
   }
 }
 

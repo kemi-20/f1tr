@@ -11,6 +11,9 @@ import type { SynthRequest, Priority } from '@shared/types/audio'
  * - Dedup: identical (normalized) text within the dedup window is skipped.
  * - Synthesis happens in MAIN; the base64 PCM16 chunks cross IPC to the renderer,
  *   which owns the AudioContext (24kHz) and actual playback.
+ * - Playback completion is reported back by the renderer ('audio:finished'), so an
+ *   utterance is only retired once its audio has actually drained. Without that ack a
+ *   critical message arriving after synthesis finished could not cut off a long reply.
  *
  * MiMo streams PCM16 chunks as they are ready, so playback can start before the
  * full utterance is synthesized.
@@ -23,7 +26,11 @@ export class AudioPipeline {
   private seq = 0
   private preemptOnHigh = true
   private maxQueueDepth = 3
-  private endedUtterances = new Set<string>()
+  /** `<utteranceId>:<reason>` markers — 'complete' (stream end) and a later 'preempt' are
+   *  different events and must BOTH reach the renderer. */
+  private sentEnds = new Set<string>()
+  private playbackWaiters = new Map<string, () => void>()
+  private finishedUtterances = new Set<string>()
 
   setClient(client: MiMoTtsClient | null): void {
     this.client = client
@@ -67,6 +74,9 @@ export class AudioPipeline {
       const preemptedId = this.current.id
       logger.info(`AudioPipeline preempt: [${priority}] > [${this.current.priority}]`)
       this.endOnce(preemptedId, 'preempt')
+      // unblock the preempted play() loop even when synthesis already finished and the
+      // renderer was still several seconds away from draining its buffer
+      this.finishPlayback(preemptedId)
       this.client?.cancel()
       this.queue = this.queue.filter((r) => this.priorityRank(r.priority) >= this.priorityRank(priority))
       this.insertQueued(req)
@@ -91,6 +101,7 @@ export class AudioPipeline {
     this.client?.cancel()
     if (this.current) {
       this.endOnce(this.current.id, 'cancel')
+      this.finishPlayback(this.current.id)
     }
     this.queue = []
     this.current = null
@@ -102,11 +113,9 @@ export class AudioPipeline {
       return
     }
     this.current = req
-    this.endedUtterances.delete(req.id)
     Sender.send('audio:start', { utteranceId: req.id, priority: req.priority })
     this.seq = 0
     let samplesSent = 0
-    let completed = false
     try {
       await this.client.synthesize(
         req.text,
@@ -118,13 +127,15 @@ export class AudioPipeline {
         },
         undefined
       )
-      completed = true
+      // Stream end marker: the renderer keeps playing what it already queued and
+      // reports back when the last buffer has actually drained.
       this.endOnce(req.id, 'complete')
-      await sleep(playbackHoldMs(samplesSent))
+      await this.waitForPlayback(req.id, playbackHoldMs(samplesSent))
     } catch (err) {
       logger.error('AudioPipeline synthesis failed:', (err as Error)?.message ?? err)
       // on abort/error, still notify renderer so it stops playing the old utterance
-      this.endOnce(req.id, completed ? 'complete' : 'error')
+      // don't overwrite a preempt/cancel terminal state with a stale error
+      if (!this.isTerminalEnd(req.id)) this.endOnce(req.id, 'error')
       // graceful: the renderer still shows the text advice; just no audio
     } finally {
       // only clear if this play() is still the current one — cancelAll may have
@@ -153,12 +164,60 @@ export class AudioPipeline {
   }
 
   private endOnce(utteranceId: string, reason: 'complete' | 'cancel' | 'error' | 'preempt'): void {
-    if (this.endedUtterances.has(utteranceId)) return
-    this.endedUtterances.add(utteranceId)
-    if (this.endedUtterances.size > 32) {
-      this.endedUtterances = new Set(Array.from(this.endedUtterances).slice(-16))
+    const key = `${utteranceId}:${reason}`
+    if (this.sentEnds.has(key)) return
+    this.sentEnds.add(key)
+    if (this.sentEnds.size > 64) {
+      this.sentEnds = new Set(Array.from(this.sentEnds).slice(-32))
     }
     Sender.send('audio:end', { utteranceId, reason })
+  }
+
+  /** True once this utterance has been cut short (preempted, cancelled or failed). */
+  private isTerminalEnd(utteranceId: string): boolean {
+    return (
+      this.sentEnds.has(`${utteranceId}:preempt`) ||
+      this.sentEnds.has(`${utteranceId}:cancel`) ||
+      this.sentEnds.has(`${utteranceId}:error`)
+    )
+  }
+
+  /** Renderer ack: the utterance's audio finished playing (or it never started). */
+  handlePlaybackFinished(utteranceId: string): void {
+    const waiter = this.playbackWaiters.get(utteranceId)
+    if (waiter) {
+      this.playbackWaiters.delete(utteranceId)
+      waiter()
+      return
+    }
+    // ack arrived before the pipeline started waiting — remember it
+    this.finishedUtterances.add(utteranceId)
+    if (this.finishedUtterances.size > 32) {
+      this.finishedUtterances = new Set(Array.from(this.finishedUtterances).slice(-16))
+    }
+  }
+
+  private finishPlayback(utteranceId: string): void {
+    const waiter = this.playbackWaiters.get(utteranceId)
+    if (waiter) {
+      this.playbackWaiters.delete(utteranceId)
+      waiter()
+    }
+  }
+
+  /** Resolve when the renderer confirms playback drained, with a duration-based fallback. */
+  private async waitForPlayback(utteranceId: string, fallbackMs: number): Promise<void> {
+    if (this.finishedUtterances.delete(utteranceId)) return
+    await new Promise<void>((resolve) => {
+      let timer: NodeJS.Timeout | null = null
+      const done = (): void => {
+        if (timer) clearTimeout(timer)
+        this.playbackWaiters.delete(utteranceId)
+        resolve()
+      }
+      this.playbackWaiters.set(utteranceId, done)
+      timer = setTimeout(done, fallbackMs + 1500)
+    })
   }
 
   private priorityRank(p: Priority): number {
@@ -173,8 +232,4 @@ function pcm16Samples(base64Pcm16: string): number {
 function playbackHoldMs(samples: number): number {
   if (samples <= 0) return 0
   return Math.min(60_000, Math.ceil((samples / 24_000) * 1000) + 160)
-}
-
-function sleep(ms: number): Promise<void> {
-  return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve()
 }

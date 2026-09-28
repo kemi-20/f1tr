@@ -40,10 +40,11 @@ export class TelemetryService {
     triggerConfig: TriggerConfig,
     rendererPaintHz = 12,
     formatOverride: 'auto' | PacketFormat = 'auto',
-    onFiring: (f: TriggerFiring) => void
+    onFiring: (f: TriggerFiring) => void,
+    host = '127.0.0.1'
   ) {
     this.aggregator = new StateAggregator()
-    this.receiver = new UdpReceiver(port, formatOverride)
+    this.receiver = new UdpReceiver(port, formatOverride, host)
     this.receiver.onDecoded = (id, packet) => this.onDecoded(id, packet)
     this.triggers = new TriggerEngine(triggerConfig, onFiring)
     this.emitter = new SnapshotEmitter(
@@ -192,6 +193,17 @@ export class TelemetryService {
 
   setPort(port: number): void {
     this.receiver.setPort(port)
+    this.aggregator.reset(this.receiver.currentFormat ?? 2025)
+    this.lastOverallFrame = 0
+    this.lastSessionUID = ''
+    this.lastTrackId = -1
+    this.lastMetaFormat = null
+    this.pendingEvents = []
+  }
+
+  /** Rebind the UDP socket (host or port change from settings). */
+  setHost(host: string): void {
+    this.receiver.setHost(host)
     this.aggregator.reset(this.receiver.currentFormat ?? 2025)
     this.lastOverallFrame = 0
     this.lastSessionUID = ''

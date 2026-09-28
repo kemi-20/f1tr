@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useRaceStore } from '../../store'
 import { getTrack } from '@shared/index'
 import { CALIBRATED_TRACK_MAPS, type CalibratedTrackMap, type TrackBounds, type TrackPoint } from './trackMapAssets'
-import { teamColorForCar } from '../rivals/teamColors'
+import { teamColorForCar } from '../rivals/teamMeta'
 
 /**
  * TrackMap renders calibrated F1 world-coordinate map data. Car dots use Motion

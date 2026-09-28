@@ -1,57 +1,10 @@
 import { useRaceStore } from '../../store'
 import { compoundLabel, tyreWearColor } from '@shared/index'
 import type { RivalState, TyreCompound } from '@shared/types/state'
-import { teamColorForCar } from './teamColors'
-import mercedesLogo from '../../assets/team-logos/Mercedes_Logo.png'
-import ferrariLogo from '../../assets/team-logos/Ferrari_Logo.png'
-import redBullLogo from '../../assets/team-logos/Red_Bull_Logo.png'
-import williamsLogo from '../../assets/team-logos/Williams_Logo.png'
-import astonMartinLogo from '../../assets/team-logos/Aston_Martin_Logo.png'
-import alpineLogo from '../../assets/team-logos/Alpine_Logo.png'
-import rbLogo from '../../assets/team-logos/RB_Logo.png'
-import haasLogo from '../../assets/team-logos/Haas_Logo.png'
-import mclarenLogo from '../../assets/team-logos/McLaren_Logo.png'
-import kickLogo from '../../assets/team-logos/Kick_Logo.png'
-import audiLogo from '../../assets/team-logos/Audi_Logo.png'
-import cadillacLogo from '../../assets/team-logos/Cadillac_Logo.png'
-
-const TEAM_MARKS: Record<string, { label: string; color: string; logo?: string }> = {
-  '0': { label: 'Mercedes', color: '#00D2BE', logo: mercedesLogo },
-  '1': { label: 'Ferrari', color: '#DC0000', logo: ferrariLogo },
-  '2': { label: 'Red Bull', color: '#3671C6', logo: redBullLogo },
-  '3': { label: 'Williams', color: '#64C4FF', logo: williamsLogo },
-  '4': { label: 'Aston Martin', color: '#229971', logo: astonMartinLogo },
-  '5': { label: 'Alpine', color: '#0090FF', logo: alpineLogo },
-  '6': { label: 'Racing Bulls', color: '#6692FF', logo: rbLogo },
-  '7': { label: 'Haas', color: '#FFFFFF', logo: haasLogo },
-  '8': { label: 'McLaren', color: '#FF8000', logo: mclarenLogo },
-  '9': { label: 'Kick Sauber', color: '#B6BABD', logo: kickLogo },
-  '129': { label: 'Mercedes', color: '#00D2BE', logo: mercedesLogo },
-  '185': { label: 'Mercedes', color: '#00D2BE', logo: mercedesLogo },
-  '186': { label: 'Ferrari', color: '#DC0000', logo: ferrariLogo },
-  '187': { label: 'Red Bull', color: '#3671C6', logo: redBullLogo },
-  '188': { label: 'Williams', color: '#64C4FF', logo: williamsLogo },
-  '189': { label: 'Aston Martin', color: '#229971', logo: astonMartinLogo },
-  '190': { label: 'Alpine', color: '#0090FF', logo: alpineLogo },
-  '191': { label: 'Racing Bulls', color: '#6692FF', logo: rbLogo },
-  '192': { label: 'Haas', color: '#FFFFFF', logo: haasLogo },
-  '193': { label: 'McLaren', color: '#FF8000', logo: mclarenLogo },
-  '194': { label: 'Kick Sauber', color: '#B6BABD', logo: kickLogo },
-  '476': { label: 'Mercedes', color: '#27F4D2', logo: mercedesLogo },
-  '477': { label: 'Ferrari', color: '#E8002D', logo: ferrariLogo },
-  '478': { label: 'Red Bull', color: '#3671C6', logo: redBullLogo },
-  '479': { label: 'Williams', color: '#1868DB', logo: williamsLogo },
-  '480': { label: 'Aston Martin', color: '#229971', logo: astonMartinLogo },
-  '481': { label: 'Alpine', color: '#00A1E8', logo: alpineLogo },
-  '482': { label: 'Racing Bulls', color: '#6692FF', logo: rbLogo },
-  '483': { label: 'Haas', color: '#DEE1E2', logo: haasLogo },
-  '484': { label: 'McLaren', color: '#FF8000', logo: mclarenLogo },
-  '485': { label: 'Audi', color: '#FF2D00', logo: audiLogo },
-  '486': { label: 'Cadillac', color: '#AAAAAD', logo: cadillacLogo }
-}
+import { teamColorForCar, teamMetaFor } from './teamMeta'
 
 function Row({ r, isPlayer }: { r: RivalState; isPlayer: boolean }): React.ReactElement {
-  const mark = TEAM_MARKS[String(r.team)] ?? { label: r.teamName || shortTeam(r.team), color: r.teamColor || '#E6EDF6' }
+  const mark = teamMetaFor(r.team) ?? { label: r.teamName || shortTeam(r.team), color: r.teamColor || '#E6EDF6' }
   const tyre = tyreCode(r.tyreCompound)
   const gap = formatPlayerRelativeGap(r.gapToPlayerS)
   const tyreWear = formatTyreWear(r.tyreWearAvg)

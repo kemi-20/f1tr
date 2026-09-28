@@ -27,7 +27,7 @@ export function HotkeyTab(): React.ReactElement {
     <div className="flex flex-col gap-4">
       <Field
         label="语音输入快捷键"
-        hint="按下快捷键等效于点击 Speak 按钮，开始/停止录音。仅在 UDP 连接中或断开不超过 2 分钟时生效。"
+        hint="按下快捷键等效于点击 Speak 按钮，开始/停止录音。UDP 断开时也能手动提问，只是自动播报会暂停。"
       >
         <div className="flex items-center gap-3">
           <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-4 py-2 text-sm text-white/90">
@@ -46,7 +46,7 @@ export function HotkeyTab(): React.ReactElement {
         </div>
       </Field>
       <p className="text-[11px] text-white/30">
-        提示：默认为 Space（空格键）。如果 UDP 断开超过 2 分钟，AI 工程师会自动停止工作，直到 UDP 恢复。
+        提示：默认为 Space（空格键）。UDP 断开超过 2 分钟后，AI 自动播报会暂停；手动提问与录音仍然可用。
       </p>
     </div>
   )

@@ -1,19 +1,13 @@
-import { TRACK_PATHS } from './track-paths'
-
-/** Compact F1 25 track reference for the SVG map. IDs are the REAL F1 25 m_trackId values
- *  (sparse, not sequential) verified from the Codemasters spec appendix. */
+/** Compact F1 track reference (name/country/lap count). IDs are the REAL F1 25 m_trackId
+ *  values (sparse, not sequential) verified from the Codemasters spec appendix.
+ *
+ *  Track geometry is NOT here: the map renders the calibrated world-coordinate data in
+ *  `src/track_maps/*.json` (see renderer/components/trackmap/trackMapAssets.ts). */
 export interface TrackDef {
   id: number
   name: string
   country: string
   laps: number
-  lengthKm: number
-  /** SVG path string (viewBox 0 0 100 100) */
-  path: string
-  /** DRS detection zones as lap-distance % ranges */
-  drsZones: [number, number][]
-  /** Sector boundaries as lap-distance % */
-  sectors: [number, number]
 }
 
 const TRACK_META: Record<number, { name: string; country: string; laps: number }> = {
@@ -45,19 +39,9 @@ const TRACK_META: Record<number, { name: string; country: string; laps: number }
 }
 
 export const TRACKS: Record<number, TrackDef> = Object.fromEntries(
-  Object.entries(TRACK_PATHS).map(([id, path]) => {
+  Object.entries(TRACK_META).map(([id, meta]) => {
     const tid = Number(id)
-    const meta = TRACK_META[tid] ?? { name: `Track ${tid}`, country: '', laps: 50 }
-    return [tid, {
-      id: tid,
-      name: meta.name,
-      country: meta.country,
-      laps: meta.laps,
-      lengthKm: 0,
-      path,
-      drsZones: [[0.05, 0.1], [0.6, 0.65]],
-      sectors: [0.33, 0.66]
-    }]
+    return [tid, { id: tid, name: meta.name, country: meta.country, laps: meta.laps }]
   })
 )
 

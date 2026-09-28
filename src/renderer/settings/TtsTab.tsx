@@ -1,5 +1,5 @@
 import { useConfigStore } from '../store'
-import { Field, TextInput, TestButton } from './SettingsModal'
+import { ApiKeyField, Field, TextInput, TestButton } from './SettingsModal'
 
 export function TtsTab(): React.ReactElement {
   const config = useConfigStore((s) => s.config)
@@ -25,27 +25,11 @@ export function TtsTab(): React.ReactElement {
         </Field>
       </div>
 
-      <Field
-        label="API Key"
-        hint={
-          tts.apiKeyOverride
-            ? '使用此处填入的 key（覆盖 .env）· 明文存于 userData/config.json'
-            : tts.hasSecret
-              ? '已从 .env (MIMO_API_KEY) 读取 ✓ · 在此填入可覆盖'
-              : '未配置：在此填入，或设 .env 的 MIMO_API_KEY'
-        }
-      >
-        <TextInput
-          type="password"
-          value={tts.apiKeyOverride}
-          placeholder={tts.hasSecret ? '（用 .env 的 key，留空保持）' : 'sk-...'}
-          onChange={(e) => void patch({ tts: { apiKeyOverride: e.target.value } })}
-        />
-      </Field>
+      <ApiKeyField source={tts.keySource} onPatch={(value) => void patch({ tts: { apiKeyOverride: value } })} />
 
       <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 text-xs leading-relaxed text-white/50">
         MiMo 音频为 <span className="text-white/70 num-mono">24000Hz · 单声道 · int16</span>，由 Web Audio 流式播放。
-        当前流式为"兼容模式"（整段合成后切片），首字延迟约 1–3 秒。
+        服务端按 SSE 增量推送 PCM，收到一块就立即播出，首字延迟取决于 MiMo 流式响应速度。
       </div>
 
       <div className="border-t border-white/[0.06] pt-4">

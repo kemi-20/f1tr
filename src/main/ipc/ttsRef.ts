@@ -41,10 +41,16 @@ export async function wireTts(cfg: AppConfig): Promise<void> {
   const apiKey = ConfigStore.ttsKey()
   if (!baseURL || !apiKey) {
     logger.info('TTS backend inactive (no baseURL/key via UI or .env)')
+    // tear down BOTH clients — leaving the old ASR client behind would keep using a
+    // stale key/endpoint after the user clears the config
+    client?.cancel()
     pipeline.setClient(null)
     client = null
+    asrClient = null
     return
   }
+  // replacing a live client: abort anything in flight on the old one first
+  client?.cancel()
   client = new MiMoTtsClient({ baseURL, apiKey, model: cfg.tts.model })
   pipeline.setClient(client)
   asrClient = new MiMoAsrClient({ baseURL, apiKey, model: 'mimo-v2.6-flash' })

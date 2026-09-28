@@ -3,6 +3,8 @@ import type { RaceState } from '@shared/types/state'
 import type { TriggerFiring } from '@shared/types/triggers'
 import { fmtLapTime, fmtGap, fmtPct } from '@shared/util/format'
 
+const MAX_RECENT_EVENT_AGE_MS = 120_000
+
 /**
  * DigestBuilder — the lossy projection of RaceState -> a compact ~120-300 token text block.
  * This is what makes "send ALL data to the AI" actually usable and cheap:
@@ -10,6 +12,7 @@ import { fmtLapTime, fmtGap, fmtPct } from '@shared/util/format'
  */
 export class DigestBuilder {
   build(state: RaceState, firing: TriggerFiring): Digest {
+    const now = Date.now()
     const s = state.session
     const w = state.weather
     const p = state.player
@@ -20,7 +23,7 @@ export class DigestBuilder {
     const playerRivals = this.rivalsAroundPlayer(state, 4)
 
     return {
-      ts: Date.now(),
+      ts: now,
       session: {
         track: s.trackName || `track#${s.trackId}`,
         type: s.sessionTypeLabel,
@@ -77,7 +80,10 @@ export class DigestBuilder {
         }
       },
       rivals: playerRivals,
-      events: state.recentEvents.slice(-4).map((e) => `[${e.type}] ${e.text}`),
+      events: state.recentEvents
+        .filter((event) => Number.isFinite(event.ts) && event.ts <= now && now - event.ts <= MAX_RECENT_EVENT_AGE_MS)
+        .slice(-4)
+        .map((event) => `[${event.type}] ${event.text}`),
       trigger: { code: firing.reasonCode, reason: firing.reason, priority: firing.priority }
     }
   }

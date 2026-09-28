@@ -13,9 +13,12 @@ class WebAudioEngineImpl {
   private ctx: AudioContext | null = null
   private master: GainNode | null = null
   private nextStart = 0
-  private active = new Set<AudioBufferSourceNode>()
+  /** Scheduled source -> the utterance it belongs to (used to report real drain time). */
+  private active = new Map<AudioBufferSourceNode, string>()
+  /** Utterance ids whose synthesis stream has ended (no more chunks will arrive). */
+  private streamEnded = new Set<string>()
+  private finishedNotified = new Set<string>()
   private muted = false
-  private paused = false
   private volume = 1
   private started = false
   private preemptGeneration = 0
@@ -32,7 +35,6 @@ class WebAudioEngineImpl {
     this.master.connect(this.ctx.destination)
     this.nextStart = this.ctx.currentTime
     this.started = true
-    if (this.paused) void this.ctx.suspend()
   }
 
   private base64ToBytes(b64: string): Uint8Array {
@@ -59,10 +61,24 @@ class WebAudioEngineImpl {
     const startAt = Math.max(this.nextStart, this.ctx.currentTime + lead)
     src.start(startAt)
     this.nextStart = startAt + buf.duration
-    this.active.add(src)
+    this.active.set(src, utteranceId)
     src.onended = () => {
       this.active.delete(src)
+      this.notifyIfDrained(utteranceId)
     }
+  }
+
+  /** Tell main when an utterance truly finished playing — preemption depends on this ack. */
+  private notifyIfDrained(utteranceId: string): void {
+    if (!this.streamEnded.has(utteranceId) || this.finishedNotified.has(utteranceId)) return
+    for (const id of this.active.values()) {
+      if (id === utteranceId) return
+    }
+    this.finishedNotified.add(utteranceId)
+    if (this.finishedNotified.size > 32) {
+      this.finishedNotified = new Set(Array.from(this.finishedNotified).slice(-16))
+    }
+    void api.audioFinished(utteranceId).catch(() => { /* main will time out and move on */ })
   }
 
   /** Higher-priority message cut-in: fade out current, stop, restore gain. */
@@ -71,7 +87,7 @@ class WebAudioEngineImpl {
     // save the old sources BEFORE we switch activeUtteranceId, so the setTimeout
     // only stops the old utterance's nodes — new chunks arriving during the fade
     // are gated by the old id and dropped, or by the new id and kept.
-    const oldSources = new Set(this.active)
+    const oldSources = new Set(this.active.keys())
     // the new utterance is now the active one; any late chunks from the old one are dropped
     this.activeUtteranceId = start.utteranceId
     const now = this.ctx.currentTime
@@ -126,10 +142,19 @@ class WebAudioEngineImpl {
     this.activeUtteranceId = id
   }
 
+  /** Main reports the synthesis stream ended — no more chunks for this utterance. */
+  noteStreamEnded(utteranceId: string): void {
+    this.streamEnded.add(utteranceId)
+    if (this.streamEnded.size > 32) {
+      this.streamEnded = new Set(Array.from(this.streamEnded).slice(-16))
+    }
+    this.notifyIfDrained(utteranceId)
+  }
+
   /** Stop all currently-scheduled audio sources immediately. Used on audio:end and
    *  non-preempt audio:start to avoid overlapping playback. */
   stopAll(): void {
-    this.active.forEach((s) => {
+    this.active.forEach((_id, s) => {
       try {
         s.stop()
       } catch {
@@ -139,20 +164,6 @@ class WebAudioEngineImpl {
     this.active.clear()
     this.activeUtteranceId = null
     if (this.ctx) this.nextStart = this.ctx.currentTime
-  }
-
-  pause(): void {
-    this.paused = true
-    void this.ctx?.suspend()
-  }
-
-  resume(): void {
-    this.paused = false
-    if (!this.ctx) return
-    this.stopAll()
-    void this.ctx.resume().then(() => {
-      if (this.ctx) this.nextStart = this.ctx.currentTime
-    })
   }
 
   get isStarted(): boolean {
@@ -191,11 +202,14 @@ export function wireAudioIpc(): () => void {
   offs.push(api.on('audio:chunk', (p) => WebAudioEngine.onChunk(p as AudioChunk)))
   offs.push(api.on('audio:end', (p) => {
     const end = p as AudioEnd
+    if (end.reason === 'complete') {
+      // Stream finished, playback continues — main waits for the drain ack below.
+      WebAudioEngine.noteStreamEnded(end.utteranceId)
+      return
+    }
     // Only stopAll if this end event is for the currently active utterance
     // (prevents a stale end from killing a newer utterance's audio)
-    if (end.reason !== 'complete' && WebAudioEngine.currentUtteranceId === end.utteranceId) {
-      WebAudioEngine.stopAll()
-    }
+    if (WebAudioEngine.currentUtteranceId === end.utteranceId) WebAudioEngine.stopAll()
   }))
   return () => offs.forEach((off) => off())
 }

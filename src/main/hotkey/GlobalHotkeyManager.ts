@@ -48,7 +48,3 @@ export function unregisterHotkey(): void {
     currentAccelerator = null
   }
 }
-
-export function isHotkeyRegistered(): boolean {
-  return currentAccelerator != null
-}

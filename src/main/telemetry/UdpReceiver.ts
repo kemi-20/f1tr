@@ -24,6 +24,7 @@ export class UdpReceiver {
   private socket: dgram.Socket | null = null
   private handlers = new Map<string, (p: AnyParsedPacket) => void>()
   private running = false
+  private host: string
   public packetsReceived = 0
   public packetsDropped = 0
   public lastPacketMs = 0
@@ -31,7 +32,14 @@ export class UdpReceiver {
   onDecoded: (id: number, packet: AnyParsedPacket) => void = () => {}
   private formatOverride: PacketFormat | null = null
 
-  constructor(private port = 20777, formatOverride: 'auto' | PacketFormat = 'auto') {
+  constructor(
+    private port = 20777,
+    formatOverride: 'auto' | PacketFormat = 'auto',
+    // Loopback by default: the game runs on this machine, so there is no reason to
+    // accept telemetry (and therefore fake race state) from the rest of the LAN.
+    host = LOOPBACK
+  ) {
+    this.host = normalizeHost(host)
     this.setFormatOverride(formatOverride)
   }
 
@@ -45,10 +53,24 @@ export class UdpReceiver {
     this.socket = dgram.createSocket({ type: 'udp4', reuseAddr: true })
     this.socket.on('message', (msg: Buffer) => this.handleMessage(msg))
     this.socket.on('error', (err: Error) => logger.error('UDP socket error:', err.message))
-    this.socket.bind(this.port, () => {
-      logger.info(`UDP receiver started on port ${this.port} (0.0.0.0)`)
+    this.socket.bind(this.port, this.host, () => {
+      logger.info(`UDP receiver started on ${this.host}:${this.port}`)
     })
     this.running = true
+  }
+
+  /** Rebind to a different interface (used when the user changes telemetry.host). */
+  setHost(host: string): void {
+    const next = normalizeHost(host)
+    if (next === this.host) return
+    const wasRunning = this.running
+    if (wasRunning) this.stop()
+    this.host = next
+    this.packetsReceived = 0
+    this.packetsDropped = 0
+    this.lastPacketMs = 0
+    this.currentFormat = null
+    if (wasRunning) this.start()
   }
 
   setPort(port: number): void {
@@ -133,4 +155,11 @@ export { PACKETS }
 
 function normalizePort(port: number, fallback: number): number {
   return Number.isInteger(port) && port > 0 && port <= 65535 ? port : fallback
+}
+
+const LOOPBACK = '127.0.0.1'
+
+function normalizeHost(host: string, fallback = LOOPBACK): string {
+  const text = String(host ?? '').trim()
+  return text === LOOPBACK ? text : fallback
 }

@@ -1,6 +1,7 @@
 import Store from 'electron-store'
 import { DEFAULT_CONFIG, mergeConfig, type AppConfig, type DeepPartial } from '@shared/index'
 import { loadSecrets } from './env'
+import { sanitizeConfigPatch } from './sanitize'
 
 /**
  * Persists user preferences (incl. optional API-key overrides) to userData/config.json.
@@ -18,7 +19,9 @@ class ConfigStoreImpl {
 
   getAll(): AppConfig {
     const stored = this.ensure().store as unknown as Partial<AppConfig>
-    const merged = mergeConfig(stored)
+    // Treat the persisted JSON as untrusted too: it may come from an older version or
+    // have been edited outside the application.
+    const merged = mergeConfig(sanitizeConfigPatch(stored))
     const secrets = loadSecrets()
     // base URL / model: fall back to .env when not set in UI
     if (!merged.llm.baseURL) merged.llm.baseURL = secrets.aiBaseURL
@@ -28,13 +31,27 @@ class ConfigStoreImpl {
     // hasSecret: true if EITHER an override OR a .env key is present
     merged.llm.hasSecret = !!(merged.llm.apiKeyOverride || secrets.aiKey)
     merged.tts.hasSecret = !!(merged.tts.apiKeyOverride || secrets.mimoKey)
+    // keySource: where the effective key comes from — the renderer only ever sees this,
+    // never the key value itself.
+    merged.llm.keySource = merged.llm.apiKeyOverride ? 'override' : secrets.aiKey ? 'env' : 'none'
+    merged.tts.keySource = merged.tts.apiKeyOverride ? 'override' : secrets.mimoKey ? 'env' : 'none'
     return merged
   }
 
+  /** Config with secrets stripped — this is what crosses to the renderer. */
+  redacted(): AppConfig {
+    const cfg = this.getAll()
+    cfg.llm.apiKeyOverride = ''
+    cfg.tts.apiKeyOverride = ''
+    return cfg
+  }
+
   patch(partial: DeepPartial<AppConfig>): AppConfig {
+    // Renderer input is untrusted: validate/drop fields before they reach the store.
+    const safe = sanitizeConfigPatch(partial)
     const store = this.ensure()
-    for (const key of Object.keys(partial) as (keyof AppConfig)[]) {
-      const v = partial[key]
+    for (const key of Object.keys(safe) as (keyof AppConfig)[]) {
+      const v = safe[key]
       if (v === undefined) continue
       const current = store.get(key) as unknown
       if (v && typeof v === 'object' && !Array.isArray(v) && current && typeof current === 'object') {

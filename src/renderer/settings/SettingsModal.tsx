@@ -3,6 +3,7 @@ import { useConfigStore } from '../store'
 import { api } from '../ipc/ipcClient'
 import {
   LANGUAGE_PROFILE,
+  type KeySource,
   type LanguageMode,
   type VoiceOption
 } from '@shared/index'
@@ -92,7 +93,7 @@ export function SettingsModal(): ReactElement | null {
 
         <div className="border-t border-white/[0.06] px-5 py-3 text-right">
           <span className="text-[10px] text-white/30">
-            密钥从 .env 读取；此处的修改会覆盖到本地偏好（不含密钥）。
+            密钥只保存在主进程（.env 或 userData），不会回传到界面；此处修改的其余偏好会写入本地配置。
           </span>
         </div>
       </div>
@@ -139,6 +140,48 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
       {children}
       {hint && <span className="text-[10px] text-white/30">{hint}</span>}
     </label>
+  )
+}
+
+/**
+ * API-key input. The stored key never crosses IPC — the renderer only knows whether one
+ * came from `.env` or from a previous override, so this field is always blank on open and
+ * typing here replaces the override.
+ */
+export function ApiKeyField({ source, onPatch }: { source: KeySource; onPatch: (value: string) => void }): ReactElement {
+  const [draft, setDraft] = useState('')
+  const hint = source === 'override'
+    ? '已保存自定义 key（明文存于 userData/config.json）· 输入新值即可覆盖'
+    : source === 'env'
+      ? '已从 .env 读取 ✓ · 在此填入可覆盖'
+      : '未配置：在此填入，或设置 .env 中的 API key'
+  return (
+    <Field label="API Key" hint={hint}>
+      <div className="flex items-center gap-2">
+        <TextInput
+          type="password"
+          className="flex-1"
+          value={draft}
+          placeholder={source === 'none' ? 'sk-...' : '••••••••（已保存，留空保持不变）'}
+          onChange={(e) => {
+            setDraft(e.target.value)
+            onPatch(e.target.value)
+          }}
+        />
+        {source === 'override' && (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft('')
+              onPatch('')
+            }}
+            className="rounded-md border border-white/10 px-3 py-2 text-xs text-white/50 transition hover:border-accent-racing/40 hover:text-accent-racing"
+          >
+            清除
+          </button>
+        )}
+      </div>
+    </Field>
   )
 }
 

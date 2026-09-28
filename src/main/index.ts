@@ -32,7 +32,9 @@ function createWindow(): void {
       // preload is built as CommonJS (.cjs) — see electron.vite.config preload.output.
       // A .js preload would be parsed as ESM under package.json "type":"module" and fail to load.
       preload: join(__dirname, '../preload/index.cjs'),
-      sandbox: false,
+      // The renderer needs no Node access (preload only bridges IPC), so keep the
+      // Chromium sandbox on — it is the cheapest containment win for the chat surface.
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
       // the engineer speaks autonomously on telemetry triggers, not per user gesture;
@@ -71,6 +73,16 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  // The cockpit never navigates: block anything that tries to move the window off the
+  // bundled renderer (chat links are handled by setWindowOpenHandler instead).
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const current = mainWindow?.webContents.getURL() ?? ''
+    if (url !== current) {
+      event.preventDefault()
+      logger.warn('Blocked renderer navigation')
+    }
+  })
+
   // DEV/PROD load
   if (process.env['ELECTRON_RENDERER_URL']) {
     void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -98,14 +110,13 @@ app.whenReady().then(() => {
   setTtsClient(null)
   engineer.setSpeakHandler((text, firing, voice, direction) => {
     const audioSettings = ConfigStore.getAll().audio
-    if (audioSettings.muted || audioSettings.pause) return
+    if (audioSettings.muted) return
     audio!.enqueue(text, firing.priority, voice, direction)
   })
   engineer.setInterruptHandler(() => audio?.cancelAll())
   engineer.setLanguage(cfg.language.mode)
   engineer.setVoice(cfg.language.voice, cfg.language.direction)
   engineer.setEngineerStyle(cfg.language.engineerStyle)
-  engineer.setMemoryTurns(cfg.advanced.memoryTurns)
 
   telemetry = new TelemetryService(
     cfg.telemetry.port,
@@ -116,7 +127,8 @@ app.whenReady().then(() => {
       // fire on the main event loop — serialize through the engineer's queue
       const state = telemetry!.aggregator.getState()
       engineer!.enqueue(state, firing)
-    }
+    },
+    cfg.telemetry.host
   )
   setTelemetry(telemetry)
   telemetry.onDecoded = (id, packet) => engineer!.telemetryHistory.recordPacket(id, packet)
@@ -149,11 +161,9 @@ app.whenReady().then(() => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
-    // macOS keeps the app alive after all windows close; telemetry was stopped
-    // on window-all-closed — restart it so the reopened window gets data
-    if (!telemetry?.aggregator?.getState()?.session?.lastUpdateMs) {
-      telemetry?.start()
-    }
+    // macOS keeps the app alive after all windows close and 'window-all-closed' stops
+    // telemetry — start() is idempotent, so always ask for ingest to be running.
+    telemetry?.start()
   })
 })
 

@@ -1,5 +1,5 @@
 import { useConfigStore } from '../store'
-import { Field, TextInput, TestButton } from './SettingsModal'
+import { ApiKeyField, Field, TextInput, TestButton } from './SettingsModal'
 import type { ReasoningEffort } from '@shared/index'
 
 const THINKING_LEVELS: { id: ReasoningEffort; label: string; color: string }[] = [
@@ -33,53 +33,22 @@ export function LlmTab(): React.ReactElement {
         </Field>
       </div>
 
-     <label className="flex items-center gap-2 text-xs text-white/60">
-       <input
-         type="checkbox"
-         checked={llm.visionSupported}
-         onChange={(e) => void patch({ llm: { visionSupported: e.target.checked } })}
-         className="h-4 w-4 accent-accent-carbon"
-       />
-       <span>支持图片输入</span>
-       <span className="text-[10px] text-white/30">
-         {llm.visionSupported
-           ? '截图直接发给此模型'
-           : '截图先经 MiMo mimo-v2.6-flash 描述后再发'}
-       </span>
-     </label>
-
       <label className="flex items-center gap-2 text-xs text-white/60">
         <input
           type="checkbox"
-          checked={llm.audioSupported}
-          onChange={(e) => void patch({ llm: { audioSupported: e.target.checked } })}
+          checked={llm.visionSupported}
+          onChange={(e) => void patch({ llm: { visionSupported: e.target.checked } })}
           className="h-4 w-4 accent-accent-carbon"
         />
-        <span>支持音频输入</span>
+        <span>支持图片输入</span>
         <span className="text-[10px] text-white/30">
-          {llm.audioSupported
-            ? '语音录音直接发给此模型'
-            : '语音先经 MiMo mimo-v2.6-flash 转文字后再发'}
+          {llm.visionSupported
+            ? '截图直接发给此模型'
+            : '截图先经 MiMo mimo-v2.6-flash 描述后再发'}
         </span>
       </label>
 
-      <Field
-        label="API Key"
-        hint={
-          llm.apiKeyOverride
-            ? '使用此处填入的 key（覆盖 .env）· 明文存于 userData/config.json'
-            : llm.hasSecret
-              ? '已从 .env (AI_API_KEY) 读取 ✓ · 在此填入可覆盖'
-              : '未配置：在此填入，或设 .env 的 AI_API_KEY'
-        }
-      >
-        <TextInput
-          type="password"
-          value={llm.apiKeyOverride}
-          placeholder={llm.hasSecret ? '（用 .env 的 key，留空保持）' : 'sk-...'}
-          onChange={(e) => void patch({ llm: { apiKeyOverride: e.target.value } })}
-        />
-      </Field>
+      <ApiKeyField source={llm.keySource} onPatch={(value) => void patch({ llm: { apiKeyOverride: value } })} />
 
       <div className="flex flex-col gap-4">
         <div>

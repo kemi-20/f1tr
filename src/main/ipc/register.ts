@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { ConfigStore } from '../config/ConfigStore'
+import { sanitizeConfigPatch } from '../config/sanitize'
 import { logger } from '../logging/Logger'
 import { getTelemetry } from './telemetryRef'
 import { getEngineer, getLlm, wireLlm } from './engineerRef'
@@ -14,44 +15,48 @@ import { manualFiring } from '../engineer/EngineerService'
  * require() does not work reliably under electron-vite's ESM bundle and would throw at runtime.
  */
 export function registerIpc(): void {
-  ipcMain.handle('config:get', () => ConfigStore.getAll())
+  // The renderer never receives stored API keys — only where they come from.
+  ipcMain.handle('config:get', () => ConfigStore.redacted())
 
   ipcMain.handle('config:set', async (_e, patch) => {
-    const cfg = ConfigStore.patch(patch)
-    if (patch.language) {
+    // Use only validated fields for both persistence and side effects. The IPC payload
+    // is untrusted and may be null or contain invalid values.
+    const safePatch = sanitizeConfigPatch(patch)
+    const cfg = ConfigStore.patch(safePatch)
+    if (safePatch.language) {
       getEngineer()?.cancel()
       getAudio()?.cancelAll()
       getTtsClient()?.cancel()
     }
     const rewires: Promise<void>[] = []
-    if (patch.llm || patch.language || patch.advanced) rewires.push(wireLlm(cfg))
-    if (patch.tts || patch.audio || patch.language || patch.advanced) rewires.push(wireTts(cfg))
+    if (safePatch.llm || safePatch.language || safePatch.advanced) rewires.push(wireLlm(cfg))
+    if (safePatch.tts || safePatch.audio || safePatch.language || safePatch.advanced) rewires.push(wireTts(cfg))
     const results = await Promise.allSettled(rewires)
     for (const result of results) {
       if (result.status === 'rejected') logger.error('config:set service rewire failed:', result.reason)
     }
-    if (patch.triggers) {
+    if (safePatch.triggers) {
       getTelemetry()?.triggers.setConfig(cfg.triggers)
     }
-    if (patch.hotkeys?.pushToTalk) {
+    if (safePatch.hotkeys?.pushToTalk) {
       registerHotkey(cfg.hotkeys.pushToTalk)
     }
-    if (patch.telemetry?.rendererPaintHz != null) {
+    if (safePatch.telemetry?.rendererPaintHz != null) {
       getTelemetry()?.setRendererPaintHz(cfg.telemetry.rendererPaintHz)
     }
-    if (patch.telemetry?.port != null) {
+    if (safePatch.telemetry?.port != null) {
       getTelemetry()?.setPort(cfg.telemetry.port)
     }
-    if (patch.advanced?.memoryTurns != null) {
-      getEngineer()?.setMemoryTurns(cfg.advanced.memoryTurns)
+    if (safePatch.telemetry?.host != null) {
+      getTelemetry()?.setHost(cfg.telemetry.host)
     }
-    if (patch.language) {
+    if (safePatch.language) {
       const eng = getEngineer()
       eng?.setLanguage(cfg.language.mode)
       eng?.setVoice(cfg.language.voice, cfg.language.direction)
       eng?.setEngineerStyle(cfg.language.engineerStyle)
     }
-    return cfg
+    return ConfigStore.redacted()
   })
 
   ipcMain.handle('config:test:llm', async () => {
@@ -116,6 +121,9 @@ export function registerIpc(): void {
     const svc = getTelemetry()
     const eng = getEngineer()
     if (!svc || !eng) return { ok: false, message: 'Engineer service not ready.' }
+    if (typeof base64Audio !== 'string' || base64Audio.length > 13_981_016 || (format !== 'wav' && format !== 'mp3')) {
+      return { ok: false, message: 'Unsupported audio payload.' }
+    }
     const state = svc.aggregator.getState()
     // DSH SDK accepts text and images; transcribe driver audio before admission.
     const asr = getAsrClient()
@@ -135,9 +143,14 @@ export function registerIpc(): void {
     logger.debug(`audio mute -> ${muted}`)
   })
   ipcMain.handle('audio:volume', async (_e, vol: number) => {
-    await ConfigStore.patch({ audio: { volume: vol } })
+    if (typeof vol === 'number' && Number.isFinite(vol)) {
+      await ConfigStore.patch({ audio: { volume: Math.max(0, Math.min(1, vol)) } })
+    }
   })
-  ipcMain.handle('audio:pause', async (_e, pause: boolean) => {
-    await ConfigStore.patch({ audio: { pause } })
+  // Renderer ack: an utterance's audio actually drained (drives TTS preemption timing).
+  ipcMain.handle('audio:finished', async (_e, utteranceId: string) => {
+    if (typeof utteranceId === 'string' && utteranceId.length <= 64) {
+      getAudio()?.handlePlaybackFinished(utteranceId)
+    }
   })
 }

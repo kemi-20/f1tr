@@ -9,6 +9,8 @@ import { nanoid } from 'nanoid'
 import { logger } from '../logging/Logger'
 
 const MAX_EVENTS = 12
+/** Same-frame event repeats are UDP duplicates; anything older than this is a new event. */
+const EVENT_DEDUPE_TTL_MS = 120_000
 const WHEEL = ['rl', 'rr', 'fl', 'fr'] as const
 
 /**
@@ -23,7 +25,8 @@ export class StateAggregator {
   private prevTrackFlag = 'none'
   private scActive = false
   private _prevRedFlagCount = 0
-  private lastEventBucket = new Set<string>()
+  private recentEventKeys = new Map<string, number>() // dedupe key -> seenAt ms
+  private oncePerSessionKeys = new Set<string>()
 
   getState(): RaceState {
     return this.state
@@ -43,7 +46,8 @@ export class StateAggregator {
   reset(format: PacketFormat): void {
     this.state = emptyRaceState(format)
     this.lastSessionUID = ''
-    this.lastEventBucket.clear()
+    this.recentEventKeys.clear()
+    this.oncePerSessionKeys.clear()
     this.prevSC = 0
     this.prevTrackFlag = 'none'
     this.scActive = false
@@ -84,7 +88,7 @@ export class StateAggregator {
     if (redCount > (this._prevRedFlagCount ?? 0)) {
       s.isRedFlag = true
       this._prevRedFlagCount = redCount
-      if (!this.isDupe('redFlag', uid))
+      if (!this.oncePerSession(`redFlag-${redCount}`, uid))
         this.pushEvent('redFlag', `Red flag #${redCount}`, undefined)
     } else if (decoded.resumed || (scStatus === 0 && !decoded.sc && !decoded.vsc)) {
       // racing has resumed — clear red flag
@@ -108,13 +112,14 @@ export class StateAggregator {
       this.scActive = true
     }
     if (scStatus !== this.prevSC) {
-      if (decoded.sc && !this.isDupe('sc', uid)) this.pushEvent('safetyCar', 'Safety Car deployed')
-      else if (decoded.vsc && !this.isDupe('vsc', uid)) this.pushEvent('vsc', 'Virtual Safety Car')
-      else if (decoded.formation && !this.isDupe('formation', uid)) this.pushEvent('safetyCar', 'Formation lap')
+      const frame = h.m_overallFrameIdentifier
+      if (decoded.sc && !this.isDuplicate('sc', uid, frame)) this.pushEvent('safetyCar', 'Safety Car deployed')
+      else if (decoded.vsc && !this.isDuplicate('vsc', uid, frame)) this.pushEvent('vsc', 'Virtual Safety Car')
+      else if (decoded.formation && !this.isDuplicate('formation', uid, frame)) this.pushEvent('safetyCar', 'Formation lap')
       // SC/VSC may pass through status 4 (VSC ending), so keep a latched active
       // flag instead of relying only on the immediately previous enum value.
       if (this.scActive && (scStatus === 0 || decoded.resumed)) {
-        if (!this.isDupe('sc-ended', uid)) this.pushEvent('safetyCar', 'SC/VSC ended — green flag')
+        if (!this.isDuplicate('sc-ended', uid, frame)) this.pushEvent('safetyCar', 'SC/VSC ended — green flag')
         this.scActive = false
       }
       this.prevSC = scStatus
@@ -146,7 +151,7 @@ export class StateAggregator {
     const nowRaining = currentRainCode || wetTrack
     w.isRaining = nowRaining
     w.rainOnset = !wasRaining && nowRaining
-    if (!wasRaining && nowRaining && !this.isDupe('rain', uid)) {
+    if (!wasRaining && nowRaining && !this.isDuplicate('rain', uid, h.m_overallFrameIdentifier)) {
       this.pushEvent('weatherChange', currentRainCode ? 'Rain detected' : 'Wet track detected')
     }
 
@@ -490,32 +495,67 @@ export class StateAggregator {
   onEvent(p: AnyParsedPacket): void {
     const h = p.m_header as PacketHeader
     const code = String(p.m_eventStringCode ?? '')
-    const d = (p.m_eventDetails ?? {}) as Record<string, number>
+    const d = (p.m_eventDetails ?? {}) as Record<string, number | undefined>
     const uid = h.m_sessionUID.toString()
-    const vIdx = d.vehicleIdx ?? -1
+    const frame = h.m_overallFrameIdentifier
+    const vIdx = numOrNull(d.vehicleIdx)
+    const playerIdx = this.state.player.carIndex
     const driver = this.driverLabel(vIdx)
     switch (code) {
       case 'FTLP':
-        if (!this.isDupe(`ftlp-${vIdx}`, uid)) this.pushEvent('fastestLap', `Fastest lap by ${driver}`, vIdx)
+        // One call per qualifying packet: improving your own fastest lap must fire again,
+        // only a duplicated datagram is filtered (frame id is part of the key).
+        if (!this.isDuplicate(`ftlp-${vIdx}`, uid, frame)) {
+          this.pushEvent('fastestLap', `Fastest lap by ${driver}`, vIdx ?? undefined)
+        }
         break
       case 'RTMT':
         // RTMT = Retirement (car carries vehicleIdx). SEND = SessionEnded, NOT retirement.
-        if (!this.isDupe(`retire-${vIdx}`, uid)) this.pushEvent('retirement', `${driver} retired`, vIdx)
+        if (!this.oncePerSession(`retire-${vIdx}`, uid)) {
+          this.pushEvent('retirement', `${driver} retired`, vIdx ?? undefined)
+        }
         break
-      case 'OVTK':
-        if (!this.isDupe(`ovtk-${vIdx}`, uid)) this.pushEvent('overtake', `${driver} overtook`, vIdx)
+      case 'OVTK': {
+        // The parser exposes overtakingVehicleIdx / beingOvertakenVehicleIdx — there is
+        // no `vehicleIdx` on this event, so reading it produced "driver #-1" and a
+        // dedupe key that swallowed every overtake after the first.
+        const overtaking = numOrNull(d.overtakingVehicleIdx)
+        const overtaken = numOrNull(d.beingOvertakenVehicleIdx)
+        if (overtaking == null || overtaken == null) break
+        if (!this.isDuplicate(`ovtk-${overtaking}-${overtaken}`, uid, frame)) {
+          this.pushEvent(
+            'overtake',
+            `${this.driverLabel(overtaking)} overtook ${this.driverLabel(overtaken)}`,
+            overtaking
+          )
+        }
         break
-      case 'COLL':
-        if (!this.isDupe(`coll-${vIdx}`, uid)) this.pushEvent('collision', `Collision involving ${driver}`, vIdx)
+      }
+      case 'COLL': {
+        // Collision carries vehicle1Idx / vehicle2Idx (not vehicleIdx).
+        const a = numOrNull(d.vehicle1Idx)
+        const b = numOrNull(d.vehicle2Idx)
+        if (a == null || b == null) break
+        if (!this.isDuplicate(`coll-${a}-${b}`, uid, frame)) {
+          const involvesPlayer = a === playerIdx || b === playerIdx
+          const text = involvesPlayer
+            ? `Collision: you and ${this.driverLabel(a === playerIdx ? b : a)}`
+            : `Collision between ${this.driverLabel(a)} and ${this.driverLabel(b)}`
+          // Tag the event with the player when involved so the engineer reacts to it.
+          this.pushEvent('collision', text, involvesPlayer ? playerIdx : a)
+        }
         break
+      }
       case 'SPIN':
-        if (!this.isDupe(`spin-${vIdx}`, uid)) this.pushEvent('spin', `${driver} spun`, vIdx)
+        if (!this.isDuplicate(`spin-${vIdx}`, uid, frame)) {
+          this.pushEvent('spin', `${driver} spun`, vIdx ?? undefined)
+        }
         break
       case 'DRSE':
-        if (vIdx === this.state.player.carIndex) logger.debug('DRS enabled')
+        if (vIdx === playerIdx) logger.debug('DRS enabled')
         break
       case 'DRSD':
-        if (vIdx === this.state.player.carIndex) logger.debug('DRS disabled')
+        if (vIdx === playerIdx) logger.debug('DRS disabled')
         break
       case 'FLBK':
         // flashback — handled by TelemetryService.checkFlashback
@@ -534,14 +574,23 @@ export class StateAggregator {
         break
       case 'SEND':
         // SessionEnded — NOT retirement
-        if (!this.isDupe('sessionEnded', uid)) this.pushEvent('sessionEnded', 'Session ended', vIdx)
+        if (!this.oncePerSession('sessionEnded', uid)) {
+          this.pushEvent('sessionEnded', 'Session ended', vIdx ?? undefined)
+        }
         break
-      case 'PENA':
-        if (!this.isDupe(`pen-${vIdx}`, uid))
-          this.pushEvent('penalty', `Penalty for ${driver}`, vIdx)
+      case 'PENA': {
+        // A driver can be penalised more than once — the key has to include what the
+        // penalty actually is, not just the car number.
+        const penKey = `pen-${vIdx}-${d.penaltyType ?? ''}-${d.infringementType ?? ''}-${d.lapNum ?? ''}`
+        if (!this.isDuplicate(penKey, uid, frame)) {
+          this.pushEvent('penalty', `Penalty for ${driver}`, vIdx ?? undefined)
+        }
         break
+      }
       case 'RCWN':
-        if (!this.isDupe(`win-${vIdx}`, uid)) this.pushEvent('raceWinner', `${driver} wins`, vIdx)
+        if (!this.oncePerSession(`win-${vIdx}`, uid)) {
+          this.pushEvent('raceWinner', `${driver} wins`, vIdx ?? undefined)
+        }
         break
       default:
         break
@@ -605,7 +654,8 @@ export class StateAggregator {
     return this.state.rivals[carIndex]
   }
 
-  private driverLabel(carIndex: number): string {
+  private driverLabel(carIndex: number | null): string {
+    if (carIndex == null) return 'an unknown car'
     if (carIndex === this.state.player.carIndex) return this.state.rivals[carIndex]?.name || 'player'
     return this.state.rivals[carIndex]?.name || `driver #${carIndex}`
   }
@@ -615,15 +665,26 @@ export class StateAggregator {
     this.state.recentEvents = [...this.state.recentEvents, ev].slice(-MAX_EVENTS)
   }
 
-  private isDupe(key: string, uid: string): boolean {
-    const bucket = `${uid}:${key}`
-    if (this.lastEventBucket.has(bucket)) return true
-    this.lastEventBucket.add(bucket)
-    if (this.lastEventBucket.size > 200) {
-      // prune oldest half
-      const arr = Array.from(this.lastEventBucket)
-      this.lastEventBucket = new Set(arr.slice(arr.length / 2))
+  /** True if this exact event packet (same session + frame + payload) was already seen. */
+  private isDuplicate(key: string, uid: string, frame: number): boolean {
+    const bucket = `${uid}:${frame}:${key}`
+    const now = Date.now()
+    const seenAt = this.recentEventKeys.get(bucket)
+    if (seenAt != null && now - seenAt < EVENT_DEDUPE_TTL_MS) return true
+    this.recentEventKeys.set(bucket, now)
+    if (this.recentEventKeys.size > 512) {
+      for (const [k, t] of this.recentEventKeys) {
+        if (now - t >= EVENT_DEDUPE_TTL_MS) this.recentEventKeys.delete(k)
+      }
     }
+    return false
+  }
+
+  /** True if this key was already emitted once in the current session (retirements, winner…). */
+  private oncePerSession(key: string, uid: string): boolean {
+    const bucket = `${uid}:${key}`
+    if (this.oncePerSessionKeys.has(bucket)) return true
+    this.oncePerSessionKeys.add(bucket)
     return false
   }
 
@@ -677,6 +738,11 @@ function normPctTo01(v: number | undefined | null): number {
 }
 function finiteOrNull(v: unknown): number | null {
   return typeof v === 'number' && isFinite(v) ? v : null
+}
+/** Event-detail reader: keeps a real car index, rejects missing/NaN placeholders (-1). */
+function numOrNull(v: number | undefined | null): number | null {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return null
+  return Math.trunc(v)
 }
 function minNullable(a: number | null, b: number | null): number | null {
   if (a == null) return b

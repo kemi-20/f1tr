@@ -85,16 +85,12 @@ export const useEngineerStore = create<EngineerState>((set) => ({
 /** Paint store — the slow (~2Hz) full-state projection from the aggregator. */
 interface PaintState {
   race: RaceState | null
-  connected: boolean
   setRace: (r: RaceState) => void
-  setConnected: (c: boolean) => void
 }
 
 export const useRaceStore = create<PaintState>((set) => ({
   race: null,
-  connected: false,
-  setRace: (race) => set({ race }),
-  setConnected: (connected) => set({ connected })
+  setRace: (race) => set({ race })
 }))
 
 /** Health (packet watchdog + errors). */

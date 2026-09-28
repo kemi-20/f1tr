@@ -8,8 +8,6 @@ export interface TriggerFiring {
   priority: Priority
   reasonCode: string // machine token e.g. 'tyre_wear_70'
   reason: string // human text for the digest
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  contextHint?: Record<string, any>
   ts: number
 }
 

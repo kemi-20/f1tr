@@ -16,6 +16,7 @@ export const IPC = {
   AUDIO_START: 'audio:start', // { utteranceId, priority }
   AUDIO_CHUNK: 'audio:chunk', // { utteranceId, seq, base64Pcm16 }
   AUDIO_END: 'audio:end', // { utteranceId, reason }
+  AUDIO_FINISHED: 'audio:finished', // renderer -> main: playback actually drained
   SESSION_META: 'session:meta', // format detected, track changed
   HEALTH: 'health', // packet watchdog, API errors
 
@@ -30,8 +31,7 @@ export const IPC = {
   VOICE: 'engineer:voice', // voice → ASR → driver message
   HOTKEY: 'hotkey:trigger', // global shortcut fired → renderer
   AUDIO_MUTE: 'audio:mute',
-  AUDIO_VOL: 'audio:volume',
-  AUDIO_PAUSE: 'audio:pause'
+  AUDIO_VOL: 'audio:volume'
 } as const
 
 export type EngineerStatus = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error'
@@ -115,7 +115,7 @@ export interface ApiSurface {
   transcribe: (base64Audio: string, format: string) => Promise<{ ok: boolean; text?: string; message?: string }>
   setMute: (muted: boolean) => Promise<void>
   setVolume: (vol: number) => Promise<void>
-  setPause: (pause: boolean) => Promise<void>
+  audioFinished: (utteranceId: string) => Promise<void>
   on: (channel: string, cb: (payload: unknown) => void) => () => void
 }
 

@@ -20,6 +20,12 @@ function deliver(receiver: UdpReceiver, data: Buffer): void {
 }
 
 describe('UDP format boundary', () => {
+  it('forces loopback when constructed with a non-local bind address', () => {
+    const receiver = new UdpReceiver(20777, 'auto', '192.168.0.42')
+
+    expect((receiver as unknown as { host: string }).host).toBe('127.0.0.1')
+  })
+
   it.each([2025, 2026] as const)('decodes %i session and lap packets', (format) => {
     const receiver = new UdpReceiver()
     const ids: number[] = []

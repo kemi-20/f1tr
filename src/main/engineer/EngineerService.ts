@@ -3,7 +3,6 @@ import { Sender } from '../ipc/sender'
 import { DigestBuilder } from './DigestBuilder'
 import { RaceAnalysis } from './RaceAnalysis'
 import { TelemetryHistory } from './TelemetryHistory'
-import { ConversationMemory } from './ConversationMemory'
 import { getEngineerSkill } from './EngineerSkillLibrary'
 import type { TriggerFiring } from '@shared/types/triggers'
 import type { RaceState } from '@shared/types/state'
@@ -13,16 +12,15 @@ import { logger } from '../logging/Logger'
 /**
  * EngineerService — orchestrates digest -> advice -> UI streaming + (later) TTS enqueue.
  *
- * In P2 this uses StubAdvice (no LLM). P3 swaps in the real DSH backend while keeping
- * the same digest/IPC contract. The manual "Ask Engineer" path reuses the digest so the
- * model always sees the current race picture.
+ * The DSH backend owns conversation state and compaction, so this service only has to
+ * build the digest and shuttle advice to the UI/TTS. The manual "Ask Engineer" path
+ * reuses the digest so the model always sees the current race picture.
  */
 export class EngineerService {
   private digestBuilder = new DigestBuilder()
   readonly analysis = new RaceAnalysis()
   readonly telemetryHistory = new TelemetryHistory()
   private llm: EngineerBackend | null = null
-  readonly memory = new ConversationMemory()
   private language: LanguageMode = 'zh'
   private voice = '冰糖'
   private direction = '冷静果断的 F1 赛车工程师语气'
@@ -40,18 +38,14 @@ export class EngineerService {
   }
 
   setLanguage(mode: LanguageMode): void {
+    if (this.language === mode) return
     this.language = mode
-    this.memory.setLanguage(mode)
+    logger.info(`engineer language mode -> ${mode}`)
   }
 
   setEngineerStyle(style: string): void {
-    this.memory.setEngineerStyle(style)
     // The skill's #0 section is the MiMo TTS voice-style direction.
     this.direction = getEngineerSkill(style).ttsDirection
-  }
-
-  setMemoryTurns(maxTurns: number): void {
-    this.memory.setMaxTurns(maxTurns)
   }
 
   setVoice(voice: string, direction: string): void {
@@ -159,9 +153,6 @@ export class EngineerService {
     const digest = this.digestBuilder.build(state, firing)
     const digestText = this.digestBuilder.toText(digest) + '\n' + this.analysis.report(state) +
       '\nTELEMETRY TOOLS inventory: ' + this.telemetryHistory.inventory()
-
-    // ensure the session prime (cached baseline) is built / current before any LLM call
-    this.memory.primeIfNeeded(state)
 
     this.clearIdleTimer()
     Sender.send('engineer:status', { status: 'thinking' })

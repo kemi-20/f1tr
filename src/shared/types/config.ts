@@ -9,6 +9,9 @@ export type DeepPartial<T> = {
 
 export type ReasoningEffort = 'none' | 'low' | 'max'
 
+/** Where the effective API key comes from (computed in main; the key itself never crosses IPC). */
+export type KeySource = 'override' | 'env' | 'none'
+
 /**
  * User-editable application config, persisted to userData/config.json via electron-store.
  *
@@ -25,14 +28,15 @@ export interface AppConfig {
    reasoningEffort: ReasoningEffort
    contextLimit: number // DSH model contextWindow budget in tokens
    hasSecret: boolean // whether a key is available (.env or override)
+   keySource: KeySource // 'override' | 'env' | 'none' — computed in the main process
     visionSupported: boolean // whether the configured model can accept image input
-    audioSupported: boolean // whether the configured model can accept audio input directly
   }
   tts: {
     baseURL: string // resolved from MIMO_API_BASE_URL, editable in UI
     apiKeyOverride: string // '' = use .env MIMO_API_KEY; otherwise this wins
     model: string // mimo-v2.5-tts
     hasSecret: boolean
+    keySource: KeySource
   }
   language: {
     mode: LanguageMode
@@ -42,15 +46,14 @@ export interface AppConfig {
   }
   telemetry: {
     port: number
+    /** UDP bind address. Defaults to loopback — the game runs on this machine. */
     host: string
     rendererPaintHz: number
-    forwardMotion: boolean
   }
   triggers: TriggerConfig
   audio: {
     muted: boolean
     volume: number // 0..1
-    pause: boolean
     preemptOnHigh: boolean
   }
   ui: {
@@ -64,19 +67,17 @@ export interface AppConfig {
   }
   advanced: {
     maxQueueDepth: number
-    memoryTurns: number
   }
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  llm: { baseURL: '', apiKeyOverride: '', model: '', reasoningEffort: 'low', contextLimit: 200_000, hasSecret: false, visionSupported: false, audioSupported: false },
-  tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false },
+  llm: { baseURL: '', apiKeyOverride: '', model: '', reasoningEffort: 'low', contextLimit: 200_000, hasSecret: false, keySource: 'none', visionSupported: false },
+  tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false, keySource: 'none' },
   language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气', engineerStyle: 'gp' },
   telemetry: {
     port: 20777,
     host: '127.0.0.1',
-    rendererPaintHz: 12,
-    forwardMotion: false
+    rendererPaintHz: 12
   },
   triggers: {
     tyreWearLevels: [50, 70, 90],
@@ -93,14 +94,14 @@ export const DEFAULT_CONFIG: AppConfig = {
     suppressFirstLap: true,
     suppressLastLapLowPriority: false
   },
-  audio: { muted: false, volume: 1, pause: false, preemptOnHigh: true },
+  audio: { muted: false, volume: 1, preemptOnHigh: true },
  ui: { theme: 'midnight', accent: '#00D2BE', glassmorphism: true, reduceMotion: false },
   hotkeys: { pushToTalk: 'Space' },
- advanced: { maxQueueDepth: 3, memoryTurns: 6 }
+ advanced: { maxQueueDepth: 3 }
 }
 
 /** Deep-merge a partial config patch over defaults (shallow per-section). */
-export function mergeConfig(patch: Partial<AppConfig>): AppConfig {
+export function mergeConfig(patch: DeepPartial<AppConfig>): AppConfig {
   const out: AppConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as AppConfig
   for (const key of Object.keys(patch) as (keyof AppConfig)[]) {
     const p = patch[key]

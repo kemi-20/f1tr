@@ -82,14 +82,13 @@ MIMO_API_KEY=sk-你的mimo密钥
 
 - 点击右下角 **Speak** 按钮开始录音，按钮变红，再点一次结束（30 秒超时自动停止）
 - 或按 **全局热键**（默认空格键，可在设置中更改），游戏全屏时也能触发
-- 录音编码为 MP3 格式，发送给 MiMo 语音识别（mimo-v2.5-asr）转为文字
+- 录音编码为 WAV（16kHz · 单声道 · PCM16），发送给 MiMo 语音识别（mimo-v2.6-flash）转为文字
 - 转写文字自动作为车手消息发给 AI 工程师，工程师回复会通过 TTS 播报
-- 热键仅在 UDP 连接中或断开不超过 2 分钟时生效
-- 如果默认模型支持音频输入（设置中开启），录音直接发给模型，跳过 ASR
+- UDP 断开超过 2 分钟只会暂停自动播报，手动提问与语音输入仍然可用
 
 ## 设置面板（右上角齿轮）
 
-- **AI / LLM**：连接地址、模型、温度（0-2）、最大回复 tokens、图片输入开关、音频输入开关、测试连接
+- **AI / LLM**：连接地址、模型、思考等级（none / low / max）、上下文限制、图片输入开关、测试连接
 - **TTS - MiMo**：语音密钥状态 + 测试
 - **语音 - 语言**：中文 / English / 中英混合 + 嗓音选择 + 工程师风格（GP/Bono/Bozzi/Adami）
 - **遥测 - 触发**：端口、轮胎磨损阈值、防守距离、心跳间隔等
@@ -115,9 +114,8 @@ npm run build:win    # 打包 Windows 安装器 + 绿色版（产物在 release/
 - **React + Tailwind**：深色赛车玻璃拟态界面
 - **OpenAI 兼容 LLM**：默认 DeepSeek（自动禁用 thinking 模式以降低延迟），支持 tool calling（截图工具）
 - **MiMo TTS**：24000Hz 单声道 PCM16 流式播放，带优先级抢断队列
-- **MiMo ASR**：语音转文字（mimo-v2.5-asr），录音编码 MP3 128kbps
+- **MiMo ASR**：语音转文字（mimo-v2.6-flash），录音编码 WAV（16kHz 单声道 PCM16）
 - **MiMo Vision**：游戏截图描述（mimo-v2.5），为不支持图片输入的模型提供视觉
-- **lamejs**：浏览器端 MP3 编码
 - **Electron globalShortcut**：系统级热键，游戏全屏时也能响应
 
 ## 许可

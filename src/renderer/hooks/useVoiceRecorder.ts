@@ -1,16 +1,15 @@
-// @ts-ignore - lamejs has no official types
-import lamejs from 'lamejs'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { api } from '../ipc/ipcClient'
 import { useEngineerStore } from '../store'
+import { encodeWavBase64 } from '@shared/util/wav'
 
 type RecorderState = 'idle' | 'recording' | 'transcribing'
 
 /**
- * useVoiceRecorder — records mic audio as 16kHz mono PCM and encodes to MP3.
+ * useVoiceRecorder — records mic audio as 16kHz mono PCM and encodes to WAV.
  *
- * Flow: start -> AudioContext captures PCM -> stop -> encode MP3 -> base64 ->
- * IPC to main -> MiMo ASR (or direct to LLM if audioSupported) -> text -> driver_message.
+ * Flow: start -> AudioContext captures PCM -> stop -> encode WAV -> base64 ->
+ * IPC to main -> MiMo ASR -> text -> driver_message.
  */
 export function useVoiceRecorder() {
   const [state, setState] = useState<RecorderState>('idle')
@@ -106,12 +105,11 @@ export function useVoiceRecorder() {
 
     cleanup()
 
-    // Encode MP3 in a try-catch — lamejs can throw on malformed data
-    let mp3Base64: string
+    let wavBase64: string
     try {
-      mp3Base64 = encodeMp3Base64(pcm, sampleRate)
+      wavBase64 = encodeWavBase64(pcm, sampleRate)
     } catch (err) {
-      console.error('[voice] MP3 encoding failed:', err)
+      console.error('[voice] WAV encoding failed:', err)
       setStatus('idle')
       setState('idle')
       return
@@ -120,7 +118,7 @@ export function useVoiceRecorder() {
     setState('transcribing')
     setStatus('thinking')
 
-    void api.transcribe(mp3Base64, 'mp3').then((res) => {
+    void api.transcribe(wavBase64, 'wav').then((res) => {
       if (!res.ok) {
         console.warn('[voice] ASR failed:', res.message)
         setStatus('idle')
@@ -139,48 +137,4 @@ export function useVoiceRecorder() {
   }, [state, start, stop])
 
   return { state, toggle }
-}
-
-/**
- * Encode Float32 PCM samples into MP3 (128kbps, mono) as a base64 string.
- * Uses chunked base64 encoding to avoid O(n^2) string concatenation.
- */
-function encodeMp3Base64(samples: Float32Array, sampleRate: number): string {
-  const int16 = new Int16Array(samples.length)
-  for (let i = 0; i < samples.length; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]))
-    int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF
-  }
-
-  const encoder = new lamejs.Mp3Encoder(1, sampleRate, 128)
-  const blockSize = 1152
-  const chunks: Uint8Array[] = []
-  for (let i = 0; i < int16.length; i += blockSize) {
-    const block = int16.subarray(i, i + blockSize)
-    const mp3buf = encoder.encodeBuffer(block)
-    if (mp3buf.length > 0) chunks.push(new Uint8Array(mp3buf))
-  }
-  const end = encoder.flush()
-  if (end.length > 0) chunks.push(new Uint8Array(end))
-
-  const total = chunks.reduce((sum, c) => sum + c.length, 0)
-  const merged = new Uint8Array(total)
-  let offset = 0
-  for (const c of chunks) {
-    merged.set(c, offset)
-    offset += c.length
-  }
-
-  // Chunked base64: process in 32KB slices to avoid string concat O(n^2)
-  const sliceSize = 32768
-  let result = ''
-  for (let i = 0; i < merged.length; i += sliceSize) {
-    const slice = merged.subarray(i, Math.min(i + sliceSize, merged.length))
-    let binary = ''
-    for (let j = 0; j < slice.length; j++) {
-      binary += String.fromCharCode(slice[j])
-    }
-    result += btoa(binary)
-  }
-  return result
 }

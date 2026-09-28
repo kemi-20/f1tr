@@ -7,6 +7,9 @@ export interface MiMoConfig {
   model: string // mimo-v2.5-tts
 }
 
+/** Hard deadline per synthesis request (a stalled upstream must not wedge the radio). */
+const REQUEST_TIMEOUT_MS = 30_000
+
 /**
  * MiMoTtsClient — synthesizes speech via Xiaomi MiMo TTS.
  *
@@ -20,8 +23,8 @@ export interface MiMoConfig {
  * MiMo's mimo-v2.5-tts low-latency streaming returns audio chunks as they are ready.
  */
 export class MiMoTtsClient {
-  private parser = new SseParser()
-  private abort: AbortController | null = null
+  /** The in-flight request's controller — kept only so cancel() can abort it. */
+  private currentAbort: AbortController | null = null
 
   constructor(private config: MiMoConfig) {}
 
@@ -31,8 +34,8 @@ export class MiMoTtsClient {
 
   /** Abort the in-flight synthesis (preemption / cancel). */
   cancel(): void {
-    this.abort?.abort()
-    this.abort = null
+    this.currentAbort?.abort()
+    this.currentAbort = null
   }
 
   /**
@@ -63,12 +66,20 @@ export class MiMoTtsClient {
       stream: true
     }
 
-    this.abort = new AbortController()
+    // Per-request state: a shared parser/controller would let a concurrent request
+    // (e.g. the settings connection test) clobber an in-flight utterance.
+    const parser = new SseParser()
+    const abort = new AbortController()
+    this.currentAbort = abort
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      abort.abort()
+    }, REQUEST_TIMEOUT_MS)
     // also honor an externally-supplied signal (cancellation from the pipeline)
-    const onExternalAbort = (): void => this.abort?.abort()
+    const onExternalAbort = (): void => abort.abort()
     signal?.addEventListener('abort', onExternalAbort, { once: true })
 
-    this.parser.reset()
     let done = false
 
     try {
@@ -79,7 +90,7 @@ export class MiMoTtsClient {
           'api-key': this.config.apiKey
         },
         body: JSON.stringify(body),
-        signal: this.abort.signal
+        signal: abort.signal
       })
 
       if (!res.ok || !res.body) {
@@ -92,7 +103,7 @@ export class MiMoTtsClient {
         while (true) {
           const { value, done: streamDone } = await reader.read()
           if (streamDone) break
-          this.parser.feed(value, onChunk, (chunksReceived) => {
+          parser.feed(value, onChunk, (chunksReceived) => {
             if (chunksReceived === 0) {
               logger.warn('MiMo TTS stream completed with 0 audio chunks — check SSE format')
             }
@@ -109,13 +120,19 @@ export class MiMoTtsClient {
       }
       logger.debug(`MiMo TTS stream complete for voice=${voice}`)
     } catch (err) {
+      if (timedOut) {
+        logger.error('MiMo TTS timed out')
+        throw new Error(`MiMo TTS timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)
+      }
       if (this.isAbort(err)) {
         logger.info('MiMo TTS stream aborted')
         throw err // re-throw so AudioPipeline can distinguish abort from success
       }
       throw err
     } finally {
+      clearTimeout(timer)
       signal?.removeEventListener('abort', onExternalAbort)
+      if (this.currentAbort === abort) this.currentAbort = null
     }
   }
 
