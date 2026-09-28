@@ -106,43 +106,26 @@ body {
 .broadcast-tower {
   --ink: #f4f6fb;
   --ink-dim: rgba(244, 246, 251, 0.66);
+  position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgb(var(--accent-carbon-rgb) / 0.24);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgb(var(--accent-carbon-rgb) / 0.13), transparent 48%),
+    rgba(17, 21, 28, 0.68);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   color: var(--ink);
   font-family: 'F1 Regular', system-ui, sans-serif;
-  filter: drop-shadow(0 24px 28px rgba(0, 0, 0, 0.45));
-}
-
-.broadcast-header {
-  border-radius: 8px 8px 0 0;
-  background: rgba(20, 24, 31, 0.96);
-  overflow: hidden;
-  text-align: center;
-}
-
-.broadcast-lap {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 7px;
-  padding: 10px 8px 11px;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 16px;
-  text-transform: uppercase;
-}
-
-.broadcast-lap strong {
-  color: #fff;
-  font-family: 'F1 Bold';
-  font-size: 23px;
 }
 
 .broadcast-body {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
-  border-radius: 0 0 8px 8px;
-  background: rgba(17, 21, 28, 0.92);
   padding: 2px 0 8px;
 }
 
@@ -160,12 +143,12 @@ body {
   align-items: center;
   min-height: 34px;
   margin: 1px 0;
-  background: linear-gradient(90deg, #0e131a 0 34px, rgba(28, 31, 38, 0.92) 34px 100%);
+  background: linear-gradient(90deg, rgba(5, 7, 10, 0.66) 0 34px, rgba(28, 31, 38, 0.62) 34px 100%);
   color: #f8f8fb;
 }
 
 .broadcast-row:nth-child(even) {
-  background: linear-gradient(90deg, #0c1118 0 34px, rgba(24, 27, 34, 0.92) 34px 100%);
+  background: linear-gradient(90deg, rgba(5, 7, 10, 0.54) 0 34px, rgba(24, 27, 34, 0.52) 34px 100%);
 }
 
 .broadcast-row-player {
@@ -180,13 +163,13 @@ body {
   display: grid;
   height: 100%;
   place-items: center;
-  background: #05070a;
+  background: rgba(5, 7, 10, 0.5);
   font-family: 'F1 Regular';
   font-size: 18px;
 }
 
 .broadcast-pos-leader {
-  background: #e10600;
+  background: rgb(var(--accent-carbon-rgb));
   font-family: 'F1 Bold';
 }
 
@@ -270,11 +253,11 @@ body {
 
 .telemetry-hud,
 .car-status-panel {
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgb(var(--accent-carbon-rgb) / 0.22);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(22, 28, 35, 0.94), rgba(9, 13, 19, 0.96)),
-    rgba(9, 13, 19, 0.96);
+    linear-gradient(145deg, rgb(var(--accent-carbon-rgb) / 0.11), transparent 42%),
+    linear-gradient(180deg, rgba(22, 28, 35, 0.94), rgba(9, 13, 19, 0.96));
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
@@ -282,7 +265,7 @@ body {
   margin-top: 2px;
   font-family: 'F1 Bold';
   font-size: 18px;
-  color: #fff;
+  color: rgb(var(--accent-carbon-rgb));
 }
 
 .rev-lights {
@@ -391,7 +374,7 @@ body {
   height: 3px;
   margin: 8px 0 8px;
   border-radius: 2px;
-  background: var(--team-color);
+  background: rgb(var(--accent-carbon-rgb));
 }
 
 .car-status-meta {
@@ -918,6 +901,20 @@ body {
 
 .theme-flat-glass .glass-flat {
   background: rgba(255, 255, 255, 0.035);
+}
+
+.theme-flat-glass .broadcast-tower {
+  background: linear-gradient(145deg, rgb(var(--accent-carbon-rgb) / 0.1), rgba(17, 21, 28, 0.98) 52%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .broadcast-tower {
+    background: linear-gradient(145deg, rgb(var(--accent-carbon-rgb) / 0.1), rgba(17, 21, 28, 0.98) 52%);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 /* thin scrollbars */

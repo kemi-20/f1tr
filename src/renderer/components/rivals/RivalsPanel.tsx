@@ -37,15 +37,6 @@ export function RivalsPanel(): React.ReactElement {
 
   return (
     <aside className="broadcast-tower h-full">
-      <div className="broadcast-header">
-        <div className="broadcast-lap">
-          <span>LAP</span>
-          <strong>{race?.session.currentLap ?? 0}</strong>
-          <span>/</span>
-          <span>{race?.session.totalLaps ?? '--'}</span>
-        </div>
-      </div>
-
       <div className="broadcast-body">
         {sorted.length === 0 && <div className="broadcast-empty">等待车手数据</div>}
         {sorted.map((r) => (
