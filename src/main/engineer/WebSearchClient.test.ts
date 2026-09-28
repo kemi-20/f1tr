@@ -40,6 +40,13 @@ function client(
   return new WebSearchClient(() => settings, fetcher, now)
 }
 
+/** A chat-completions body whose search result arrives as message annotations. */
+function completionsWithAnnotations(annotations = [{ url: 'https://www.fia.com/rules', title: 'FIA rules' }]): Response {
+  return new Response(JSON.stringify({
+    choices: [{ message: { content: 'A short sourced result.', annotations } }]
+  }), { status: 200, headers: { 'content-type': 'application/json' } })
+}
+
 function requestBody(fetcher: ReturnType<typeof vi.fn<typeof fetch>>): Record<string, unknown> {
   return JSON.parse(String(fetcher.mock.calls[0][1]?.body)) as Record<string, unknown>
 }
@@ -127,26 +134,26 @@ describe('WebSearchClient native mode', () => {
 })
 
 describe('WebSearchClient MiMo mode', () => {
-  it('searches with MiMo over the same Responses builder', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(responsesWithCitations())
+  it('searches with MiMo over its allowlisted completions dialect', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(completionsWithAnnotations())
     await client({ useNativeWebSearch: false }, fetcher).search('  2026 F1 calendar  ')
 
     const [url, init] = fetcher.mock.calls[0]
-    expect(String(url)).toBe('https://api.xiaomimimo.com/v1/responses')
+    expect(String(url)).toBe('https://api.xiaomimimo.com/v1/chat/completions')
     expect(init?.redirect).toBe('error')
     expect(init?.headers).toMatchObject({ 'content-type': 'application/json', 'api-key': 'mimo-env-test-key' })
     const body = requestBody(fetcher)
     expect(body.model).toBe('mimo-v2.6-flash')
-    expect(body.tools).toEqual([{ type: 'web_search' }])
-    expect(body.input).toBe('Perform a web search for the query: 2026 F1 calendar')
+    expect(body.tools).toEqual([{ type: 'web_search', max_keyword: 3, force_search: true, limit: 1 }])
+    expect(body.messages).toEqual([{ role: 'user', content: '2026 F1 calendar' }])
+    expect(body.stream).toBe(false)
   })
 
-  it('never falls back to chat completions or another provider', async () => {
+  it('never falls back to the Responses dialect or another provider', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('nope', { status: 400 }))
     await expect(client({ useNativeWebSearch: false }, fetcher).search('2026 F1 calendar')).rejects.toThrow('HTTP 400')
     expect(fetcher).toHaveBeenCalledTimes(1)
-    expect(String(fetcher.mock.calls[0][0])).toBe('https://api.xiaomimimo.com/v1/responses')
-    expect(String(fetcher.mock.calls[0][0])).not.toContain('chat/completions')
+    expect(String(fetcher.mock.calls[0][0])).toBe('https://api.xiaomimimo.com/v1/chat/completions')
   })
 
   it('requires a MiMo key and refuses to reuse a third-party TTS key', async () => {
@@ -157,7 +164,7 @@ describe('WebSearchClient MiMo mode', () => {
   })
 
   it('reuses a TTS key only when the TTS base is exactly the official MiMo endpoint', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => completionsWithAnnotations())
     await client({ useNativeWebSearch: false, mimoApiKey: '', ttsBaseURL: 'https://api.xiaomimimo.com/v1' }, fetcher)
       .search('query')
     expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({ 'api-key': 'custom-tts-test-key' })
@@ -223,18 +230,21 @@ describe('WebSearchClient response handling', () => {
 describe('WebSearchClient cache and controls', () => {
   it('keys the cache by target, model and endpoint, never by query alone', async () => {
     let now = 50_000
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
-    const settings = { ...DEFAULTS, useNativeWebSearch: true }
+    let native = true
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () =>
+      native ? responsesWithCitations() : completionsWithAnnotations())
+    const settings: WebSearchSettings = { ...DEFAULTS, useNativeWebSearch: true }
     const search = new WebSearchClient(() => settings, fetcher, () => now)
     await search.search('same query')
     await search.search('same query')
     expect(fetcher).toHaveBeenCalledTimes(1)
 
+    native = false
     settings.useNativeWebSearch = false
     now += 60_001
     await search.search('same query')
     expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(String(fetcher.mock.calls[1][0])).toBe('https://api.xiaomimimo.com/v1/responses')
+    expect(String(fetcher.mock.calls[1][0])).toBe('https://api.xiaomimimo.com/v1/chat/completions')
   })
 
   it('validates query length and controls before network access', async () => {

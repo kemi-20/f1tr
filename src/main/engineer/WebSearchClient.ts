@@ -22,6 +22,12 @@ interface SearchTarget {
   endpoint: URL
   model: string
   headers: Record<string, string>
+  /**
+   * Wire format for the search call. 'responses' is the protocol for every model. 'completions'
+   * exists only for the providers listed in MIMO_COMPLETIONS_SEARCH, which cannot serve the
+   * Responses web_search tool.
+   */
+  dialect: 'responses' | 'completions'
   /** Identifies the target for caching. Never contains credentials. */
   cachePrefix: string
 }
@@ -44,6 +50,16 @@ const FAKED_TOOL_CALL = /<\s*\/?\s*tool_call|<\s*function\s*=\s*web_search|\[TOO
 
 const MIMO_RESPONSES_BASE = 'https://api.xiaomimimo.com/v1'
 const MIMO_FALLBACK_MODEL = 'mimo-v2.6-flash'
+
+/**
+ * Providers allowlisted to the chat-completions web_search dialect, and only for the MiMo
+ * search target. MiMo's gateway answers /v1/responses with HTTP 400
+ * responses_feature_not_supported for every web_search tool type (web_search,
+ * web_search_preview, web_search_2025_08_26 — verified 2026-09-28), while the same key and
+ * model return real citations over /v1/chat/completions. A custom gateway is never
+ * allowlisted: it uses the Responses dialect like every other configured model.
+ */
+const MIMO_COMPLETIONS_SEARCH = new Set(['api.xiaomimimo.com'])
 
 export class WebSearchClient {
   private readonly cache = new Map<string, { result: string; expiresAt: number }>()
@@ -81,7 +97,7 @@ export class WebSearchClient {
       const response = await this.fetcher(target.endpoint, {
         method: 'POST',
         headers: target.headers,
-        body: JSON.stringify(buildResponsesSearchRequest(query, target.model)),
+        body: JSON.stringify(buildSearchRequest(query, target)),
         signal: controller.signal,
         redirect: 'error'
       })
@@ -90,7 +106,7 @@ export class WebSearchClient {
         throw new Error(`Web search provider returned HTTP ${response.status}`)
       }
       const body = await readBoundedResponse(response, controller.signal)
-      const result = formatSearchResult(parseResponsesSearchResult(body))
+      const result = formatSearchResult(parseSearchResult(body, target.dialect))
       this.cache.set(cacheKey, { result, expiresAt: this.now() + CACHE_TTL_MS })
       while (this.cache.size > MAX_CACHE_ENTRIES) {
         const oldest = this.cache.keys().next().value
@@ -149,21 +165,27 @@ function resolveCurrentModelTarget(settings: WebSearchSettings): SearchTarget {
     endpoint,
     model: settings.llmModel,
     headers: { 'content-type': 'application/json', authorization: `Bearer ${settings.llmApiKey}` },
+    dialect: 'responses',
     cachePrefix: `native:${endpoint.origin}${endpoint.pathname}:${settings.llmModel}`
   }
 }
 
-/** MiMo mode: the same module, aimed at MiMo's own Responses endpoint and credentials. */
+/**
+ * MiMo mode: the same module and the same SearchTarget shape, aimed at MiMo's own endpoint
+ * and credentials. Only the dialect differs, and only because MiMo is allowlisted for it.
+ */
 function resolveMimoTarget(settings: WebSearchSettings): SearchTarget {
-  const endpoint = responsesEndpoint(MIMO_RESPONSES_BASE)
-  if (!endpoint) throw new Error('MiMo web search endpoint is misconfigured')
   const apiKey = settings.mimoApiKey ||
     (isOfficialMimoBase(settings.ttsBaseURL) ? settings.ttsApiKey : '')
   if (!apiKey) throw new Error('MiMo web search requires MIMO_API_KEY or an API key configured for the official MiMo endpoint')
+  const host = new URL(MIMO_RESPONSES_BASE).hostname
+  if (!MIMO_COMPLETIONS_SEARCH.has(host)) throw new Error('MiMo web search endpoint is not allowlisted')
+  const endpoint = new URL(`${MIMO_RESPONSES_BASE}/chat/completions`)
   return {
     endpoint,
     model: MIMO_FALLBACK_MODEL,
     headers: { 'content-type': 'application/json', 'api-key': apiKey },
+    dialect: 'completions',
     cachePrefix: `mimo:${endpoint.origin}${endpoint.pathname}:${MIMO_FALLBACK_MODEL}`
   }
 }
@@ -183,21 +205,35 @@ export function responsesEndpoint(baseURL: string): URL | null {
 
 /**
  * One validated query, no telemetry, no race state, no history, no personal data.
+ * The Responses dialect is the default; the completions dialect exists for allowlisted
+ * providers whose gateway does not serve the Responses web_search tool.
  */
-function buildResponsesSearchRequest(query: string, model: string): Record<string, unknown> {
+function buildSearchRequest(query: string, target: SearchTarget): Record<string, unknown> {
+  if (target.dialect === 'completions') {
+    return {
+      model: target.model,
+      messages: [{ role: 'user', content: query }],
+      tools: [{ type: 'web_search', max_keyword: 3, force_search: true, limit: 1 }],
+      tool_choice: 'auto',
+      max_completion_tokens: 768,
+      stream: false,
+      thinking: { type: 'disabled' }
+    }
+  }
   return {
-    model,
+    model: target.model,
     input: `Perform a web search for the query: ${query}`,
     tools: [{ type: 'web_search' }]
   }
 }
 
 /**
- * Read a Responses body. Sources must come from structured search output — url citations,
+ * Read a search body. Sources must come from structured search output — url citations,
  * search-result blocks or annotations. Prose is never mined for URLs, and text that
- * impersonates a tool call is discarded rather than reported.
+ * impersonates a tool call is discarded rather than reported. The Responses shape is read
+ * first; the completions shape is consulted only for the allowlisted dialect.
  */
-function parseResponsesSearchResult(body: string): { text: string; sources: Source[] } {
+function parseSearchResult(body: string, dialect: SearchTarget['dialect']): { text: string; sources: Source[] } {
   let root: Record<string, unknown>
   try { root = asRecord(JSON.parse(body)) ?? {} } catch { throw new Error('Web search provider returned invalid JSON') }
 
@@ -225,25 +261,41 @@ function parseResponsesSearchResult(body: string): { text: string; sources: Sour
     for (const item of value) addSource(item)
   }
 
-  const output = Array.isArray(root.output) ? root.output : []
-  for (const item of output) {
-    const block = asRecord(item)
-    if (!block) continue
-    if (typeof block.text === 'string' && block.type !== 'reasoning') textParts.push(block.text)
-    addAnnotationList(block.annotations)
-    addAnnotationList(block.citations)
-    addSource(block)
-    if (Array.isArray(block.results)) for (const result of block.results) addSource(result)
-    if (Array.isArray(block.content)) for (const part of block.content) {
-      const content = asRecord(part)
-      if (!content) continue
-      if (content.type === 'output_text' && typeof content.text === 'string') textParts.push(content.text)
-      addAnnotationList(content.annotations)
-      addSource(content)
+  if (dialect === 'completions') {
+    const message = asRecord(asRecord(Array.isArray(root.choices) ? root.choices[0] : undefined)?.message)
+    addAnnotationList(message?.annotations)
+    addAnnotationList(root.annotations)
+    if (typeof message?.content === 'string') textParts.push(message.content)
+    if (Array.isArray(message?.content)) {
+      for (const part of message.content) {
+        const content = asRecord(part)
+        if (!content) continue
+        if (typeof content.text === 'string') textParts.push(content.text)
+        addAnnotationList(content.annotations)
+        addSource(content)
+      }
     }
+  } else {
+    const output = Array.isArray(root.output) ? root.output : []
+    for (const item of output) {
+      const block = asRecord(item)
+      if (!block) continue
+      if (typeof block.text === 'string' && block.type !== 'reasoning') textParts.push(block.text)
+      addAnnotationList(block.annotations)
+      addAnnotationList(block.citations)
+      addSource(block)
+      if (Array.isArray(block.results)) for (const result of block.results) addSource(result)
+      if (Array.isArray(block.content)) for (const part of block.content) {
+        const content = asRecord(part)
+        if (!content) continue
+        if (content.type === 'output_text' && typeof content.text === 'string') textParts.push(content.text)
+        addAnnotationList(content.annotations)
+        addSource(content)
+      }
+    }
+    if (typeof root.output_text === 'string') textParts.push(root.output_text)
+    addAnnotationList(root.annotations)
   }
-  if (typeof root.output_text === 'string') textParts.push(root.output_text)
-  addAnnotationList(root.annotations)
 
   const raw = textParts.join('\n').trim()
   const text = cleanText(FAKED_TOOL_CALL.test(raw) ? '' : raw, MAX_TEXT_CHARS)
