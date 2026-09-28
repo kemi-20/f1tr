@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { sanitizeConfigPatch } from './sanitize'
+import { DEFAULT_CONFIG } from '@shared/index'
 
 describe('sanitizeConfigPatch', () => {
+  it('defaults the fast telemetry snapshot stream to 60 Hz', () => {
+    expect(DEFAULT_CONFIG.telemetry.rendererPaintHz).toBe(60)
+  })
+
   it('drops unknown keys and removed fields', () => {
     const out = sanitizeConfigPatch({ llm: { audioSupported: true, hasSecret: true, keySource: 'env', evil: 1 } })
     expect(out.llm).toBeUndefined()
@@ -16,8 +21,20 @@ describe('sanitizeConfigPatch', () => {
   })
 
   it('keeps valid values and clamps nothing silently to a different meaning', () => {
-    const out = sanitizeConfigPatch({ telemetry: { port: 20_777, rendererPaintHz: 12 }, llm: { reasoningEffort: 'max' } })
-    expect(out.telemetry).toEqual({ port: 20_777, rendererPaintHz: 12 })
+    const out = sanitizeConfigPatch({ telemetry: { port: 20_777, rendererPaintHz: 60 }, llm: { reasoningEffort: 'high' } })
+    expect(out.telemetry).toEqual({ port: 20_777, rendererPaintHz: 60 })
+    expect(out.llm).toEqual({ reasoningEffort: 'high' })
+  })
+
+  it('rejects unsupported reasoning levels and refresh rates outside the supported range', () => {
+    expect(sanitizeConfigPatch({ llm: { reasoningEffort: 'medium' } }).llm).toBeUndefined()
+    expect(sanitizeConfigPatch({ telemetry: { rendererPaintHz: 1 } }).telemetry).toBeUndefined()
+    expect(sanitizeConfigPatch({ telemetry: { rendererPaintHz: 61 } }).telemetry).toBeUndefined()
+  })
+
+  it('still accepts an intentionally lower snapshot rate', () => {
+    const out = sanitizeConfigPatch({ telemetry: { rendererPaintHz: 12 }, llm: { reasoningEffort: 'max' } })
+    expect(out.telemetry).toEqual({ rendererPaintHz: 12 })
     expect(out.llm).toEqual({ reasoningEffort: 'max' })
   })
 

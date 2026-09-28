@@ -52,6 +52,7 @@
                 reasoningEfforts:
                   off: none
                   low: low
+                  high: high
                   max: max
     - id: race-token-meter
       name: '@deepseek-ai/dsh-token-meter'

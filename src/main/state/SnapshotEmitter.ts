@@ -8,7 +8,7 @@ const HEALTH_HZ = 2
 /**
  * SnapshotEmitter — the flood-defense throttle.
  * Main process holds full-resolution state; we only send compact slices to the renderer:
- *   - SNAPSHOT ~12Hz: fast paint fields (speed/gear/rpm/ers/drs/pedals)
+ *   - SNAPSHOT up to 60Hz: fast paint fields (speed/gear/rpm/ers/drs/pedals)
  *   - PAINT    ~2Hz:  the full RaceState for panels (tyres/damage/rivals/positions)
  *   - HEALTH   ~2Hz:  packet watchdog + counters
  */
@@ -18,13 +18,13 @@ export class SnapshotEmitter {
   private healthTimer: NodeJS.Timeout | null = null
   private lastPaintJson = ''
   private running = false
-  private snapshotHz = 12
+  private snapshotHz = 60
   private paintHz = 2
 
   constructor(
     private aggregator: StateAggregator,
     private getStats: () => { packetsReceived: number; packetsDropped: number; lastPacketMs: number; format: number | null },
-    rendererPaintHz = 12
+    rendererPaintHz = 60
   ) {
     this.setRendererPaintHz(rendererPaintHz)
   }
@@ -115,6 +115,6 @@ export class SnapshotEmitter {
 }
 
 function clampHz(hz: number): number {
-  if (!Number.isFinite(hz)) return 12
+  if (!Number.isFinite(hz)) return 60
   return Math.max(2, Math.min(60, Math.round(hz)))
 }

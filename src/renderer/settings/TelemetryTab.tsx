@@ -17,12 +17,12 @@ export function TelemetryTab(): React.ReactElement {
             onChange={(e) => void patch({ telemetry: { port: Number(e.target.value) } })}
           />
         </Field>
-        <Field label="渲染刷新率 (Hz)" hint="UI 重绘频率，默认 12">
+        <Field label="遥测界面刷新率 (Hz)" hint="限制速度、挡位等高速遥测快照的推送频率；默认 60 Hz，完整状态面板仍为 2 Hz">
           <TextInput
             type="number"
             value={telemetry.rendererPaintHz}
             min={2}
-            max={30}
+            max={60}
             onChange={(e) => void patch({ telemetry: { rendererPaintHz: Number(e.target.value) } })}
           />
         </Field>

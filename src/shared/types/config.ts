@@ -7,7 +7,7 @@ export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends (infer U)[] ? U[] : T[P] extends object ? DeepPartial<T[P]> : T[P]
 }
 
-export type ReasoningEffort = 'none' | 'low' | 'max'
+export type ReasoningEffort = 'none' | 'low' | 'high' | 'max'
 
 /** Where the effective API key comes from (computed in main; the key itself never crosses IPC). */
 export type KeySource = 'override' | 'env' | 'none'
@@ -77,7 +77,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   telemetry: {
     port: 20777,
     host: '127.0.0.1',
-    rendererPaintHz: 12
+    rendererPaintHz: 60
   },
   triggers: {
     tyreWearLevels: [50, 70, 90],

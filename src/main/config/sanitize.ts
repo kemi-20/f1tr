@@ -19,7 +19,7 @@ export function sanitizeConfigPatch(patch: unknown): DeepPartial<AppConfig> {
     assign(next, 'baseURL', pickEndpoint(llm.baseURL))
     assign(next, 'apiKeyOverride', pickSecret(llm.apiKeyOverride))
     assign(next, 'model', pickString(llm.model, 128))
-    assign(next, 'reasoningEffort', pickEnum(llm.reasoningEffort, ['none', 'low', 'max'] as const))
+    assign(next, 'reasoningEffort', pickEnum(llm.reasoningEffort, ['none', 'low', 'high', 'max'] as const))
     assign(next, 'contextLimit', pickInt(llm.contextLimit, 8_192, 2_000_000))
     assign(next, 'visionSupported', pickBool(llm.visionSupported))
     if (Object.keys(next).length > 0) out.llm = next
@@ -50,7 +50,7 @@ export function sanitizeConfigPatch(patch: unknown): DeepPartial<AppConfig> {
     const next: DeepPartial<AppConfig['telemetry']> = {}
     assign(next, 'port', pickInt(telemetry.port, 1, 65535))
     assign(next, 'host', pickHost(telemetry.host))
-    assign(next, 'rendererPaintHz', pickInt(telemetry.rendererPaintHz, 1, 30))
+    assign(next, 'rendererPaintHz', pickInt(telemetry.rendererPaintHz, 2, 60))
     if (Object.keys(next).length > 0) out.telemetry = next
   }
 

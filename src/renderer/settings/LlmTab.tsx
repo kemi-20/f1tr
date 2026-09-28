@@ -5,6 +5,7 @@ import type { ReasoningEffort } from '@shared/index'
 const THINKING_LEVELS: { id: ReasoningEffort; label: string; color: string }[] = [
   { id: 'none', label: 'NONE', color: '#8A94A6' },
   { id: 'low', label: 'LOW', color: '#00D2BE' },
+  { id: 'high', label: 'HIGH', color: '#FFB020' },
   { id: 'max', label: 'MAX', color: '#FF3B3B' }
 ]
 
@@ -48,12 +49,19 @@ export function LlmTab(): React.ReactElement {
         </span>
       </label>
 
+      <div className="flex flex-col gap-1 border-l-2 border-white/10 pl-3">
+        <span className="label">语音输入</span>
+        <span className="text-[10px] text-white/30">
+          内置 DSH 会话协议只接受文本和图片；录音由 MiMo mimo-v2.6-flash 转写后再交给工程师。
+        </span>
+      </div>
+
       <ApiKeyField source={llm.keySource} onPatch={(value) => void patch({ llm: { apiKeyOverride: value } })} />
 
       <div className="flex flex-col gap-4">
         <div>
           <div className="label mb-2">思考等级</div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {THINKING_LEVELS.map((level) => {
               const active = llm.reasoningEffort === level.id
               return (
@@ -74,7 +82,7 @@ export function LlmTab(): React.ReactElement {
               )
             })}
           </div>
-          <div className="mt-1 text-[10px] text-white/30">none 关闭思考，low 平衡速度与强度，max 使用模型最高推理强度</div>
+          <div className="mt-1 text-[10px] text-white/30">none 关闭思考；low / high / max 逐级提高模型推理强度</div>
         </div>
         <Field label={`上下文限制 (${Math.round(llm.contextLimit / 1000)}k)`} hint="默认 200k：DSH 的模型上下文窗口，不再限制单次回复">
           <TextInput

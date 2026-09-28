@@ -38,7 +38,7 @@ export class TelemetryService {
   constructor(
     port = 20777,
     triggerConfig: TriggerConfig,
-    rendererPaintHz = 12,
+    rendererPaintHz = 60,
     formatOverride: 'auto' | PacketFormat = 'auto',
     onFiring: (f: TriggerFiring) => void,
     host = '127.0.0.1'
