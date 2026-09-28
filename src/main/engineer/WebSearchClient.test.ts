@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { WebSearchClient, type WebSearchSettings } from './WebSearchClient'
+import { WebSearchClient, responsesEndpoint, type WebSearchSettings } from './WebSearchClient'
 
 const DEFAULTS: WebSearchSettings = {
-  useNativeWebSearch: false,
+  useNativeWebSearch: true,
   llmBaseURL: 'https://api.deepseek.com/v1',
   llmApiKey: 'llm-test-key',
   llmModel: 'deepseek-v4-flash',
@@ -11,26 +11,29 @@ const DEFAULTS: WebSearchSettings = {
   ttsBaseURL: 'https://tts.example/v1'
 }
 
-/** Anthropic Messages search response: real web_search_tool_result content. */
-function anthropicResponse(results: unknown[] = [{ url: 'https://fia.com/rules', title: 'FIA rules' }]): Response {
+/** A Responses body whose search result carries real citations. */
+function responsesWithCitations(sources = [{ url: 'https://www.fia.com/rules', title: 'FIA rules' }]): Response {
   return new Response(JSON.stringify({
-    content: [
-      { type: 'text', text: 'A short sourced result.' },
-      { type: 'web_search_tool_result', content: results }
-    ]
-  }), { status: 200, headers: { 'content-type': 'application/json' } })
-}
-
-/** MiMo chat-completions search response: the same sources as message annotations. */
-function mimoResponse(annotations: unknown[] = [{ url: 'https://fia.com/rules', title: 'FIA rules' }]): Response {
-  return new Response(JSON.stringify({
-    choices: [{ message: { content: 'A short sourced result.', annotations } }]
+    output: [
+      { type: 'reasoning', summary: [] },
+      { type: 'web_search_call', status: 'completed' },
+      {
+        type: 'message',
+        status: 'completed',
+        content: [{
+          type: 'output_text',
+          text: 'A short sourced result.',
+          annotations: sources.map((source, i) => ({ type: 'url_citation', ...source, index: i }))
+        }]
+      }
+    ],
+    output_text: 'A short sourced result.'
   }), { status: 200, headers: { 'content-type': 'application/json' } })
 }
 
 function client(
   overrides: Partial<WebSearchSettings> = {},
-  fetcher: typeof fetch = vi.fn<typeof fetch>().mockImplementation(async () => mimoResponse()),
+  fetcher: typeof fetch = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations()),
   now: () => number = Date.now
 ): WebSearchClient {
   const settings = { ...DEFAULTS, ...overrides }
@@ -38,173 +41,204 @@ function client(
 }
 
 function requestBody(fetcher: ReturnType<typeof vi.fn<typeof fetch>>): Record<string, unknown> {
-  const init = fetcher.mock.calls[0][1]
-  return JSON.parse(String(init?.body)) as Record<string, unknown>
+  return JSON.parse(String(fetcher.mock.calls[0][1]?.body)) as Record<string, unknown>
 }
 
-const ANTHROPIC_TOOL = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 1 }]
+describe('responsesEndpoint', () => {
+  it('appends responses once and normalises trailing slashes', () => {
+    expect(responsesEndpoint('https://example.com/v1')?.href).toBe('https://example.com/v1/responses')
+    expect(responsesEndpoint('https://example.com/v1/')?.href).toBe('https://example.com/v1/responses')
+    expect(responsesEndpoint('https://example.com/v1/responses')?.href).toBe('https://example.com/v1/responses')
+    expect(responsesEndpoint('https://example.com/v1/responses/')?.href).toBe('https://example.com/v1/responses')
+  })
 
-describe('WebSearchClient', () => {
-  it('retains complete citations when a multibyte summary exceeds the result budget', async () => {
+  it('rejects non-https and credential-bearing base URLs', () => {
+    expect(responsesEndpoint('http://example.com/v1')).toBeNull()
+    expect(responsesEndpoint('https://user:pass@example.com/v1')).toBeNull()
+    expect(responsesEndpoint('not a url')).toBeNull()
+  })
+})
+
+describe('WebSearchClient native mode', () => {
+  it('searches with the current model over Responses and sends nothing but the query', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(responsesWithCitations())
+    const result = await client({ useNativeWebSearch: true }, fetcher).search('  current FIA technical regulations  ')
+
+    const [url, init] = fetcher.mock.calls[0]
+    expect(String(url)).toBe('https://api.deepseek.com/v1/responses')
+    expect(init?.redirect).toBe('error')
+    expect(init?.headers).toMatchObject({
+      'content-type': 'application/json',
+      authorization: 'Bearer llm-test-key'
+    })
+    const body = requestBody(fetcher)
+    expect(body.model).toBe('deepseek-v4-flash')
+    expect(body.tools).toEqual([{ type: 'web_search' }])
+    expect(body.input).toBe('Perform a web search for the query: current FIA technical regulations')
+    const sent = JSON.stringify(body).toLowerCase()
+    for (const forbidden of ['telemetry', 'race history', 'lapdistance', 'fuel', 'tyre']) {
+      expect(sent).not.toContain(forbidden)
+    }
+    expect(result).toContain('https://www.fia.com/rules')
+  })
+
+  it('uses a custom gateway Responses endpoint rather than MiMo', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(responsesWithCitations())
+    await client({
+      useNativeWebSearch: true,
+      llmBaseURL: 'https://gateway.example/v1',
+      llmApiKey: 'gateway-key',
+      llmModel: 'some-local-model'
+    }, fetcher).search('F1 rule changes')
+
+    expect(String(fetcher.mock.calls[0][0])).toBe('https://gateway.example/v1/responses')
+    expect(requestBody(fetcher).model).toBe('some-local-model')
+    expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({ authorization: 'Bearer gateway-key' })
+    expect(JSON.stringify(fetcher.mock.calls[0][1]?.headers)).not.toContain('mimo-env-test-key')
+  })
+
+  it.each([400, 401, 403, 404, 500])('fails on HTTP %i without trying MiMo', async status => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('nope', { status }))
+    await expect(client({ useNativeWebSearch: true }, fetcher).search('F1 rule changes'))
+      .rejects.toThrow(`HTTP ${status}`)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(String(fetcher.mock.calls[0][0])).toBe('https://api.deepseek.com/v1/responses')
+  })
+
+  it('fails closed when the response carries no verifiable source', async () => {
+    const proseOnly = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      output: [{ type: 'message', content: [{
+        type: 'output_text',
+        text: 'I searched and the answer is at https://example.invented/page',
+        annotations: []
+      }] }],
+      output_text: 'I searched and the answer is at https://example.invented/page'
+    })))
+    await expect(client({ useNativeWebSearch: true }, proseOnly).search('F1 rule changes'))
+      .rejects.toThrow('no verifiable sources')
+  })
+
+  it('does not substitute the MiMo key when the current model key is missing', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
+    await expect(client({ useNativeWebSearch: true, llmApiKey: '' }, fetcher).search('F1 rule changes'))
+      .rejects.toThrow('API key for the current model')
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+})
+
+describe('WebSearchClient MiMo mode', () => {
+  it('searches with MiMo over the same Responses builder', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(responsesWithCitations())
+    await client({ useNativeWebSearch: false }, fetcher).search('  2026 F1 calendar  ')
+
+    const [url, init] = fetcher.mock.calls[0]
+    expect(String(url)).toBe('https://api.xiaomimimo.com/v1/responses')
+    expect(init?.redirect).toBe('error')
+    expect(init?.headers).toMatchObject({ 'content-type': 'application/json', 'api-key': 'mimo-env-test-key' })
+    const body = requestBody(fetcher)
+    expect(body.model).toBe('mimo-v2.6-flash')
+    expect(body.tools).toEqual([{ type: 'web_search' }])
+    expect(body.input).toBe('Perform a web search for the query: 2026 F1 calendar')
+  })
+
+  it('never falls back to chat completions or another provider', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('nope', { status: 400 }))
+    await expect(client({ useNativeWebSearch: false }, fetcher).search('2026 F1 calendar')).rejects.toThrow('HTTP 400')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(String(fetcher.mock.calls[0][0])).toBe('https://api.xiaomimimo.com/v1/responses')
+    expect(String(fetcher.mock.calls[0][0])).not.toContain('chat/completions')
+  })
+
+  it('requires a MiMo key and refuses to reuse a third-party TTS key', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
+    await expect(client({ useNativeWebSearch: false, mimoApiKey: '', ttsBaseURL: 'https://tts.example/v1' }, fetcher)
+      .search('query')).rejects.toThrow('requires MIMO_API_KEY')
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('reuses a TTS key only when the TTS base is exactly the official MiMo endpoint', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
+    await client({ useNativeWebSearch: false, mimoApiKey: '', ttsBaseURL: 'https://api.xiaomimimo.com/v1' }, fetcher)
+      .search('query')
+    expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({ 'api-key': 'custom-tts-test-key' })
+  })
+})
+
+describe('WebSearchClient response handling', () => {
+  it('formats real citations and keeps them within the result budget', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      content: [
-        { type: 'text', text: '\u8d5b'.repeat(7000) },
-        { type: 'web_search_tool_result', content: [
-          { url: 'https://www.fia.com/rules', title: 'FIA', page_age: '2026-09-28' }
-        ] }
-      ]
+      output: [{ type: 'message', content: [{
+        type: 'output_text',
+        text: '\u8d5b'.repeat(7000),
+        annotations: [{ type: 'url_citation', url: 'https://www.fia.com/rules', title: 'FIA', page_age: '2026-09-28' }]
+      }] }],
+      output_text: '\u8d5b'.repeat(7000)
     })))
     const result = await client({}, fetcher).search('FIA rules')
     expect(Buffer.byteLength(result, 'utf8')).toBeLessThanOrEqual(8000)
     expect(result).toContain('[FIA](https://www.fia.com/rules) (2026-09-28)')
   })
 
-  it('does not accept invented prose citations as structured search results', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ content: [
-      { type: 'text', text: 'Summary', citations: [
-        { url: 'https://www.fia.com/rules', title: 'FIA', cited_text: 'Invented.' }
-      ] },
-      { type: 'web_search_tool_result', content: [] }
-    ] })))
-    await expect(client({ useNativeWebSearch: true }, fetcher).search('FIA rules'))
-      .rejects.toThrow('no verifiable sources')
+  it('does not accept a fabricated tool-call as a search result', async () => {
+    const faked = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      output: [{ type: 'message', content: [{
+        type: 'output_text',
+        text: '<\u200btool_call><function=web_search><parameter=query>F1 calendar</parameter></function></\u200btool_call>',
+        annotations: []
+      }] }]
+    })))
+    await expect(client({}, faked).search('F1 calendar')).rejects.toThrow('no verifiable sources')
   })
 
-  it('rejects a model that answers with fabricated tool-call text instead of a search result', async () => {
-    const faked = new Response(JSON.stringify({ content: [
-      { type: 'text', text: '<​tool_call><function=web_search><parameter=query>F1 calendar</parameter></function></​tool_call>' },
-      { type: 'thinking', thinking: 'Let me search.' }
-    ] }))
-    await expect(client({
-      useNativeWebSearch: true, llmBaseURL: 'https://api.deepseek.com'
-    }, vi.fn<typeof fetch>().mockResolvedValue(faked)).search('F1 calendar'))
-      .rejects.toThrow('no native web-search result block')
+  it('reads a web_search_call result block as a source', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      output: [
+        { type: 'web_search_call', status: 'completed',
+          results: [{ url: 'https://www.fia.com/news', title: 'FIA news', snippet: 'Update.' }] },
+        { type: 'message', content: [{ type: 'output_text', text: 'Summary', annotations: [] }] }
+      ]
+    })))
+    const result = await client({}, fetcher).search('FIA news')
+    expect(result).toContain('[FIA news](https://www.fia.com/news)')
+    expect(result).toContain('Update.')
   })
 
-  it('sends only the one validated query to the MiMo fallback and nothing else', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(mimoResponse())
-    await client({}, fetcher).search('  current F1 safety-car rules  ')
-
-    const [url, init] = fetcher.mock.calls[0]
-    expect(String(url)).toBe('https://api.xiaomimimo.com/v1/chat/completions')
-    expect(init?.redirect).toBe('error')
-    expect(init?.headers).toMatchObject({ 'api-key': 'mimo-env-test-key' })
-    const body = requestBody(fetcher)
-    expect(body.model).toBe('mimo-v2.6-flash')
-    expect(body.messages).toEqual([{ role: 'user', content: 'current F1 safety-car rules' }])
-    expect(body.tools).toEqual([{ type: 'web_search', max_keyword: 3, force_search: true, limit: 1 }])
-    expect(body.stream).toBe(false)
-    expect(JSON.stringify(body)).not.toContain('telemetry')
-    expect(JSON.stringify(body)).not.toContain('race history')
-  })
-
-  it('uses the same Anthropic Messages search for a configured model on the official DeepSeek route', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(anthropicResponse([
-      { url: 'https://www.fia.com/regulations', title: 'FIA Regulations' }
-    ]))
-    const result = await client({ useNativeWebSearch: true, llmBaseURL: 'https://api.deepseek.com' }, fetcher)
-      .search('current FIA technical regulations')
-
-    const [url, init] = fetcher.mock.calls[0]
-    expect(String(url)).toBe('https://api.deepseek.com/anthropic/v1/messages')
-    expect(init?.headers).toMatchObject({
-      'x-api-key': 'llm-test-key',
-      authorization: 'Bearer llm-test-key',
-      'anthropic-version': '2023-06-01'
-    })
-    expect(requestBody(fetcher).tools).toEqual(ANTHROPIC_TOOL)
-    expect(result).toContain('https://www.fia.com/regulations')
-  })
-
-  it('uses the Anthropic Messages search for a configured MiMo model on its official route', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(anthropicResponse())
-    await client({
-      useNativeWebSearch: true,
-      llmBaseURL: 'https://api.xiaomimimo.com/v1',
-      llmModel: 'mimo-v2.6-pro'
-    }, fetcher).search('F1 race control updates')
-
-    expect(String(fetcher.mock.calls[0][0])).toBe('https://api.xiaomimimo.com/anthropic/v1/messages')
-    expect(requestBody(fetcher).model).toBe('mimo-v2.6-pro')
-    expect(requestBody(fetcher).tools).toEqual(ANTHROPIC_TOOL)
-  })
-
-  it('falls back to MiMo for unsupported models and never sends keys to custom or private URLs', async () => {
-    for (const llmBaseURL of [
-      'https://search-gateway.example/custom/v1',
-      'https://rebind.attacker.example/v1',
-      'https://api.deepseek.com/v1',
-      'https://api.xiaomimimo.com/v1',
-      'http://127.0.0.1:8080/v1',
-      'https://[::1]/v1',
-      'http://169.254.169.254/latest/meta-data',
-      'https://metadata.google.internal/v1'
-    ]) {
-      const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => mimoResponse())
-      await client({
-        useNativeWebSearch: true,
-        llmBaseURL,
-        llmApiKey: 'must-not-leak-to-custom-host',
-        llmModel: 'unsupported-model'
-      }, fetcher).search('F1 race control updates')
-
-      expect(String(fetcher.mock.calls[0][0])).toBe('https://api.xiaomimimo.com/v1/chat/completions')
-      expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({ 'api-key': 'mimo-env-test-key' })
-      expect(JSON.stringify(fetcher.mock.calls[0][1]?.headers)).not.toContain('must-not-leak-to-custom-host')
-    }
-  })
-
-  it('fails closed when a response has no verifiable sources', async () => {
-    await expect(client({}, vi.fn<typeof fetch>().mockResolvedValue(mimoResponse([]))).search('latest race news'))
-      .rejects.toThrow('no verifiable sources')
-  })
-
-  it('does not switch providers after an authentication failure', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('unauthorized', { status: 401 }))
-    await expect(client({ useNativeWebSearch: true }, fetcher).search('latest race news')).rejects.toThrow('HTTP 401')
-    expect(fetcher).toHaveBeenCalledTimes(1)
-  })
-
-  it('rejects non-default official ports and a non-official TTS key source', async () => {
-    const fallback = vi.fn<typeof fetch>().mockImplementation(async () => mimoResponse())
-    await client({ useNativeWebSearch: true, llmBaseURL: 'https://api.deepseek.com:8443/v1' }, fallback).search('query')
-    expect(String(fallback.mock.calls[0][0])).toBe('https://api.xiaomimimo.com/v1/chat/completions')
-
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => mimoResponse())
-    await expect(client({ mimoApiKey: '', ttsBaseURL: 'https://api.xiaomimimo.com:8443/v1' }, fetcher).search('query'))
-      .rejects.toThrow('requires MIMO_API_KEY')
-    expect(fetcher).not.toHaveBeenCalled()
-  })
-
-  it('never sends a custom TTS key to the official MiMo host unless its URL is exactly official', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => mimoResponse())
-    await expect(client({ mimoApiKey: '', ttsBaseURL: 'https://tts.example/v1' }, fetcher).search('query'))
-      .rejects.toThrow('requires MIMO_API_KEY')
-    expect(fetcher).not.toHaveBeenCalled()
-
-    const official = vi.fn<typeof fetch>().mockImplementation(async () => mimoResponse())
-    await client({ mimoApiKey: '', ttsBaseURL: 'https://api.xiaomimimo.com/v1' }, official).search('query')
-    expect(official.mock.calls[0][1]?.headers).toMatchObject({ 'api-key': 'custom-tts-test-key' })
-  })
-
-  it('rejects local, IPv4, and bracketed IPv6 source URLs instead of returning an unsourced answer', async () => {
+  it('rejects local, IPv4, and bracketed IPv6 source URLs', async () => {
     for (const url of ['http://127.0.0.1/private', 'http://[::1]/private', 'https://internal.local/data']) {
-      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(mimoResponse([{ url, title: 'Untrusted' }]))
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(responsesWithCitations([{ url, title: 'Untrusted' }]))
       await expect(client({}, fetcher).search('query')).rejects.toThrow('no verifiable sources')
     }
   })
 
   it('caps unique sources at five and bounds the response body size', async () => {
-    const results = Array.from({ length: 9 }, (_, i) => ({ url: `https://source${i}.example/page`, title: `Source ${i}` }))
-    const result = await client({}, vi.fn<typeof fetch>().mockResolvedValue(mimoResponse(results))).search('query')
+    const many = Array.from({ length: 9 }, (_, i) => ({ url: `https://source${i}.example/page`, title: `Source ${i}` }))
+    const result = await client({}, vi.fn<typeof fetch>().mockResolvedValue(responsesWithCitations(many))).search('query')
     expect(result.match(/\d+\. \[/g)).toHaveLength(5)
 
     const oversized = vi.fn<typeof fetch>().mockResolvedValue(new Response('x'.repeat(96_001), { status: 200 }))
     await expect(client({}, oversized).search('query')).rejects.toThrow('exceeded its size limit')
   })
+})
+
+describe('WebSearchClient cache and controls', () => {
+  it('keys the cache by target, model and endpoint, never by query alone', async () => {
+    let now = 50_000
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
+    const settings = { ...DEFAULTS, useNativeWebSearch: true }
+    const search = new WebSearchClient(() => settings, fetcher, () => now)
+    await search.search('same query')
+    await search.search('same query')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    settings.useNativeWebSearch = false
+    now += 60_001
+    await search.search('same query')
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(String(fetcher.mock.calls[1][0])).toBe('https://api.xiaomimimo.com/v1/responses')
+  })
 
   it('validates query length and controls before network access', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => mimoResponse())
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
     const search = client({}, fetcher)
     await expect(search.search('x'.repeat(501))).rejects.toThrow('Invalid web-search query')
     await expect(search.search('search\nwith controls')).rejects.toThrow('Invalid web-search query')
@@ -212,9 +246,9 @@ describe('WebSearchClient', () => {
     expect(fetcher).not.toHaveBeenCalled()
   })
 
-  it('caches repeated queries, cools down new requests, and honors caller cancellation', async () => {
+  it('cools down new requests and honors caller cancellation', async () => {
     let now = 50_000
-    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => mimoResponse())
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => responsesWithCitations())
     const search = client({}, fetcher, () => now)
     await search.search('cached query')
     await search.search('cached query')
