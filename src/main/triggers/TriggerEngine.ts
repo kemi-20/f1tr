@@ -25,7 +25,7 @@ export class TriggerEngine {
   private attackActive = false
   private rainImminentActive = false
   private fuelLowActive = false
-  private positionAtLapStart = 0
+  private positionAtLapStart: number | null = null
   private lastLap = 0
   private lastTyreAgeLaps = -1
   private lastTyreCompound = ''
@@ -60,7 +60,7 @@ export class TriggerEngine {
     this.attackActive = false
     this.rainImminentActive = false
     this.fuelLowActive = false
-    this.positionAtLapStart = 0
+    this.positionAtLapStart = null
     this.lastLap = 0
     this.lastTyreAgeLaps = -1
     this.lastTyreCompound = ''
@@ -144,9 +144,8 @@ export class TriggerEngine {
     this.attackActive = false
     this.rainImminentActive = false
     this.fuelLowActive = false
-    this.positionAtLapStart = 0
-    this.lastLap = -1 // use -1 so evalPositionChange's guard (lastLap !== 0) passes
-                     // but lap === lastLap+1 won't match on the resumed timeline
+    this.positionAtLapStart = null
+    this.lastLap = 0
     this.lastTyreAgeLaps = -1
     this.lastTyreCompound = ''
     this.lastHeartbeatMs = Date.now()
@@ -320,7 +319,7 @@ export class TriggerEngine {
   private evalPositionChange(state: RaceState): void {
     const pos = state.player.position
     const lap = state.player.lap
-    if (this.lastLap === 0) {
+    if (this.positionAtLapStart === null) {
       // first observation — record the baseline, nothing to compare yet
       this.positionAtLapStart = pos
       this.lastLap = lap

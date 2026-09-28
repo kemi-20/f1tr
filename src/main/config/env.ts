@@ -1,6 +1,9 @@
 import { readFileSync, existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { logger } from '../logging/Logger'
+
+const require = createRequire(import.meta.url)
 
 /**
  * Minimal .env loader (no dependency on dotenv's process polling).
@@ -21,7 +24,6 @@ function candidatePaths(): string[] {
   //    .env next to the .exe) and in userData. These win over cwd which is unreliable
   //    in packaged/portable builds (often a system temp dir).
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { app } = require('electron')
     const exeDir = app.getPath('exe').replace(/[\\/][^/\\]+$/, '')
     paths.push(resolve(exeDir, '.env'))

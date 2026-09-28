@@ -23,8 +23,8 @@ const REQUEST_TIMEOUT_MS = 30_000
  * MiMo's mimo-v2.5-tts low-latency streaming returns audio chunks as they are ready.
  */
 export class MiMoTtsClient {
-  /** The in-flight request's controller — kept only so cancel() can abort it. */
-  private currentAbort: AbortController | null = null
+  /** Every in-flight synthesis, including settings tests, so cancellation is complete. */
+  private activeAborts = new Set<AbortController>()
 
   constructor(private config: MiMoConfig) {}
 
@@ -34,8 +34,8 @@ export class MiMoTtsClient {
 
   /** Abort the in-flight synthesis (preemption / cancel). */
   cancel(): void {
-    this.currentAbort?.abort()
-    this.currentAbort = null
+    for (const controller of this.activeAborts) controller.abort()
+    this.activeAborts.clear()
   }
 
   /**
@@ -66,11 +66,10 @@ export class MiMoTtsClient {
       stream: true
     }
 
-    // Per-request state: a shared parser/controller would let a concurrent request
-    // (e.g. the settings connection test) clobber an in-flight utterance.
+    // Per-request parser and controller keep concurrent requests isolated.
     const parser = new SseParser()
     const abort = new AbortController()
-    this.currentAbort = abort
+    this.activeAborts.add(abort)
     let timedOut = false
     const timer = setTimeout(() => {
       timedOut = true
@@ -132,7 +131,7 @@ export class MiMoTtsClient {
     } finally {
       clearTimeout(timer)
       signal?.removeEventListener('abort', onExternalAbort)
-      if (this.currentAbort === abort) this.currentAbort = null
+      this.activeAborts.delete(abort)
     }
   }
 

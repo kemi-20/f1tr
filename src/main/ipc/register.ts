@@ -72,19 +72,32 @@ export function registerIpc(): void {
   ipcMain.handle('config:test:tts', async () => {
     const client = getTtsClient()
     if (!client) return { ok: false, message: 'No MIMO_API_BASE_URL/MIMO_API_KEY in .env.' }
+    const TIMEOUT_MS = 15_000
+    let timedOut = false
     try {
       let got = false
-      const TIMEOUT_MS = 15_000
-      const synthesis = client.synthesize('test', 'Mia', 'test', () => {
-        got = true
-      })
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`TTS test timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
-      )
-      await Promise.race([synthesis, timeout])
+      const controller = new AbortController()
+      const timer = setTimeout(() => {
+        timedOut = true
+        controller.abort()
+      }, TIMEOUT_MS)
+      try {
+        await client.synthesize('test', 'Mia', 'test', () => {
+          got = true
+        }, controller.signal)
+      } finally {
+        clearTimeout(timer)
+      }
       return { ok: got, message: got ? 'TTS reachable, audio received.' : 'TTS responded but no audio chunk.' }
     } catch (err) {
-      return { ok: false, message: `TTS error: ${(err as Error)?.message ?? err}` }
+      return {
+        ok: false,
+        message: timedOut
+          ? `TTS test timed out after ${TIMEOUT_MS / 1000}s`
+          : err instanceof Error && err.name === 'AbortError'
+            ? 'TTS test cancelled.'
+            : `TTS error: ${(err as Error)?.message ?? err}`
+      }
     }
   })
 

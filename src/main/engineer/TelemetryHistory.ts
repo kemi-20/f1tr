@@ -333,7 +333,10 @@ export class TelemetryHistory {
         return { ts: record.ts, completedLap: lap.completedLap,
           sessionKey: record.key, state: parseState(lap.state) }
       }),
-      events: this.events.slice(-64).map(record => ({ ts: record.ts, ...parseRecord(record.data).event })),
+      events: this.events.slice(-64).map(record => ({
+        ts: record.ts,
+        ...(asRecord(parseRecord(record.data).event) ?? {})
+      })),
       stints: this.stints.slice(-32).map(record => parseRecord(record.data)),
       decodedPackets: [...this.packets].map(([key, values]) => ({
         key, latestTs: values[values.length - 1]?.ts ?? null, samples: values.length
@@ -655,12 +658,17 @@ function serialize(value: unknown): string | null {
   }
 }
 
-function parseState(json: string): RaceState {
+function parseState(json: unknown): RaceState {
+  if (typeof json !== 'string') throw new TypeError('Stored race state must be a string')
   return JSON.parse(json) as RaceState
 }
 
-function parseRecord(json: string): any {
-  return JSON.parse(json) as any
+function parseRecord(json: string): Record<string, unknown> {
+  const value: unknown = JSON.parse(json)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('Stored telemetry record must be an object')
+  }
+  return value as Record<string, unknown>
 }
 
 function identitySnapshot(transition: WeekendIdentityTransition): WeekendIdentitySnapshot {

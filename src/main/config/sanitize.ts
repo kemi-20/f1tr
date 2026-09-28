@@ -126,7 +126,6 @@ function assign<T extends object, K extends keyof T>(target: T, key: K, value: T
 function pickString(v: unknown, maxLength: number): string | undefined {
   if (typeof v !== 'string') return undefined
   // reject control characters outright; they have no business in config values
-  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f]/.test(v)) return undefined
   return v.length <= maxLength ? v : undefined
 }

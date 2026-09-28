@@ -17,7 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build:win": "electron-vite build && electron-builder --win --publish never",
-    "lint": "echo \"(lint placeholder)\""
+    "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
     "@z0mt3c/f1-telemetry-client": "2.1.0",
@@ -35,6 +35,7 @@
     "electron-builder": "^25.0.5",
     "electron-vite": "^2.3.0",
     "esbuild": "0.21.5",
+    "eslint": "10.11.0",
     "framer-motion": "^11.3.0",
     "postcss": "^8.4.39",
     "react": "^18.3.1",
@@ -43,6 +44,7 @@
     "remark-gfm": "4.0.1",
     "tailwindcss": "^3.4.7",
     "typescript": "^5.5.4",
+    "typescript-eslint": "8.70.1",
     "vite": "^5.4.0",
     "vitest": "^2.0.5",
     "zustand": "^4.5.4"

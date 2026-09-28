@@ -140,6 +140,25 @@ describe('TriggerEngine — position changes', () => {
     engine.evaluate(state) // gained 2 over the lap
     expect(firings.map((f) => f.reasonCode)).toContain('position_gain')
   })
+
+  it('re-baselines after flashback without reporting a fictitious position loss', () => {
+    const { engine, firings } = makeEngine({ positionChangeDelta: 2 })
+    const state = emptyRaceState()
+    state.session.sessionUID = 'race-session'
+    state.session.sessionType = 13
+    state.session.sessionTypeLabel = 'Race'
+    state.player.lap = 12
+    state.player.position = 5
+    state.player.tyres.innerTempC = { rl: 90, rr: 90, fl: 90, fr: 90 }
+    engine.evaluate(state)
+
+    engine.noteFlashback()
+    vi.advanceTimersByTime(3_001)
+    state.player.position = 8
+    engine.evaluate(state)
+
+    expect(positionFirings(firings)).toHaveLength(0)
+  })
 })
 
 /** Position rules only — lap_review/heartbeat fire independently of the lap delta. */

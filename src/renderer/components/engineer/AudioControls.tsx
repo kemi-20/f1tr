@@ -17,7 +17,6 @@ export function AudioControls(): React.ReactElement {
     setVolume(cfg.audio.volume)
     WebAudioEngine.setMuted(cfg.audio.muted)
     WebAudioEngine.setVolume(cfg.audio.volume)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg?.audio.muted, cfg?.audio.volume])
 
   // resume AudioContext on first interaction (autoplay policy)
