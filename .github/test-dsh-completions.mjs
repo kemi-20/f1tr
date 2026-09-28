@@ -14,7 +14,8 @@ const home = await mkdtemp(join(tmpdir(), 'f1tr-completions-test-'))
 const token = randomBytes(32).toString('hex')
 const pipe = `\\\\.\\pipe\\f1tr-test-${randomUUID()}`
 const expectedTools = ['capture_screenshot', 'get_lap_history', 'get_race_events', 'get_race_state',
-  'get_stint_history', 'get_telemetry_history', 'read_telemetry_packet', 'speak_radio', 'web_search'].sort()
+  'get_stint_history', 'get_telemetry_history', 'get_track_layout', 'read_telemetry_packet',
+  'speak_radio', 'web_search'].sort()
 let requests = 0
 const calls = []
 let failure
@@ -28,7 +29,12 @@ const bridge = pipeServer(socket => {
       const call = JSON.parse(input)
       assert.equal(call.token, token)
       calls.push(call.name)
-      socket.end(JSON.stringify({ id: call.id, ok: true, result: call.name === 'get_race_state' ? '{"fuelLaps":2.5}' : 'Radio message accepted' }) + '\n')
+      const results = {
+        get_race_state: '{"fuelLaps":2.5}',
+        get_track_layout: '{"track":"Jeddah","officialLengthM":6175,"sectorStartsM":[0,2108.5,4174.4]}',
+        speak_radio: 'Radio message accepted'
+      }
+      socket.end(JSON.stringify({ id: call.id, ok: true, result: results[call.name] ?? 'ok' }) + '\n')
     } catch (error) { failure = error; socket.destroy() }
   })
 })
