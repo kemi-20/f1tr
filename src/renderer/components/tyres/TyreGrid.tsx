@@ -1,6 +1,6 @@
 import { useRaceStore } from '../../store'
 import { compoundCName, tyreWearColor, type Corners } from '@shared/index'
-import { teamColorForCar } from '../rivals/teamMeta'
+import { teamColorForCarOrNull } from '../rivals/teamMeta'
 import type { CSSProperties } from 'react'
 
 const CORNERS: Array<{ key: keyof Corners; label: string; side: 'left' | 'right' }> = [
@@ -18,10 +18,10 @@ export function TyreGrid(): React.ReactElement {
   const compound = tyres?.compound ?? 'unknown'
   const rawId = tyres?.rawCompoundId ?? -1
   const player = race?.rivals[race.player.carIndex]
-  const teamColor = teamColorForCar(player?.team, player?.teamColor)
+  const statusAccent = teamColorForCarOrNull(player?.team, player?.teamColor) ?? 'rgb(var(--accent-carbon-rgb))'
 
   return (
-    <section className="car-status-panel h-full" style={{ '--team-color': teamColor } as CSSProperties}>
+    <section className="car-status-panel h-full" style={{ '--status-accent': statusAccent } as CSSProperties}>
       <header className="car-status-header">
         <div className="car-status-title">CAR STATUS</div>
         <div className="car-status-driver">{playerName}</div>

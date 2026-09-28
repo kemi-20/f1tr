@@ -253,12 +253,16 @@ body {
 
 .telemetry-hud,
 .car-status-panel {
-  border: 1px solid rgb(var(--accent-carbon-rgb) / 0.22);
   border-radius: 8px;
+  background: linear-gradient(180deg, rgba(22, 28, 35, 0.94), rgba(9, 13, 19, 0.96));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.telemetry-hud {
+  border: 1px solid rgb(var(--accent-carbon-rgb) / 0.22);
   background:
     linear-gradient(145deg, rgb(var(--accent-carbon-rgb) / 0.11), transparent 42%),
     linear-gradient(180deg, rgba(22, 28, 35, 0.94), rgba(9, 13, 19, 0.96));
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .hud-mode {
@@ -334,12 +338,16 @@ body {
 }
 
 .car-status-panel {
-  --team-color: #ff2f62;
+  --status-accent: rgb(var(--accent-carbon-rgb));
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
   padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--status-accent) 22%, transparent);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--status-accent) 11%, transparent), transparent 42%),
+    linear-gradient(180deg, rgba(22, 28, 35, 0.94), rgba(9, 13, 19, 0.96));
 }
 
 .car-status-header {
@@ -357,6 +365,7 @@ body {
 
 .car-status-title {
   font-size: 20px;
+  color: var(--status-accent);
 }
 
 .car-status-driver {
@@ -367,14 +376,14 @@ body {
   white-space: nowrap;
   font-family: 'F1 Bold';
   font-size: 24px;
-  color: var(--team-color);
+  color: var(--status-accent);
 }
 
 .car-status-accent {
   height: 3px;
   margin: 8px 0 8px;
   border-radius: 2px;
-  background: rgb(var(--accent-carbon-rgb));
+  background: var(--status-accent);
 }
 
 .car-status-meta {

@@ -47,8 +47,13 @@ export function teamMetaFor(teamId: string | undefined): TeamMeta | undefined {
   return teamId == null ? undefined : TEAM_META[teamId]
 }
 
+/** Return a valid team colour when known; null means no usable team telemetry. */
+export function teamColorForCarOrNull(teamId: string | undefined, telemetryColor?: string): string | null {
+  const known = teamMetaFor(teamId)?.color
+  return known ?? (/^#[0-9a-fA-F]{6}$/.test(telemetryColor ?? '') ? telemetryColor! : null)
+}
+
 /** Brand colour for a car: known team id wins, else the telemetry-supplied colour. */
 export function teamColorForCar(teamId: string | undefined, telemetryColor?: string): string {
-  const known = teamMetaFor(teamId)?.color
-  return known ?? (/^#[0-9a-fA-F]{6}$/.test(telemetryColor ?? '') ? telemetryColor! : '#E6EDF6')
+  return teamColorForCarOrNull(teamId, telemetryColor) ?? '#E6EDF6'
 }
