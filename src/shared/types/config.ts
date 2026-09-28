@@ -27,7 +27,7 @@ export interface AppConfig {
    model: string // resolved from AI_MODEL
    reasoningEffort: ReasoningEffort
    contextLimit: number // DSH model contextWindow budget in tokens
-   useNativeWebSearch: boolean // use a verified native search endpoint instead of MiMo's China search
+   useNativeWebSearch: boolean // let the configured model run the search; off = MiMo runs it. Both use the Anthropic Messages web_search tool.
    hasSecret: boolean // whether a key is available (.env or override)
    keySource: KeySource // 'override' | 'env' | 'none' — computed in the main process
     visionSupported: boolean // whether the configured model can accept image input

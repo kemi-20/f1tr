@@ -60,8 +60,8 @@ export function LlmTab(): React.ReactElement {
           <span>支持网络搜索</span>
           <span className="text-[10px] text-white/30">
             {llm.useNativeWebSearch
-              ? '优先使用官方 MiMo / DeepSeek 原生搜索；其他模型或网关使用 MiMo'
-              : '使用 MiMo mimo-v2.6-flash 国内联网搜索；需要可用的 MiMo API Key'}
+              ? '由当前模型执行联网搜索；官方 DeepSeek / MiMo 直接用其自带搜索'
+              : '由 MiMo mimo-v2.6-flash 代为联网搜索；需要可用的 MiMo API Key'}
           </span>
         </span>
       </label>
