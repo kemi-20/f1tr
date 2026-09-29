@@ -49,7 +49,7 @@ export class AudioPipeline {
   }
 
   /** Enqueue a synthesis request. Higher priority preempts / jumps the queue. */
-  enqueue(text: string, priority: Priority, voice: string, direction: string, style = 'gp'): void {
+  enqueue(text: string, priority: Priority, voice: string, direction: string): void {
     const norm = this.normalize(text)
     // dedup
     const now = Date.now()
@@ -62,7 +62,7 @@ export class AudioPipeline {
     }
     this.recentText.set(norm, now)
 
-    const req: SynthRequest = { id: nanoid(8), text, priority, voice, direction, style }
+    const req: SynthRequest = { id: nanoid(8), text, priority, voice, direction }
 
     if (!this.current) {
       void this.play(req)
@@ -125,8 +125,7 @@ export class AudioPipeline {
           samplesSent += pcm16Samples(base64Pcm16)
           Sender.send('audio:chunk', { utteranceId: req.id, seq: this.seq++, base64Pcm16 })
         },
-        undefined,
-        req.style
+        undefined
       )
       // Stream end marker: the renderer keeps playing what it already queued and
       // reports back when the last buffer has actually drained.

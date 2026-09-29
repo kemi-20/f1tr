@@ -68,9 +68,6 @@ export interface ApiSurface {
   setConfig: (patch: DeepPartial<AppConfig>) => Promise<AppConfig>
   testLlm: () => Promise<{ ok: boolean; message: string }>
   testTts: () => Promise<{ ok: boolean; message: string }>
-  gpVoiceSampleStatus: () => Promise<boolean>
-  chooseGpVoiceSample: () => Promise<{ ok: boolean; message: string }>
-  clearGpVoiceSample: () => Promise<void>
   testUdp: () => Promise<{ ok: boolean; message: string }>
   ask: (text?: string) => Promise<void>
   cancel: () => Promise<void>

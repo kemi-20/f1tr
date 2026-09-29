@@ -6,7 +6,7 @@ vi.mock('../ipc/sender', () => ({ Sender: { send: vi.fn() } }))
 vi.mock('../logging/Logger', () => ({ logger: { info: vi.fn(), error: vi.fn() } }))
 
 describe('engineer radio style', () => {
-  it('passes the selected style and its voice direction to the audio pipeline', () => {
+  it('passes the selected voice direction to the audio pipeline', () => {
     const engineer = new EngineerService()
     const speak = vi.fn()
     engineer.setSpeakHandler(speak)
@@ -14,6 +14,6 @@ describe('engineer radio style', () => {
     engineer.setEngineerStyle('bozzi')
     engineer.acceptRadio('Target lap is 1:33.2.', manualFiring())
     expect(speak).toHaveBeenCalledWith('Target lap is 1:33.2.', expect.anything(),
-      'Milo', getEngineerSkill('bozzi').ttsDirection, 'bozzi')
+      'Milo', getEngineerSkill('bozzi').ttsDirection)
   })
 })

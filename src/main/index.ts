@@ -123,10 +123,10 @@ app.whenReady().then(() => {
   audio = new AudioPipeline()
   setAudio(audio)
   setTtsClient(null)
-  engineer.setSpeakHandler((text, firing, voice, direction, style) => {
+  engineer.setSpeakHandler((text, firing, voice, direction) => {
     const audioSettings = ConfigStore.getAll().audio
     if (audioSettings.muted) return
-    audio!.enqueue(text, firing.priority, voice, direction, style)
+    audio!.enqueue(text, firing.priority, voice, direction)
   })
   engineer.setInterruptHandler(() => audio?.cancelAll())
   engineer.setLanguage(cfg.language.mode)
