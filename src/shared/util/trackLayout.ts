@@ -39,41 +39,9 @@ export function drsZoneAt(metres: number, layout: TrackLayout): number | null {
   return index >= 0 ? index + 1 : null
 }
 
-/** Distance until the next zone starts, or null when the list is empty. */
-export function distanceToNextZone(metres: number, zones: TrackLayoutZone[], length: number): number | null {
-  if (zones.length === 0) return null
-  const d = wrapDistance(metres, length)
-  let best: number | null = null
-  for (const zone of zones) {
-    const delta = forwardDistance(d, zone.startM, length)
-    if (best == null || delta < best) best = delta
-  }
-  return best
-}
-
 export function pitDistance(metres: number, layout: TrackLayout): number | null {
   if (layout.pitEntryM == null) return null
   return forwardDistance(wrapDistance(metres, layout.lengthM), layout.pitEntryM, layout.lengthM)
-}
-
-export function nearestOvertakePoint(metres: number, layout: TrackLayout): number | null {
-  if (layout.overtakePointsM.length === 0) return null
-  const d = wrapDistance(metres, layout.lengthM)
-  let best = layout.overtakePointsM[0]
-  let bestDelta = forwardDistance(d, best, layout.lengthM)
-  for (const point of layout.overtakePointsM.slice(1)) {
-    const delta = forwardDistance(d, point, layout.lengthM)
-    const backward = (d - point + layout.lengthM) % layout.lengthM
-    if (delta <= bestDelta && backward <= backwardFor(best, d, layout.lengthM)) {
-      best = point
-      bestDelta = delta
-    }
-  }
-  return best
-}
-
-function backwardFor(point: number, from: number, length: number): number {
-  return wrapDistance(from - point, length)
 }
 
 /** True when the calibrated layout disagrees with the length the game reported. */

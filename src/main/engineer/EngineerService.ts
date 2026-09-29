@@ -103,10 +103,6 @@ export class EngineerService {
     this.onSpeak(text, firing, this.voice, this.direction, this.engineerStyle)
   }
 
-  get currentLanguage(): LanguageMode {
-    return this.language
-  }
-
   /**
    * Entry from the trigger engine / manual Ask. Serializes advice calls so we never
    * fire two overlapping LLM streams. If a new (higher-or-equal priority) firing arrives
@@ -155,9 +151,7 @@ export class EngineerService {
   cancel(): void {
     this.pending = null
     this.clearIdleTimer()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const llm = this.llm as any
-    llm?.cancel?.()
+    this.llm?.cancel?.()
     this.onInterrupt()
   }
 
@@ -167,11 +161,6 @@ export class EngineerService {
       clearTimeout(this.idleTimer)
       this.idleTimer = null
     }
-  }
-
-  /** True if a real LLM backend is wired (vs stub advice). */
-  hasBackend(): boolean {
-    return this.llm != null
   }
 
   /**

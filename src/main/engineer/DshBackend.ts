@@ -10,7 +10,7 @@ import type { TriggerFiring } from '@shared/types/triggers'
 import type { ReasoningEffort } from '@shared/index'
 import type { EngineerBackend } from './EngineerService'
 import type { TelemetryHistory } from './TelemetryHistory'
-import { executeTelemetryTool } from './TelemetryHarness'
+import { executeTelemetryTool, isTelemetryTool } from './TelemetryHarness'
 import { captureF1Screenshot } from '../screenshot/ScreenshotService'
 import { searchWeb } from './WebSearchClient'
 import { safeToolError } from './ToolError'
@@ -26,7 +26,6 @@ export interface LlmConfig {
   model: string
   reasoningEffort: ReasoningEffort
   contextLimit: number
-  visionSupported: boolean
 }
 
 /** The private CLI reuses Electron's Node runtime, with an isolated DSH home. */
@@ -371,7 +370,7 @@ export class DshBackend implements EngineerBackend {
       if (++active.calls > 32) throw new Error('Tool budget exceeded')
       const args = req.args && typeof req.args === 'object' && !Array.isArray(req.args) ? req.args as JsonRecord : {}
       let result: string
-      if (['get_race_state', 'get_track_layout', 'get_telemetry_history', 'get_lap_history', 'get_race_events', 'get_stint_history', 'read_telemetry_packet'].includes(req.name)) {
+      if (isTelemetryTool(req.name)) {
         result = executeTelemetryTool(this.history, req.name, JSON.stringify(args))
       } else if (req.name === 'capture_screenshot') {
         if (++active.screenshots > 1) throw new Error('Screenshot limit exceeded')

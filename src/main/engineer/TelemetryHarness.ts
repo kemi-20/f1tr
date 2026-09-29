@@ -36,6 +36,12 @@ function tool(name: string, description: string, properties: Record<string, unkn
     parameters: { type: 'object' as const, properties, required, additionalProperties: false } } }
 }
 
+const telemetryToolNames = new Set(TELEMETRY_TOOLS.map(tool => tool.function.name))
+
+export function isTelemetryTool(name: string): boolean {
+  return telemetryToolNames.has(name)
+}
+
 /** Read-only harness. Model-supplied names/arguments never reach filesystem, network or eval. */
 export function executeTelemetryTool(history: TelemetryHistory, name: string, input: string): string {
   if (input.length > 2048) return 'Invalid telemetry arguments: too large'

@@ -34,8 +34,3 @@ export type EngineerStyleId = (typeof ENGINEER_STYLES)[number]['id']
 export function normalizeEngineerStyleId(id?: string): EngineerStyleId {
   return ENGINEER_STYLES.some((s) => s.id === id) ? (id as EngineerStyleId) : 'gp'
 }
-
-export function getEngineerStyle(id?: string): EngineerStyle {
-  const normalized = normalizeEngineerStyleId(id)
-  return ENGINEER_STYLES.find((s) => s.id === normalized) ?? ENGINEER_STYLES[0]
-}

@@ -73,39 +73,6 @@ export function tempScale(c: number | null | undefined): number {
   return Math.max(0, Math.min(1, (c - lo) / (hi - lo)))
 }
 
-/**
- * Ideal surface-temp window (°C).
- *
- * Per F1 25 / Pirelli model: dry compounds all share a ~85-105°C window
- * (confirmed by ChatGPT research + simracingsetup.com). The window does NOT
- * change per soft/medium/hard colour — it's the same for all dry tyres.
- * Intermediates and wets have their own lower windows.
- */
-export const TYRE_TEMP_WINDOW: Record<string, [number, number]> = {
-  soft: [85, 105],
-  medium: [85, 105],
-  hard: [85, 105],
-  inter: [60, 85],
-  wet: [60, 80],
-  unknown: [85, 105]
-}
-
-export function tyreTempWindow(compound: string | undefined): [number, number] {
-  return TYRE_TEMP_WINDOW[compound ?? 'unknown'] ?? [85, 100]
-}
-
-/** Classification of current tyre temp vs the compound's ideal window. */
-export function tempStatus(
-  c: number | null | undefined,
-  compound: string | undefined
-): { status: 'cold' | 'ideal' | 'hot'; color: string } {
-  if (c == null || !isFinite(c)) return { status: 'ideal', color: '#2DD4BF' }
-  const [lo, hi] = tyreTempWindow(compound)
-  if (c < lo) return { status: 'cold', color: '#3B82F6' }
-  if (c > hi) return { status: 'hot', color: '#FF3B3B' }
-  return { status: 'ideal', color: compound === 'inter' ? '#22C55E' : '#2DD4BF' }
-}
-
 /** F1-overlay style tyre wear colour: calm when fresh, alarming as wear climbs. */
 export function tyreWearColor(wear: number | null | undefined): string {
   if (wear == null || !isFinite(wear)) return 'rgba(255, 255, 255, 0.34)'

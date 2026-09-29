@@ -54,7 +54,7 @@ export async function wireLlm(cfg: AppConfig): Promise<void> {
   }
   const model = cfg.llm.model
   llm = new DshBackend(
-    { baseURL, apiKey, model, reasoningEffort: cfg.llm.reasoningEffort, contextLimit: cfg.llm.contextLimit, visionSupported: cfg.llm.visionSupported },
+    { baseURL, apiKey, model, reasoningEffort: cfg.llm.reasoningEffort, contextLimit: cfg.llm.contextLimit },
     svc.telemetryHistory,
     buildVisionClient(cfg),
     (text, firing) => svc?.acceptRadio(text, firing),

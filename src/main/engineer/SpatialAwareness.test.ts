@@ -4,7 +4,7 @@ import type { RaceState, RivalState } from '@shared/types/state'
 import { relativeMotion, relativePosition } from './SpatialAwareness'
 import { readTrackLayout } from './TrackLayoutReport'
 import { TelemetryHistory } from './TelemetryHistory'
-import { executeTelemetryTool } from './TelemetryHarness'
+import { executeTelemetryTool, isTelemetryTool } from './TelemetryHarness'
 
 function sample(ts = 10_000, playerM = 1000, rivalM = 900): RaceState {
   const s = emptyRaceState()
@@ -118,5 +118,11 @@ describe('map query boundary and calibration', () => {
   it.each([{ section: '../../secret' }, { section: 'geometry', path: 'C:/secret' }, { section: ['geometry'] },
     { section: 'positions', carIndex: '__proto__' }])('rejects unexpected model arguments %j', args => {
     expect(executeTelemetryTool(new TelemetryHistory(), 'get_track_layout', JSON.stringify(args))).toMatch(/^Invalid/)
+  })
+  it('only dispatches registered telemetry tool names to the host harness', () => {
+    expect(isTelemetryTool('get_track_layout')).toBe(true)
+    expect(isTelemetryTool('read_telemetry_packet')).toBe(true)
+    expect(isTelemetryTool('capture_screenshot')).toBe(false)
+    expect(isTelemetryTool('__proto__')).toBe(false)
   })
 })

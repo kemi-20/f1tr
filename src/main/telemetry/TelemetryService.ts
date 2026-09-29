@@ -187,9 +187,4 @@ export class TelemetryService {
     this.lastSessionUID = ''
     this.pendingEvents = []
   }
-
-  setFormatOverride(format: 'auto' | PacketFormat): void {
-    this.receiver.setFormatOverride(format)
-    this.aggregator.reset(this.receiver.currentFormat ?? 2025)
-  }
 }
