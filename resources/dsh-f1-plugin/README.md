@@ -37,6 +37,7 @@ For per-app isolation, the host must create a dedicated pipe per DSH app instanc
 ## Tool arguments and limits
 
 - `get_race_state`: `{ "section": "all|player|rivals|weather|session|trackPositions|events" }`.
+- `get_track_layout`: optional `section` in `summary|zones|geometry|positions|all`. Geometry exposes the bundled JSON-derived complete loop at reduced resolution; positions separates fastest-lap, classification timing and physical arcs, independently timestamped world coordinates, route and measured closing. No paths/URLs or arbitrary track files accepted; the current session selects the asset. Host output is bounded to 59,000 UTF-8 bytes before the plugin envelope.
 - `get_telemetry_history` and `get_lap_history`: required `section`, optional integer `offset` 0-100000 (default 0), optional integer `limit` 1-4 (default 3).
 - `read_telemetry_packet`: required `packet` inventory key with packet ID 0-16 and optional `:carIndex` 0-23; optional integer `offset` 0-11 (default 0).
 - `capture_screenshot`: `{}`; host returns a bounded vision description as text.

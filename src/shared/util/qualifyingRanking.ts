@@ -21,7 +21,7 @@ export function rankRivalsByBestLap<T extends LapTimeRival>(
   playerBestLapTimeS: number | null
 ): BestLapRankedRival<T>[] {
   const ordered = rivals
-    .map((rival) => ({ rival, lapTimeS: validLapTime(rival.bestLapTimeS) }))
+    .map((rival) => ({ rival, lapTimeS: validLapTime(rival.carIndex === playerCarIndex ? playerBestLapTimeS : rival.bestLapTimeS) }))
     .sort((a, b) => {
       if (a.lapTimeS != null && b.lapTimeS != null) {
         return a.lapTimeS - b.lapTimeS || a.rival.position - b.rival.position || a.rival.carIndex - b.rival.carIndex
@@ -31,9 +31,7 @@ export function rankRivalsByBestLap<T extends LapTimeRival>(
       return a.rival.position - b.rival.position || a.rival.carIndex - b.rival.carIndex
     })
 
-  const playerRival = ordered.find(({ rival }) => rival.carIndex === playerCarIndex)
-  const playerLap = validLapTime(playerBestLapTimeS) ?? playerRival?.lapTimeS ?? null
-  const referenceLap = playerLap ?? ordered.find(({ lapTimeS }) => lapTimeS != null)?.lapTimeS ?? null
+  const referenceLap = validLapTime(playerBestLapTimeS)
   let rank = 0
 
   return ordered.map(({ rival, lapTimeS }) => ({

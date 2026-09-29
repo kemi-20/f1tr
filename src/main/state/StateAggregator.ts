@@ -8,6 +8,7 @@ import type { PacketHeader } from '../telemetry/HeaderTypes'
 import { nanoid } from 'nanoid'
 import { logger } from '../logging/Logger'
 import { LapPhaseTracker } from './LapPhaseTracker'
+import { sessionKind } from '@shared/util/sessionKind'
 
 const MAX_EVENTS = 12
 /** Same-frame event repeats are UDP duplicates; anything older than this is a new event. */
@@ -200,6 +201,7 @@ export class StateAggregator {
   }
 
   onLapData(p: AnyParsedPacket): void {
+    const receivedAt = Date.now()
     const h = p.m_header as PacketHeader
     const arr = (p.m_lapData ?? []) as AnyParsedPacket[]
     const playerIdx = h.m_playerCarIndex
@@ -213,8 +215,9 @@ export class StateAggregator {
       const d = arr[i]
       const r = this.ensureRival(i)
       r.carIndex = i
-      // position 0 = invalid in F1 spec
-      r.position = d.m_carPosition > 0 ? d.m_carPosition : r.position
+      // Invalid order must not inherit an old position with a fresh LapData timestamp.
+      r.position = Number.isInteger(d.m_carPosition) && d.m_carPosition > 0 && d.m_carPosition <= arr.length
+        ? d.m_carPosition : 0
       r.lap = numOr(d.m_currentLapNum, r.lap)
       // lapDistancePct: use track length from session packet. If not yet available,
       // keep the previous value (don't fall back to m_totalDistance — it's cumulative).
@@ -239,7 +242,7 @@ export class StateAggregator {
       r.driverStatus = Number.isInteger(d.m_driverStatus) && d.m_driverStatus >= 0 && d.m_driverStatus <= 4
         ? d.m_driverStatus : undefined
       r.currentLapInvalid = d.m_currentLapInvalid === 1
-      r.lapDataUpdatedAt = Date.now()
+      r.lapDataUpdatedAt = receivedAt
       const phase = this.lapPhases.observe({
         car: i, lap: r.lap, distance: r.lapDistancePct, time: r.currentLapTimeS ?? 0,
         context: `${this.state.weather.weatherCode}:${r.tyreCompound}`,
@@ -262,7 +265,9 @@ export class StateAggregator {
     // from the player's position. This gives the REAL total gap (not just the adjacent
     // pair delta), fixing the bug where non-adjacent rivals showed wrong gaps.
     // Also derive deltaToCarBehindS for each car along the way.
-    const sorted = Object.values(this.state.rivals).slice().sort((a, b) => a.position - b.position)
+    for (const r of Object.values(this.state.rivals)) r.gapToPlayerS = null
+    const sorted = Object.values(this.state.rivals).filter(r => arr[r.carIndex] && r.position > 0)
+      .sort((a, b) => a.position - b.position)
     for (let i = 0; i < sorted.length - 1; i++) {
       sorted[i].deltaToCarBehindS = sorted[i + 1].deltaToCarInFrontS
     }
@@ -273,7 +278,7 @@ export class StateAggregator {
     const pld = arr[playerIdx]
     if (pld) {
       const pl = this.state.player
-      pl.position = pld.m_carPosition > 0 ? pld.m_carPosition : pl.position
+      pl.position = this.state.rivals[playerIdx].position
       pl.currentSector = typeof pld.m_sector === 'number' ? pld.m_sector : pl.currentSector
       pl.lap = numOr(pld.m_currentLapNum, pl.lap)
       this.state.session.currentLap = numOr(pld.m_currentLapNum, this.state.session.currentLap)
@@ -317,14 +322,15 @@ export class StateAggregator {
     // Match by carIndex only — position fallback causes wrong matches in spectator mode
     // (playerCarIndex=255, position=0 would match the first AI car in the sorted list)
     const playerIdxInSorted = sorted.findIndex((r) => r.carIndex === playerCarIndex)
-    if (playerIdxInSorted >= 0) {
+    if (playerIdxInSorted >= 0 && sessionKind(this.state.session) === 'race') {
       const playerRival = sorted[playerIdxInSorted]
       playerRival.gapToPlayerS = 0
       playerRival.separationFromPlayerM = 0
       playerRival.trackRelativeSeparationM = 0
 
       const pairIsUsable = (leader: RivalState, trailer: RivalState, gap: number | null): boolean => {
-        if (gap == null || leader.lap !== trailer.lap || leader.pitStatus !== 0 || trailer.pitStatus !== 0) return false
+        if (gap == null || trailer.position !== leader.position + 1 || leader.lap !== trailer.lap ||
+            leader.pitStatus !== 0 || trailer.pitStatus !== 0) return false
         if (leader.totalDistanceM == null || trailer.totalDistanceM == null) return true
         const metres = leader.totalDistanceM - trailer.totalDistanceM
         if (metres < 0) return false
@@ -336,16 +342,15 @@ export class StateAggregator {
       // Walk UP from the player. The first car ahead uses the player's own
       // delta-to-front; cars further ahead use the closer car's chained gap.
       let cumAhead = 0
-      let validAhead = false
+      let validAhead = true
       for (let i = playerIdxInSorted - 1; i >= 0; i--) {
         const gap = i === playerIdxInSorted - 1
           ? playerRival.deltaToCarInFrontS
           : sorted[i].deltaToCarBehindS
         // Reject a delta the physical separation makes impossible (line-crossing glitch).
         const usable = pairIsUsable(sorted[i], sorted[i + 1], gap)
-        if (gap != null && usable) {
+        if (validAhead && gap != null && usable) {
           cumAhead += gap
-          validAhead = true
         } else {
           validAhead = false
         }
@@ -355,13 +360,12 @@ export class StateAggregator {
       // Walk DOWN from the player. Each trailing car's delta-to-front is its gap
       // to the car immediately ahead in the running order.
       let cumBehind = 0
-      let validBehind = false
+      let validBehind = true
       for (let i = playerIdxInSorted + 1; i < sorted.length; i++) {
         const gap = sorted[i].deltaToCarInFrontS
         const usable = pairIsUsable(sorted[i - 1], sorted[i], gap)
-        if (gap != null && usable) {
+        if (validBehind && gap != null && usable) {
           cumBehind += gap
-          validBehind = true
         } else {
           validBehind = false
         }
@@ -402,7 +406,10 @@ export class StateAggregator {
     // update track position speeds
     for (const tp of this.state.trackPositions) {
       const td = arr[tp.carIndex]
-      if (td) tp.speedKmh = td.m_speed ?? tp.speedKmh
+      if (td && typeof td.m_speed === 'number' && Number.isFinite(td.m_speed) && td.m_speed >= 0 && td.m_speed <= 500) {
+        tp.speedKmh = td.m_speed
+        tp.speedUpdatedAt = Date.now()
+      }
     }
   }
 
@@ -437,6 +444,7 @@ export class StateAggregator {
         existing.worldX = worldX
         existing.worldY = worldY ?? existing.worldY
         existing.worldZ = worldZ
+        existing.motionUpdatedAt = Date.now()
         existing.isPlayer = i === h.m_playerCarIndex
       } else {
         const r = this.ensureRival(i)
@@ -447,7 +455,8 @@ export class StateAggregator {
           isPlayer: i === h.m_playerCarIndex,
           worldX,
           ...(worldY != null ? { worldY } : {}),
-          worldZ
+          worldZ,
+          motionUpdatedAt: Date.now()
         }
         this.state.trackPositions.push(tp)
         byCar.set(i, tp)
@@ -758,7 +767,9 @@ export class StateAggregator {
     return {
       ...(existing.worldX != null ? { worldX: existing.worldX } : {}),
       ...(existing.worldY != null ? { worldY: existing.worldY } : {}),
-      ...(existing.worldZ != null ? { worldZ: existing.worldZ } : {})
+      ...(existing.worldZ != null ? { worldZ: existing.worldZ } : {}),
+      ...(existing.motionUpdatedAt != null ? { motionUpdatedAt: existing.motionUpdatedAt } : {}),
+      ...(existing.speedUpdatedAt != null ? { speedUpdatedAt: existing.speedUpdatedAt } : {})
     }
   }
 }

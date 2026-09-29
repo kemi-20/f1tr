@@ -4,7 +4,8 @@ import type { Priority } from '@shared/types/audio'
 import { Cooldown } from './Cooldown'
 import { logger } from '../logging/Logger'
 import { lapsToFlag, raceFuelMargin } from '@shared/util/raceDistance'
-import { holdQualifyingRadio, isQualifying } from '@shared/util/lapPhase'
+import { holdQualifyingRadio, isTimedRunSession } from '@shared/util/lapPhase'
+import { forwardDistance, validCircuitDistance } from '@shared/util/trackLayout'
 import { sessionKind } from '@shared/util/sessionKind'
 
 /**
@@ -372,10 +373,10 @@ export class TriggerEngine {
     const now = Date.now()
     const p = state.player
     const length = state.session.trackLengthM
-    if (!isQualifying(state) || !['out', 'cooling', 'in'].includes(p.lapPhase ?? '') ||
-        p.pitStatus !== 0 || !p.onTrack || !p.lapDataUpdatedAt || now - p.lapDataUpdatedAt > 2500 ||
+    if (!isTimedRunSession(state) || !['out', 'cooling', 'in'].includes(p.lapPhase ?? '') ||
+        p.pitStatus !== 0 || !p.onTrack || !p.lapDataUpdatedAt || now < p.lapDataUpdatedAt || now - p.lapDataUpdatedAt > 2500 ||
         state.session.isRedFlag || state.session.isSafetyCar || state.session.isVirtualSafetyCar ||
-        !Number.isFinite(length) || length <= 0 || !Number.isFinite(p.lapDistancePct)) {
+        !validCircuitDistance(p.distanceFromStartM, length)) {
       this.approachingCars.clear()
       return
     }
@@ -384,9 +385,10 @@ export class TriggerEngine {
     for (const r of Object.values(state.rivals)) {
       if (r.carIndex === p.carIndex || r.pitStatus !== 0 || r.status !== 'running' ||
           r.lapPhase !== 'flying' || r.currentLapInvalid !== false || !r.lapDataUpdatedAt ||
-          now - r.lapDataUpdatedAt > 2500 || !Number.isFinite(r.lapDistancePct) ||
-          r.lapDistancePct < 0 || r.lapDistancePct > 1) continue
-      const distance = ((p.lapDistancePct - r.lapDistancePct + 1) % 1) * length
+          now < r.lapDataUpdatedAt || now - r.lapDataUpdatedAt > 2500 ||
+          Math.abs(r.lapDataUpdatedAt - p.lapDataUpdatedAt) > 750 ||
+          !validCircuitDistance(r.distanceFromStartM, length)) continue
+      const distance = forwardDistance(r.distanceFromStartM, p.distanceFromStartM, length)
       if (distance < 1 || distance > Math.min(800, length * 0.2)) continue
       seen.add(r.carIndex)
       const prev = this.approachingCars.get(r.carIndex)
@@ -413,7 +415,7 @@ export class TriggerEngine {
     const lap = state.player.lap
     if (this.reviewLap > 0 && lap === this.reviewLap + 1 && state.player.pitStatus === 0) {
       this.tryFire(state, 'lap_review', 'normal', 'lap_review',
-        'Lap completed. Review pace, fuel projection, tyre/energy trends, rivals and previous instruction outcome. Speak only if the next decision changes; otherwise HOLD.')
+        'Lap completed. Review pace, fuel projection, tyre/energy trends, rivals and previous instruction outcome. Only call speak_radio if the next decision changes; otherwise return no text.')
     }
     this.reviewLap = lap
   }

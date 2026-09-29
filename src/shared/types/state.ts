@@ -231,6 +231,9 @@ export interface TrackPosition {
   worldX?: number
   worldY?: number
   worldZ?: number
+  /** Receipt time of Motion coordinates, independent of LapData freshness. */
+  motionUpdatedAt?: number
+  speedUpdatedAt?: number
 }
 
 export interface RaceState {

@@ -11,7 +11,7 @@ type Rival = RaceState['rivals'][number]
 type YieldInvalidation = (state: RaceState, firing: TriggerFiring) => void
 
 const yieldInvalidations: Array<[string, YieldInvalidation]> = [
-  ['the rival has passed', (state) => { state.rivals[1].lapDistancePct = 0.03 }],
+  ['the rival has passed', (state) => { state.rivals[1].distanceFromStartM = 150 }],
   ['the rival entered the pits', (state) => { state.rivals[1].pitStatus = 1 }],
   ['the rival telemetry is stale', (state) => { state.rivals[1].lapDataUpdatedAt = START_TIME - 2_501 }],
   ['the player telemetry is stale', (state) => { state.player.lapDataUpdatedAt = START_TIME - 2_501 }],
@@ -46,6 +46,7 @@ function qualifyingState(phase: 'out' | 'in' | 'cooling' | 'flying' | 'unknown' 
   state.player.carIndex = 0
   state.player.lap = 3
   state.player.lapDistancePct = 0.02
+  state.player.distanceFromStartM = 100
   state.player.lapPhase = phase
   state.player.lapDataUpdatedAt = Date.now()
   state.player.onTrack = true
@@ -88,14 +89,17 @@ function addRival(state: RaceState, overrides: Partial<Rival> = {}): void {
     lapDataUpdatedAt: Date.now(),
     ...overrides
   }
+  state.rivals[1].distanceFromStartM = state.rivals[1].lapDistancePct * state.session.trackLengthM
 }
 
 function refreshTelemetry(state: RaceState, rivalDistance = state.rivals[1]?.lapDistancePct): void {
   const now = Date.now()
   state.player.lapDataUpdatedAt = now
+  state.player.distanceFromStartM = state.player.lapDistancePct * state.session.trackLengthM
   if (state.rivals[1]) {
     state.rivals[1].lapDataUpdatedAt = now
     if (rivalDistance != null) state.rivals[1].lapDistancePct = rivalDistance
+    state.rivals[1].distanceFromStartM = state.rivals[1].lapDistancePct * state.session.trackLengthM
   }
 }
 

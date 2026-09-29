@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { StateAggregator } from './StateAggregator'
+import { relativePosition } from '../engineer/SpatialAwareness'
 
 function lapDataPacket(playerTotal: number, playerLapDistance: number, rivals: Array<{
   index: number; total: number; lapDistance: number; delta: number; position: number; lap: number
@@ -46,6 +47,40 @@ function telemetryPacket(speeds: Record<number, number>) {
 }
 
 describe('gap and separation precision', () => {
+  it.each([0, 1])('invalidates fresh ranking and its timing chain when car %i loses its position', car => {
+    const agg = new StateAggregator()
+    agg.onSession(sessionPacket(5000) as never)
+    const packet = lapDataPacket(10100, 100, [
+      { index: 1, total: 10020, lapDistance: 20, delta: 1400, position: 2, lap: 3 }
+    ], 1)
+    agg.onLapData(packet as never)
+    expect(agg.getState().rivals[1].gapToPlayerS).toBeCloseTo(-1.4)
+    packet.m_lapData[car].m_carPosition = 0
+    agg.onLapData(packet as never)
+    const state = agg.getState()
+    expect(state.rivals[car].position).toBe(0)
+    if (car === 0) expect(state.player.position).toBe(0)
+    expect(state.rivals[1].gapToPlayerS).toBeNull()
+    expect(relativePosition(state, state.rivals[car]).classificationPosition).toBeNull()
+    expect(relativePosition(state, state.rivals[1]).shortestArcDistanceM).toBe(80)
+  })
+
+  it('never restarts a broken timing chain further ahead or behind', () => {
+    for (const direction of ['ahead', 'behind']) {
+      const agg = new StateAggregator()
+      agg.onSession(sessionPacket(5000) as never)
+      const ahead = direction === 'ahead'
+      agg.onLapData(lapDataPacket(100000, 1000, [
+        { index: 1, total: ahead ? 100400 : 99600, lapDistance: ahead ? 1400 : 600,
+          delta: ahead ? 1000 : 70, position: 2, lap: 3 },
+        { index: 2, total: ahead ? 100480 : 99520, lapDistance: ahead ? 1480 : 520,
+          delta: ahead ? 0 : 1000, position: ahead ? 1 : 3, lap: 3 }
+      ], ahead ? 3 : 1, ahead ? 70 : 0) as never)
+      expect(agg.getState().rivals[1].gapToPlayerS).toBeNull()
+      expect(agg.getState().rivals[2].gapToPlayerS).toBeNull()
+    }
+  })
+
   it('recognises a sprint only from a valid weekend structure with a second race', () => {
     const agg = new StateAggregator()
     const packet = sessionPacket(5000)

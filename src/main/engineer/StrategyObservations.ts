@@ -1,4 +1,5 @@
 import type { RaceState, RivalState } from '@shared/types/state'
+import { relativePosition } from './SpatialAwareness'
 
 type Phase = 'GREEN' | 'VSC' | 'SC' | 'OTHER'
 type Reference = { gap: number; pits: number }
@@ -65,12 +66,10 @@ export class StrategyObservations {
     const lines = [`Pit strategy regime: ${phase(state)}. Keep GREEN/VSC/SC losses separate; no default pit-loss seconds.`]
     const length = state.session.trackLengthM
     if (Number.isFinite(length) && length > 0 && state.player.onTrack && state.player.pitStatus === 0) {
-      const playerDistance = state.player.distanceFromStartM
       const traffic = Object.values(state.rivals).filter(r => r.carIndex !== state.player.carIndex &&
         r.status === 'running' && r.pitStatus === 0)
-        .map(r => validLapDistance(playerDistance, length) && validLapDistance(r.distanceFromStartM, length)
-          ? { r, metres: shortestTrackSeparation(r.distanceFromStartM - playerDistance, length) }
-          : null)
+        .map(r => { const metres = relativePosition(state, r).trackRelativeSeparationM
+          return metres == null ? null : { r, metres } })
         .filter((entry): entry is { r: RivalState; metres: number } => entry != null &&
           Number.isFinite(entry.metres) && Math.abs(entry.metres) > 0 &&
           Math.abs(entry.metres) < Math.min(1000, length / 2))
@@ -93,14 +92,6 @@ export class StrategyObservations {
   reset(): void { this.previous = null; this.entry = null; this.stops = [] }
 }
 
-function shortestTrackSeparation(deltaM: number, lengthM: number): number {
-  const forward = ((deltaM % lengthM) + lengthM) % lengthM
-  return forward > lengthM / 2 ? forward - lengthM : forward
-}
-function validLapDistance(distanceM: number | null, lengthM: number): distanceM is number {
-  return distanceM != null && Number.isFinite(distanceM) &&
-    distanceM >= -lengthM && distanceM <= lengthM * 2
-}
 function phase(state: RaceState): Phase {
   if (state.session.isRedFlag || state.session.trackFlag === 'red') return 'OTHER'
   if (state.session.isSafetyCar) return 'SC'

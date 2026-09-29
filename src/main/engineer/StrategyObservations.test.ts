@@ -16,11 +16,12 @@ function sample(pit = 0, loss = 0, time = 1000) {
   s.player.distanceFromStartM = 4900
   s.player.pitStatus = pit
   s.player.onTrack = true
+  s.player.lapDataUpdatedAt = Date.now()
   for (const id of [1, 2]) {
     s.rivals[id] = {
       carIndex: id, position: id + 1, lap: 3, lapDistancePct: id === 1 ? 0.02 : 0.94,
       distanceFromStartM: id === 1 ? 100 : 4700,
-      gapToPlayerS: -5 * id + loss, pitStopCount: 0, pitStatus: 0, status: 'running'
+      gapToPlayerS: -5 * id + loss, pitStopCount: 0, pitStatus: 0, status: 'running', lapDataUpdatedAt: Date.now()
     } as RivalState
   }
   return s

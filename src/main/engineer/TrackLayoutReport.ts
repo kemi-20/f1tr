@@ -1,110 +1,88 @@
 import type { RaceState } from '@shared/types/state'
-import type { TrackLayout } from '@shared/util/trackLayout'
-import {
-  distanceToNextZone, drsZoneAt, getTrackLayout, nearestOvertakePoint, pitDistance,
-  sectorAt, trackLengthDisagrees, wrapDistance
-} from '@shared/util/trackLayout'
+import { getTrackLayout, sectorAt, drsZoneAt, pitDistance, trackLengthDisagrees, wrapDistance } from '@shared/util/trackLayout'
+import { sessionKind } from '@shared/util/sessionKind'
+import { relativeMotion, relativePosition, sampleAge, validCircuitDistance } from './SpatialAwareness'
 
-export const TRACK_LAYOUT_SECTIONS = ['summary', 'zones', 'positions', 'all']
+export const TRACK_LAYOUT_SECTIONS = ['summary', 'zones', 'geometry', 'positions', 'all']
+export interface TrackLayoutArgs { section?: string }
 
-export interface TrackLayoutArgs {
-  section?: string
-}
-
-/**
- * Track reference for the engineer: calibrated circuit data in official lap metres,
- * anchored to the same coordinate space as the Motion packet.
- */
-export function readTrackLayout(state: RaceState, args: TrackLayoutArgs): unknown {
-  const section = typeof args.section === 'string' ? args.section : 'all'
+/** Static map geometry and live telemetry have separate sources and freshness. */
+export function readTrackLayout(state: RaceState, args: TrackLayoutArgs, now = Date.now(), history: readonly RaceState[] = []) {
+  const section = args.section ?? 'all'
   const layout = getTrackLayout(state.session.trackId)
-  if (!layout) return { unavailable: 'no calibrated layout for this track id', trackId: state.session.trackId }
-
+  const mismatch = layout ? trackLengthDisagrees(state.session.trackLengthM, layout) : null
   const base = {
-    track: layout.name,
+    track: layout?.name ?? state.session.trackName,
     trackId: state.session.trackId,
-    officialLengthM: layout.lengthM,
+    sessionKind: sessionKind(state.session),
+    sessionUID: state.session.sessionUID,
+    frame: state.session.overallFrameIdentifier,
+    queriedAt: now,
+    telemetryAgeMs: sampleAge(state.lastPacketMs, now),
+    officialLengthM: layout?.lengthM ?? null,
     sessionReportedLengthM: state.session.trackLengthM,
-    lengthMismatch: trackLengthDisagrees(state.session.trackLengthM, layout),
-    note: 'distanceFromStartM and trackRelativeSeparationM describe physical circuit location. forwardCircuitDistanceM and backwardCircuitDistanceM give both paths around the loop; neither proves who is closing. totalDistanceM and raceDistanceSeparationM describe cumulative race progress, including whole laps. Race position and timing-chain gap are separate again. A zone whose end is below its start wraps the line.'
+    lengthMismatch: mismatch,
+    referenceLengthDifferenceM: layout ? state.session.trackLengthM - layout.lengthM : null,
+    zoneMappingAccuracy: 'Approximate reference: length differences up to 1% are tolerated, not exact calibration. Locations near zone boundaries may be ambiguous; use live game flags for availability.',
+    mapAvailable: layout != null,
+    definitions: {
+      physical: 'LapData metres on the SESSION racing loop. Forward/backward are both paths; shortest signed arc: positive=nearest ahead, negative=nearest behind. Not a time gap, travel direction or closing speed. Pit/garage/stale pairs are not comparable.',
+      timing: 'raceTimingGapToPlayerS: positive=rival leads, negative=rival trails; null outside races or when chain unavailable. bestLapDeltaToPlayerS: rival best minus player best, negative=faster; independent of track location. rankingDisplayDeltaS uses the UI sign: negative=ahead/faster.',
+      reference: 'Best-lap comparison requires a recorded player best. No time is null, not zero. Position 1 on a practice timing sheet is not the car physically ahead.',
+      geometry: 'Static reference derived from bundled track JSON, not live telemetry. Ordered world X/Z polyline covers the full loop at reduced resolution. No surveyed corner numbers or road width. Never infer side-by-side clearance from it. Live LapData remains the physical-distance source even if map calibration disagrees.'
+    }
   }
+  const summary = { sectorStartsM: layout?.sectorStartsM ?? null, pitEntryM: layout?.pitEntryM ?? null,
+    pitExitM: layout?.pitExitM ?? null, pitLaneLengthM: layout?.pitLaneLengthM ?? null }
+  const zones = { drsZones: layout?.drsZones ?? [], activeAeroFullZones: layout?.activeAeroFullZones ?? [],
+    activeAeroPartialZones: layout?.activeAeroPartialZones ?? [], overtakePointsM: layout?.overtakePointsM ?? [],
+    marshalZones: layout?.marshalZones ?? [] }
+  const geometry = layout ? { source: 'bundled track JSON, uniformly resampled full circuit',
+    axes: ['worldX', 'worldZ'], pointCount: layout.line.length, line: layout.line,
+    metresPerWorldUnit: layout.metresPerUnit,
+    nominalSampleSpacingM: layout.lengthM / (layout.line.length - 1),
+    closed: true, startFinishPoint: layout.line[0] } : null
+  if (section === 'summary') return { ...base, ...summary }
+  if (section === 'zones') return { ...base, ...zones }
+  if (section === 'geometry') return { ...base, geometry }
 
-  if (section === 'summary') {
-    return { ...base, sectorStartsM: layout.sectorStartsM, pitEntryM: layout.pitEntryM,
-      pitExitM: layout.pitExitM, pitLaneLengthM: layout.pitLaneLengthM }
+  const describe = (carIndex: number, distanceM: number | null, ts: number | undefined, pitStatus: number) => {
+    const age = sampleAge(ts, now)
+    const fresh = !state.flashbackActive && age != null && age <= 2500
+    const valid = fresh && validCircuitDistance(distanceM, state.session.trackLengthM)
+    const d = valid ? wrapDistance(distanceM, state.session.trackLengthM) : null
+    const point = state.trackPositions.find(p => p.carIndex === carIndex)
+    const motionAge = sampleAge(point?.motionUpdatedAt, now)
+    const motionFresh = !state.flashbackActive && motionAge != null && motionAge <= 2500
+    const speedAge = sampleAge(point?.speedUpdatedAt, now)
+    const mapped = d != null && layout && mismatch === false && pitStatus === 0
+    return { carIndex, distanceFromStartM: d, lapDataAgeMs: age,
+      worldPosition: motionFresh && Number.isFinite(point?.worldX) && Number.isFinite(point?.worldZ)
+        ? { x: point!.worldX, y: point!.worldY ?? null, z: point!.worldZ } : null,
+      motionAgeMs: motionAge,
+      speedKmh: !state.flashbackActive && speedAge != null && speedAge <= 2500 &&
+        Number.isFinite(point?.speedKmh) ? point!.speedKmh : null,
+      speedAgeMs: speedAge,
+      sector: mapped ? `S${sectorAt(d, layout) + 1}` : null,
+      drsZone: mapped ? drsZoneAt(d, layout) : null,
+      metresToPitEntry: mapped ? pitDistance(d, layout) : null,
+      metresToStartFinish: d == null ? null : (state.session.trackLengthM - d) % state.session.trackLengthM }
   }
-
-  if (section === 'zones') {
-    return { ...base, drsZones: layout.drsZones, activeAeroFullZones: layout.activeAeroFullZones,
-      activeAeroPartialZones: layout.activeAeroPartialZones, overtakePointsM: layout.overtakePointsM,
-      marshalZoneCount: layout.marshalZones.length }
-  }
-
+  const p = state.player
   const positions = {
-    player: describeCar('PLAYER', state.player.distanceFromStartM, state.player.totalDistanceM,
-      state.player.lap, state.player.speedKmh, layout),
-    rivals: Object.values(state.rivals)
-      .filter(r => r.carIndex !== state.player.carIndex && validLapDistance(r.distanceFromStartM, layout.lengthM))
-      .map(r => ({
-        ...describeCar(r.name || r.driverCode || `car${r.carIndex}`, r.distanceFromStartM,
-          r.totalDistanceM, r.lap, state.trackPositions.find(p => p.carIndex === r.carIndex)?.speedKmh ?? 0, layout),
-        carIndex: r.carIndex,
-        racePosition: r.position,
-        pitStatus: r.pitStatus,
-        lapPhase: r.lapPhase ?? null,
-        onTrack: r.status === 'running' && r.pitStatus === 0,
-        lapDataAgeMs: r.lapDataUpdatedAt != null ? Math.max(0, Date.now() - r.lapDataUpdatedAt) : null,
-        lapDifference: r.lap - state.player.lap,
-        raceDistanceSeparationM: r.separationFromPlayerM != null ? Math.round(r.separationFromPlayerM) : null,
-        trackRelativeSeparationM: r.trackRelativeSeparationM != null ? Math.round(r.trackRelativeSeparationM) : null,
-        ...circuitPaths(state.player.distanceFromStartM, r.distanceFromStartM, layout.lengthM)
-      }))
+    player: { ...describe(p.carIndex, p.distanceFromStartM, p.lapDataUpdatedAt, p.pitStatus),
+      lap: p.lap, racePosition: p.position > 0 ? p.position : null, onTrack: p.onTrack && p.pitStatus === 0,
+      totalDistanceM: p.totalDistanceM, pitStatus: p.pitStatus, lapPhase: p.lapPhase ?? 'unknown',
+      lapPhaseEvidence: p.lapPhaseEvidence ?? null, currentLapInvalid: p.currentLapInvalid ?? null,
+      bestLapTimeS: p.bestLapTimeS },
+    rivals: Object.values(state.rivals).filter(r => r.carIndex !== p.carIndex).slice(0, 24).map(r => ({
+      ...relativePosition(state, r, now),
+      ...describe(r.carIndex, r.distanceFromStartM, r.lapDataUpdatedAt, r.pitStatus),
+      totalDistanceM: r.totalDistanceM, lap: r.lap, pitStatus: r.pitStatus,
+      lastLapTimeS: r.lastLapTimeS, currentLapTimeS: r.currentLapTimeS,
+      motion: relativeMotion(history, r.carIndex, now)
+    }))
   }
   if (section === 'positions') return { ...base, positions }
-
-  return {
-    ...base,
-    sectorStartsM: layout.sectorStartsM,
-    pitEntryM: layout.pitEntryM,
-    pitExitM: layout.pitExitM,
-    drsZones: layout.drsZones,
-    overtakePointsM: layout.overtakePointsM,
-    positions
-  }
-}
-
-function describeCar(name: string, distanceM: number | null, totalM: number | null,
-  lap: number, speedKmh: number, layout: TrackLayout) {
-  if (distanceM == null) return { name, distanceFromStartM: null, note: 'position unavailable' }
-  if (!validLapDistance(distanceM, layout.lengthM)) {
-    return { name, distanceFromStartM: null, note: 'invalid lap distance' }
-  }
-  const d = wrapDistance(distanceM, layout.lengthM)
-  return {
-    name,
-    distanceFromStartM: Math.round(d),
-    lap,
-    totalDistanceM: totalM != null ? Math.round(totalM) : null,
-    sector: `S${sectorAt(d, layout) + 1}`,
-    lapPercent: Math.round((d / layout.lengthM) * 100),
-    drsZone: drsZoneAt(d, layout),
-    metresToNextDrsZone: distanceToNextZone(d, layout.drsZones, layout.lengthM),
-    metresToPitEntry: pitDistance(d, layout),
-    nearestOvertakePointM: nearestOvertakePoint(d, layout),
-    speedKmh: speedKmh > 0 ? Math.round(speedKmh) : null,
-    speedMPerS: speedKmh > 20 ? Math.round((speedKmh / 3.6) * 10) / 10 : null
-  }
-}
-
-function validLapDistance(distanceM: number | null, lengthM: number): distanceM is number {
-  return distanceM != null && Number.isFinite(distanceM) &&
-    distanceM >= -lengthM && distanceM <= lengthM * 2
-}
-
-function circuitPaths(playerM: number | null, rivalM: number | null, lengthM: number) {
-  if (!validLapDistance(playerM, lengthM) || !validLapDistance(rivalM, lengthM)) {
-    return { forwardCircuitDistanceM: null, backwardCircuitDistanceM: null }
-  }
-  const forward = ((rivalM - playerM) % lengthM + lengthM) % lengthM
-  return { forwardCircuitDistanceM: Math.round(forward), backwardCircuitDistanceM: Math.round((lengthM - forward) % lengthM) }
+  return { ...base, ...summary, ...zones, geometry, positions }
 }

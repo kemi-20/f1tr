@@ -3,6 +3,7 @@ import type { RaceState, RivalState } from '@shared/types/state'
 import type { TriggerFiring } from '@shared/types/triggers'
 import { fmtLapTime, fmtGap, fmtPct } from '@shared/util/format'
 import { sessionKind } from '@shared/util/sessionKind'
+import { relativePosition } from './SpatialAwareness'
 
 const MAX_RECENT_EVENT_AGE_MS = 120_000
 
@@ -141,43 +142,45 @@ export class DigestBuilder {
     // cars immediately ahead and behind the player
     const ahead = all.filter((r) => r.position < playerPos).sort((a, b) => b.position - a.position).slice(0, count)
     const behind = all.filter((r) => r.position > playerPos).sort((a, b) => a.position - b.position).slice(0, count)
-    const window = [...ahead, ...behind]
+    const nearby = all.filter(r => r.carIndex !== state.player.carIndex)
+      .map(r => ({ r, metres: relativePosition(state, r).shortestArcDistanceM }))
+      .filter((entry): entry is { r: RivalState; metres: number } => entry.metres != null && entry.metres < 1000)
+      .sort((a, b) => a.metres - b.metres).slice(0, 4).map(entry => entry.r)
+    const window = [...new Map([...ahead, ...behind, ...nearby].map(r => [r.carIndex, r])).values()]
     return window.map((r) => ({
       pos: r.position,
       name: (r.name || `car${r.carIndex}`).toUpperCase(),
       tyre: r.tyreCompound,
       gap: this.isRaceSession(state) ? this.fmtRivalGap(state, r)
-        : `best valid ${fmtLapTime(r.bestLapTimeS != null && r.bestLapTimeS > 0 ? r.bestLapTimeS * 1000 : null)}`,
+        : this.fmtBestLapGap(state, r),
       pits: r.pitStopCount,
       pen: r.penaltiesS > 0 ? `${r.penaltiesS}s` : undefined,
       note:
         r.status === 'retired'
           ? 'DNF'
-          : r.pitStatus === 2
+          : r.pitStatus !== 0
             ? 'in pit'
-            : r.trackRelativeSeparationM != null
-              ? `${Math.round(Math.abs(r.trackRelativeSeparationM))}m ${r.trackRelativeSeparationM > 0 ? 'ahead' : 'behind'} on circuit (race-distance difference ${r.separationFromPlayerM != null ? `${Math.round(r.separationFromPlayerM)}m` : 'unknown'})`
-              : undefined
+            : this.fmtPhysicalGap(state, r)
     }))
   }
 
-  /**
-   * Prefer physical distance. The game's timing chain glitches at the line, so a sub-second
-   * "gap" between cars that are clearly far apart is reported as a distance instead.
-   */
+  private fmtPhysicalGap(state: RaceState, r: RivalState): string {
+    const relative = relativePosition(state, r)
+    return relative.shortestArcDistanceM != null
+      ? `physical shortest arc ${Math.round(relative.shortestArcDistanceM)}m ${relative.nearestDirection}; lap difference ${relative.lapDifference}; phase ${relative.lapPhase}. Not a timing gap or catch ETA.`
+      : 'physical proximity unavailable (check get_track_layout positions)'
+  }
+
+  private fmtBestLapGap(state: RaceState, r: RivalState): string {
+    const relative = relativePosition(state, r)
+    const delta = relative.bestLapDeltaToPlayerS
+    return `best valid ${fmtLapTime(relative.bestLapTimeS != null ? relative.bestLapTimeS * 1000 : null)}; best-lap delta to player ${delta == null ? 'unavailable' : `${delta >= 0 ? '+' : ''}${delta.toFixed(3)}s (negative=faster)`}`
+  }
+
   private fmtRivalGap(state: RaceState, r: RivalState): string {
-    const separation = r.separationFromPlayerM
-    if (separation == null) return r.gapToPlayerS != null ? fmtGap(r.gapToPlayerS) : '--'
-    if (Math.abs(separation) >= state.session.trackLengthM && state.session.trackLengthM > 0) {
-      return `${Math.trunc(Math.abs(separation) / state.session.trackLengthM)} lap(s)`
-    }
-    const playerSpeed = state.player.speedKmh > 20 ? state.player.speedKmh / 3.6 : null
-    const gap = r.gapToPlayerS
-    // A gap that is physically impossible for the distance is a timing glitch: keep metres.
-    if (gap == null || (playerSpeed != null && Math.abs(gap) < Math.abs(separation) / playerSpeed * 0.5)) {
-      return `${Math.round(Math.abs(separation))}m race distance`
-    }
-    return fmtGap(gap)
+    const relative = relativePosition(state, r)
+    const gap = relative.raceTimingGapToPlayerS
+    return gap == null ? 'race timing unavailable' : `race timing ${Math.abs(gap).toFixed(2)}s ${gap > 0 ? 'ahead' : gap < 0 ? 'behind' : 'level'}`
   }
 
   private fmtAheadGap(state: RaceState): string | undefined {
@@ -186,7 +189,7 @@ export class DigestBuilder {
     if (!ahead) return undefined
     // use the ahead car's gapToPlayerS (cumulative from player = correct), or the
     // player's own deltaToCarInFrontS for the directly-adjacent car
-    const gap = ahead.gapToPlayerS
+    const gap = relativePosition(state, ahead).raceTimingGapToPlayerS
     if (gap == null || gap === 0) return undefined
     return `${fmtGap(gap)} to ${ahead.name || 'ahead'}`
   }
@@ -195,7 +198,7 @@ export class DigestBuilder {
     const playerPos = state.player.position
     const behind = Object.values(state.rivals).find((r) => r.position === playerPos + 1)
     if (!behind) return undefined
-    const gap = behind.gapToPlayerS
+    const gap = relativePosition(state, behind).raceTimingGapToPlayerS
     if (gap == null || gap === 0) return undefined
     return `${fmtGap(Math.abs(gap))} to ${behind.name || 'behind'}`
   }

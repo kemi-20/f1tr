@@ -37,7 +37,7 @@ describe('rankRivalsByBestLap', () => {
     expect(result[2].deltaS).toBeCloseTo(1.2)
   })
 
-  it('uses the fastest valid lap as the reference when the player has no valid lap', () => {
+  it('does not silently change the reference to the leader when the player has no valid lap', () => {
     const result = rankRivalsByBestLap(
       [rival(2, 2, 92.75), rival(1, 1, null), rival(3, 3, 94)],
       1,
@@ -45,8 +45,8 @@ describe('rankRivalsByBestLap', () => {
     )
 
     expect(result.map(({ rival: entry, rank, deltaS }) => [entry.carIndex, rank, deltaS])).toEqual([
-      [2, 1, 0],
-      [3, 2, 1.25],
+      [2, 1, null],
+      [3, 2, null],
       [1, null, null]
     ])
   })

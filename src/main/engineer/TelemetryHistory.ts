@@ -128,6 +128,15 @@ export class TelemetryHistory {
     return latest ? tryParseState(latest.data) : null
   }
 
+  /** Short bounded 2 Hz window for motion evidence, separate from 5-second trend pages. */
+  recentPositionStates(now = Date.now()): RaceState[] {
+    const latest = this.samples.at(-1)
+    if (!latest) return []
+    return this.samples.slice(-7).filter(sample => sample.sessionKey === latest.sessionKey &&
+      sample.ts <= now && now - sample.ts <= 3000)
+      .flatMap(sample => { const state = tryParseState(sample.data); return state ? [state] : [] })
+  }
+
   readHistory(section: string, offset: number, limit: number): unknown {
     const recent: Sample[] = []
     for (let i = this.samples.length - 1; i >= 0; i--) {

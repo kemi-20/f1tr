@@ -17,6 +17,11 @@ export function forwardDistance(from: number, to: number, length: number): numbe
   return wrapDistance(to - from, length)
 }
 
+export function validCircuitDistance(value: number | null, length: number): value is number {
+  return value != null && Number.isFinite(value) && Number.isFinite(length) && length > 0 &&
+    value >= -length && value <= length * 2
+}
+
 export function sectorAt(metres: number, layout: TrackLayout): 0 | 1 | 2 {
   const d = wrapDistance(metres, layout.lengthM)
   return d < layout.sectorStartsM[1] ? 0 : d < layout.sectorStartsM[2] ? 1 : 2

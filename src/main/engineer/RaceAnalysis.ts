@@ -175,12 +175,15 @@ export class RaceAnalysis {
           if (!Number.isFinite(wear) || wear < 0 || wear > 100) continue
           const projected = wear + rate * remaining
           lines.push(`${corner.toUpperCase()} wear: ${wear.toFixed(1)}% now, +${rate.toFixed(2)}pp/lap over ${samples.length} comparable laps; no-stop linear finish projection ${projected.toFixed(1)}%. ${projected > 100 ? 'Beyond physical range: this extrapolation cannot support staying out.' : 'Not a safety guarantee or puncture threshold.'}`)
+          const rates = samples.map(lap => lap.cornerWearAdded[corner])
+          lines.push(`${corner.toUpperCase()} observed-rate sensitivity: ${(wear + Math.min(...rates) * remaining).toFixed(1)}-${(wear + Math.max(...rates) * remaining).toFixed(1)}% at flag. Range uses sampled minimum/maximum rates, NOT a statistical confidence interval; pace and handling still decide whether extending is worthwhile.`)
         }
       }
       const fuelSamples = samples.map(l => l.fuelUsed).filter((v): v is number => v != null)
       if (fuelSamples.length >= 3 && p.fuelRemainingKg != null && Number.isFinite(p.fuelRemainingKg) && remaining != null && remaining > 0) {
         const rate = fuelSamples.reduce((a, b) => a + b, 0) / fuelSamples.length
         const projected = p.fuelRemainingKg - rate * remaining
+        lines.push(`Fuel burn observed range ${Math.min(...fuelSamples).toFixed(2)}-${Math.max(...fuelSamples).toFixed(2)}kg/lap; flag-fuel sensitivity ${(p.fuelRemainingKg - Math.max(...fuelSamples) * remaining).toFixed(2)}-${(p.fuelRemainingKg - Math.min(...fuelSamples) * remaining).toFixed(2)}kg. Scenario range, not a guaranteed reserve.`)
         if (margin != null && margin >= 0.25 && projected > 0) {
           lines.push('Historical fuel cross-check also projects positive fuel at the flag. No fuel-saving instruction is warranted at the current rate; avoid repeating this status unless it changes.')
         } else {

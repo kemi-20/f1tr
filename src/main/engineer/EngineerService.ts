@@ -9,6 +9,7 @@ import type { RaceState } from '@shared/types/state'
 import type { LanguageMode } from '@shared/constants/voices'
 import { logger } from '../logging/Logger'
 import { holdQualifyingRadio, qualifyingYieldStillRelevant } from '@shared/util/lapPhase'
+import { relativeMotion } from './SpatialAwareness'
 
 /**
  * EngineerService — orchestrates digest -> advice -> UI streaming + (later) TTS enqueue.
@@ -40,10 +41,21 @@ export class EngineerService {
 
   observeRadioState(state: RaceState): void {
     if (this.lastRadioFiring && (holdQualifyingRadio(state, this.lastRadioFiring) ||
-        !qualifyingYieldStillRelevant(state, this.lastRadioFiring))) {
+        !this.trafficStillRelevant(state, this.lastRadioFiring))) {
       this.onInterrupt()
       this.lastRadioFiring = null
     }
+  }
+
+  private trafficStillRelevant(state: RaceState, firing: TriggerFiring): boolean {
+    if (!qualifyingYieldStillRelevant(state, firing)) return false
+    if (firing.reasonCode !== 'qualifying_yield') return true
+    const ts = state.player.lapDataUpdatedAt ?? 0
+    const states = this.telemetryHistory.recentPositionStates().filter(s =>
+      (s.player.lapDataUpdatedAt ?? 0) <= ts - 100)
+    const motion = relativeMotion([...states, state], Number(firing.ruleId.replace(/^qualifying_yield_/, '')))
+    return motion.closingMps != null && motion.closingMps >= 5 &&
+      motion.catchEstimateS != null && motion.catchEstimateS <= 12
   }
 
   /** P3 injects the real LLM backend here; null = stub mode. */
@@ -79,7 +91,7 @@ export class EngineerService {
   acceptRadio(text: string, firing: TriggerFiring): void {
     const current = this.latestState?.()
     if (current && holdQualifyingRadio(current, firing)) throw new Error('Radio held: driver is on a qualifying flying lap or phase is uncertain. Remain silent; reconsider after the push lap.')
-    if (current && !qualifyingYieldStillRelevant(current, firing)) throw new Error('Traffic warning expired or car no longer approaching behind. Remain silent.')
+    if (current && !this.trafficStillRelevant(current, firing)) throw new Error('Traffic warning expired or fresh relative motion no longer confirms an approaching car. Remain silent.')
     this.lastRadioFiring = firing
     this.lastToolRadio = text
     if (current) this.analysis.noteRadio(current, text)

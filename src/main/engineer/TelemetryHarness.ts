@@ -12,7 +12,7 @@ const paging = {
 export const TELEMETRY_TOOLS = [
   tool('get_race_state', 'Read latest complete normalized telemetry: all cars, player tyres/temperatures/damage/setup/energy, weather, flags and positions. Returned ts is capture time, not execution time.', { section: sectionProperty }, ['section']),
   tool('get_track_layout', 'Read circuit sectors/zones plus each car\'s lap location, signed physical circuit separation, cumulative race-distance separation, lap difference, pit/phase and speed. Use before naming a location or assessing traffic. Physical proximity and race-order gap are different.', {
-    section: { type: 'string', enum: ['summary', 'zones', 'positions', 'all'], description: 'Pick the narrowest section you need.' }
+    section: { type: 'string', enum: TRACK_LAYOUT_SECTIONS, description: 'geometry returns the full circuit polyline from bundled JSON. positions returns physical arcs, world positions, best-lap deltas, race timing and measured relative motion.' }
   }, []),
   tool('get_telemetry_history', 'Inspect 5-second time samples from the last 5 minutes to test temperature, gap, energy, fuel or damage trends. Fields retain their real units and nulls. Returns newest first with pagination.', paging, ['section']),
   tool('get_lap_history', 'Inspect completed-lap boundary snapshots (up to 120 retained). Use player for pace/fuel/wear trends and rivals for opponent laps/stops; all includes conditions. These are observations, not guarantees of clean laps.', paging, ['section']),
@@ -69,7 +69,10 @@ function runTool(history: TelemetryHistory, name: string, args: unknown): string
       if (typeof section !== 'string' || !TRACK_LAYOUT_SECTIONS.includes(section)) return 'Invalid telemetry section'
       const state = history.latestState()
       if (!state) return 'No live telemetry state is retained yet. Start or resume a session, then retry.'
-      return JSON.stringify({ dataOnly: true, queriedAt: Date.now(), result: readTrackLayout(state, { section }) })
+      const now = Date.now()
+      const output = JSON.stringify({ dataOnly: true, queriedAt: now,
+        result: readTrackLayout(state, { section }, now, history.recentPositionStates(now)) })
+      return new TextEncoder().encode(output).length <= 59000 ? output : 'Result exceeds context budget; select positions, geometry or zones separately.'
     }
     if (name === 'read_telemetry_packet') return history.query(a)
     const section = typeof a.section === 'string' ? a.section : ''

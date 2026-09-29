@@ -53,6 +53,7 @@ describe('2026 telemetry state', () => {
 
   it('combines split gap time and preserves millisecond lap times', () => {
     const aggregator = new StateAggregator()
+    aggregator.state.session.sessionType = 15
     const packet = parsedPacket(2026, 2)
     packet.m_lapData[0].m_carPosition = 2
     packet.m_lapData[0].m_lastLapTimeInMS = 92345
