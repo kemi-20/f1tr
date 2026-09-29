@@ -5,6 +5,7 @@ import { MiMoAsrClient } from '../engineer/MiMoAsrClient'
 import { normalizeURL } from '../config/env'
 import { logger } from '../logging/Logger'
 import type { AppConfig } from '@shared/index'
+import { getGpVoiceSample } from '../tts/GpVoiceSample'
 
 /**
  * Indirection so ipc/register.ts can reach the running AudioPipeline + MiMo client
@@ -51,7 +52,7 @@ export async function wireTts(cfg: AppConfig): Promise<void> {
   }
   // replacing a live client: abort anything in flight on the old one first
   client?.cancel()
-  client = new MiMoTtsClient({ baseURL, apiKey, model: cfg.tts.model })
+  client = new MiMoTtsClient({ baseURL, apiKey, model: cfg.tts.model, gpVoiceSample: getGpVoiceSample() })
   pipeline.setClient(client)
   asrClient = new MiMoAsrClient({ baseURL, apiKey, model: 'mimo-v2.6-flash' })
   pipeline.setPreemptOnHigh(cfg.audio.preemptOnHigh)

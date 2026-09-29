@@ -68,7 +68,7 @@ export function VoiceLanguageTab(): React.ReactElement {
         </div>
       </Field>
 
-      <Field label="工程师风格" hint="选择 src/engineer_skills 中的 GP / Bono / Bozzi / Adami skill">
+      <Field label="工程师风格" hint="影响沟通节奏与语气；比赛判断仍由统一工程师预设负责">
         <div className="grid grid-cols-2 gap-2">
           {ENGINEER_STYLES.map((s) => {
             const active = language.engineerStyle === s.id

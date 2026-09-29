@@ -8,6 +8,8 @@ import { registerHotkey } from '../hotkey/GlobalHotkeyManager'
 import { getAudio, getTtsClient, wireTts } from './ttsRef'
 import { getAsrClient } from './ttsRef'
 import { manualFiring } from '../engineer/EngineerService'
+import { chooseGpVoiceSample, clearGpVoiceSample, getGpVoiceSample } from '../tts/GpVoiceSample'
+import { getEngineerSkill } from '../engineer/EngineerSkillLibrary'
 
 /**
  * Registers all renderer->main IPC handlers.
@@ -72,7 +74,9 @@ export function registerIpc(): void {
   ipcMain.handle('config:test:tts', async () => {
     const client = getTtsClient()
     if (!client) return { ok: false, message: 'No MIMO_API_BASE_URL/MIMO_API_KEY in .env.' }
-    const TIMEOUT_MS = 15_000
+    const cfg = ConfigStore.getAll()
+    const style = cfg.language.engineerStyle
+    const TIMEOUT_MS = style === 'gp' && getGpVoiceSample() ? 65_000 : 15_000
     let timedOut = false
     try {
       let got = false
@@ -82,9 +86,10 @@ export function registerIpc(): void {
         controller.abort()
       }, TIMEOUT_MS)
       try {
-        await client.synthesize('test', 'Mia', 'test', () => {
+        await client.synthesize('Radio check. Copy.', cfg.language.voice,
+          getEngineerSkill(style).ttsDirection, () => {
           got = true
-        }, controller.signal)
+        }, controller.signal, style)
       } finally {
         clearTimeout(timer)
       }
@@ -99,6 +104,21 @@ export function registerIpc(): void {
             : `TTS error: ${(err as Error)?.message ?? err}`
       }
     }
+  })
+
+  ipcMain.handle('tts:gp-sample:status', () => getGpVoiceSample() !== null)
+  ipcMain.handle('tts:gp-sample:choose', async () => {
+    try {
+      if (!await chooseGpVoiceSample()) return { ok: false, message: '已取消选择。' }
+      await wireTts(ConfigStore.getAll())
+      return { ok: true, message: '参考音频已保存；GP 风格语音将使用 MiMo voiceclone。' }
+    } catch (error) {
+      return { ok: false, message: (error as Error).message }
+    }
+  })
+  ipcMain.handle('tts:gp-sample:clear', async () => {
+    clearGpVoiceSample()
+    await wireTts(ConfigStore.getAll())
   })
 
   ipcMain.handle('config:test:udp', async () => {

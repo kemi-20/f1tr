@@ -7,4 +7,5 @@ export interface SynthRequest {
   priority: Priority
   voice: string
   direction: string
+  style: string
 }

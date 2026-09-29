@@ -5,10 +5,19 @@ export interface MiMoConfig {
   baseURL: string // e.g. https://api.xiaomimimo.com/v1  (must include /v1)
   apiKey: string
   model: string // mimo-v2.5-tts
+  gpVoiceSample?: string | null
 }
 
-/** Hard deadline per synthesis request (a stalled upstream must not wedge the radio). */
+/** Voiceclone currently buffers the whole reply before emitting its one SSE chunk. */
 const REQUEST_TIMEOUT_MS = 30_000
+const CLONE_TIMEOUT_MS = 60_000
+const CLONE_RATE_LIMIT_COOLDOWN_MS = 60_000
+
+class MiMoHttpError extends Error {
+  constructor(readonly status: number, detail: string) {
+    super(`MiMo TTS HTTP ${status}: ${detail}`)
+  }
+}
 
 /**
  * MiMoTtsClient — synthesizes speech via Xiaomi MiMo TTS.
@@ -20,11 +29,14 @@ const REQUEST_TIMEOUT_MS = 30_000
  * Response: SSE, each chunk choices[0].delta.audio.data = base64 PCM16
  *           (24000Hz, mono, int16 LE). Terminated by `data: [DONE]`.
  *
- * MiMo's mimo-v2.5-tts low-latency streaming returns audio chunks as they are ready.
+ * Built-in TTS emits low-latency chunks; voiceclone uses the same SSE shape but
+ * currently returns its audio only after synthesis finishes.
  */
 export class MiMoTtsClient {
   /** Every in-flight synthesis, including settings tests, so cancellation is complete. */
   private activeAborts = new Set<AbortController>()
+  private cloneBlockedUntil = 0
+  private cancelGeneration = 0
 
   constructor(private config: MiMoConfig) {}
 
@@ -34,6 +46,7 @@ export class MiMoTtsClient {
 
   /** Abort the in-flight synthesis (preemption / cancel). */
   cancel(): void {
+    this.cancelGeneration++
     for (const controller of this.activeAborts) controller.abort()
     this.activeAborts.clear()
   }
@@ -48,7 +61,31 @@ export class MiMoTtsClient {
     voice: string,
     direction: string,
     onChunk: (base64Pcm16: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    style?: string
+  ): Promise<void> {
+    const gpSampleSelected = style === 'gp' && !!this.config.gpVoiceSample
+    const clone = gpSampleSelected && Date.now() >= this.cloneBlockedUntil
+    const generation = this.cancelGeneration
+    try {
+      await this.synthesizeOnce(text, voice, direction, onChunk, signal, clone, gpSampleSelected && !clone)
+    } catch (error) {
+      if (!clone || !(error instanceof MiMoHttpError) || error.status !== 429 ||
+          signal?.aborted || generation !== this.cancelGeneration) throw error
+      this.cloneBlockedUntil = Date.now() + CLONE_RATE_LIMIT_COOLDOWN_MS
+      logger.warn('MiMo voiceclone rate limited; using the configured preset voice for 60 seconds')
+      await this.synthesizeOnce(text, voice, direction, onChunk, signal, false, true)
+    }
+  }
+
+  private async synthesizeOnce(
+    text: string,
+    voice: string,
+    direction: string,
+    onChunk: (base64Pcm16: string) => void,
+    signal: AbortSignal | undefined,
+    clone: boolean,
+    forcePreset: boolean
   ): Promise<void> {
     if (!this.ready) throw new Error('MiMo TTS not configured (missing MIMO_API_BASE_URL/MIMO_API_KEY)')
     if (signal?.aborted) {
@@ -56,13 +93,14 @@ export class MiMoTtsClient {
     }
 
     const url = this.config.baseURL.replace(/\/+$/, '') + '/chat/completions'
+    const timeoutMs = clone ? CLONE_TIMEOUT_MS : REQUEST_TIMEOUT_MS
     const body = {
-      model: this.config.model,
+      model: clone ? 'mimo-v2.5-tts-voiceclone' : forcePreset ? 'mimo-v2.5-tts' : this.config.model,
       messages: [
         { role: 'user', content: direction || 'calm, decisive F1 race engineer' },
         { role: 'assistant', content: text }
       ],
-      audio: { format: 'pcm16', voice },
+      audio: { format: 'pcm16', voice: clone ? this.config.gpVoiceSample : voice },
       stream: true
     }
 
@@ -74,7 +112,7 @@ export class MiMoTtsClient {
     const timer = setTimeout(() => {
       timedOut = true
       abort.abort()
-    }, REQUEST_TIMEOUT_MS)
+    }, timeoutMs)
     // also honor an externally-supplied signal (cancellation from the pipeline)
     const onExternalAbort = (): void => abort.abort()
     signal?.addEventListener('abort', onExternalAbort, { once: true })
@@ -94,7 +132,7 @@ export class MiMoTtsClient {
 
       if (!res.ok || !res.body) {
         const errText = await res.text().catch(() => '')
-        throw new Error(`MiMo TTS HTTP ${res.status}: ${errText.slice(0, 200)}`)
+        throw new MiMoHttpError(res.status, errText.replaceAll(this.config.apiKey, '[redacted]').slice(0, 200))
       }
 
       const reader = res.body.getReader()
@@ -121,7 +159,7 @@ export class MiMoTtsClient {
     } catch (err) {
       if (timedOut) {
         logger.error('MiMo TTS timed out')
-        throw new Error(`MiMo TTS timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)
+        throw new Error(`MiMo TTS timed out after ${timeoutMs / 1000}s`)
       }
       if (this.isAbort(err)) {
         logger.info('MiMo TTS stream aborted')

@@ -25,10 +25,11 @@ export class EngineerService {
   private language: LanguageMode = 'zh'
   private voice = '冰糖'
   private direction = '冷静果断的 F1 赛车工程师语气'
+  private engineerStyle = 'gp'
   private inFlight: Promise<void> | null = null
   private activePriority: TriggerFiring['priority'] | null = null
   private pending: { state: RaceState; firing: TriggerFiring; audioBase64?: string } | null = null
-  private onSpeak: (text: string, firing: TriggerFiring, voice: string, direction: string) => void = () => {}
+  private onSpeak: (text: string, firing: TriggerFiring, voice: string, direction: string, style: string) => void = () => {}
   private onInterrupt: () => void = () => {}
   private lastToolRadio = ''
   private idleTimer: NodeJS.Timeout | null = null
@@ -57,17 +58,18 @@ export class EngineerService {
   }
 
   setEngineerStyle(style: string): void {
-    // The skill's #0 section is the MiMo TTS voice-style direction.
+    this.engineerStyle = getEngineerSkill(style).id
     this.direction = getEngineerSkill(style).ttsDirection
   }
 
   setVoice(voice: string, direction: string): void {
     this.voice = voice
-    this.direction = direction
+    if (direction && !['冷静果断的 F1 赛车工程师语气', 'calm, decisive F1 race engineer',
+      '冷静果断，遇到技术术语保留英文原词'].includes(direction)) this.direction = direction
   }
 
   /** Set the callback that speaks completed advice (wired to the AudioPipeline in P5). */
-  setSpeakHandler(cb: (text: string, firing: TriggerFiring, voice: string, direction: string) => void): void {
+  setSpeakHandler(cb: (text: string, firing: TriggerFiring, voice: string, direction: string, style: string) => void): void {
     this.onSpeak = cb
   }
 
@@ -86,7 +88,7 @@ export class EngineerService {
       id: nanoid(10), text, firing: { code: firing.reasonCode, priority: firing.priority }, ts: Date.now()
     })
     Sender.send('engineer:status', { status: 'speaking' })
-    this.onSpeak(text, firing, this.voice, this.direction)
+    this.onSpeak(text, firing, this.voice, this.direction, this.engineerStyle)
   }
 
   get currentLanguage(): LanguageMode {

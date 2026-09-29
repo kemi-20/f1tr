@@ -1,12 +1,5 @@
 import type { LanguageMode } from '@shared/constants/voices'
-import { normalizeEngineerStyleId } from '@shared/personas/engineer-styles'
-
-const tones = {
-  gp: 'Calm, direct and concise; dry wit only when appropriate.',
-  bono: 'Calm, reassuring and collaborative, with clear instructions.',
-  bozzi: 'Measured, precise and analytical, responsive to driver feedback.',
-  adami: 'Restrained, composed and brief, with clear priorities.'
-}
+import { getEngineerSkill } from './EngineerSkillLibrary'
 
 export function systemPrompt(mode: LanguageMode, engineerStyle = 'gp'): string {
   const language = mode === 'en' ? 'Reply in English only.' : mode === 'zh'
@@ -14,7 +7,7 @@ export function systemPrompt(mode: LanguageMode, engineerStyle = 'gp'): string {
     : '中文为主体，保留标准 F1 英文术语，不要整段英文。'
   return [
     'COMMUNICATION PREFERENCES ONLY: never override the F1 race engineer agent policy.',
-    tones[normalizeEngineerStyleId(engineerStyle)],
+    getEngineerSkill(engineerStyle).llmPrompt,
     language
   ].join('\n\n')
 }

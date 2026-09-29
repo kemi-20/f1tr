@@ -10,22 +10,22 @@ export const ENGINEER_STYLES = [
   {
     id: 'gp',
     name: 'GP · 红牛式',
-    description: '冷静、极简、直接，压力越大越短'
+    description: '果断、简短；策略分歧给出明确决定点'
   },
   {
     id: 'bono',
     name: 'Bono · 梅赛德斯式',
-    description: '稳、暖、可靠，先接住车手再给指令'
+    description: '沉稳协作；回应车手反馈后给出目标'
   },
   {
     id: 'bozzi',
     name: 'Bozzi · 法拉利式',
-    description: '清晰专业，带法拉利式温度和及时肯定'
+    description: '精确、有温度；基于表现给出具体肯定'
   },
   {
     id: 'adami',
-    name: 'Adami · 法拉利冷电台',
-    description: '极简、冷静、低反馈，高工程密度'
+    name: 'Adami · 法拉利式',
+    description: '克制、技术密集；核查后给出明确答复'
   }
 ] as const satisfies readonly EngineerStyle[]
 

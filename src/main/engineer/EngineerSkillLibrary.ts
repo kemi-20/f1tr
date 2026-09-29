@@ -1,61 +1,35 @@
-import gpSkill from '../../engineer_skills/gp.md?raw'
-import bonoSkill from '../../engineer_skills/bono.md?raw'
-import bozziSkill from '../../engineer_skills/bozzi.md?raw'
-import adamiSkill from '../../engineer_skills/adami.md?raw'
 import { normalizeEngineerStyleId, type EngineerStyleId } from '@shared/personas/engineer-styles'
 
 export interface EngineerSkill {
   id: EngineerStyleId
-  markdown: string
   llmPrompt: string
   ttsDirection: string
 }
 
+// Communication preferences only. Race policy, evidence and tool results outrank every style.
 const SKILLS: Record<EngineerStyleId, EngineerSkill> = {
-  gp: buildSkill('gp', gpSkill),
-  bono: buildSkill('bono', bonoSkill),
-  bozzi: buildSkill('bozzi', bozziSkill),
-  adami: buildSkill('adami', adamiSkill)
+  gp: {
+    id: 'gp',
+    llmPrompt: 'GP-inspired radio: composed, firm and economical. Lead with the decision, then the one number or observation that changes the driver\'s action. Under pressure shorten the call; acknowledge disagreement once and give a concrete alternative or decision point. Dry humour belongs only in a safe lull. Never argue, insult the driver, invent certainty, or copy a real radio exchange.',
+    ttsDirection: 'Original pit-wall voice, steady lower-mid register, crisp diction, measured quick pace. Stress the action and number. Keep urgent calls shorter and flatter; no shouting, theatrical accent or imitation of a real person.'
+  },
+  bono: {
+    id: 'bono',
+    llmPrompt: 'Bono-inspired radio: calm, collaborative and reassuring without padding. Confirm the driver\'s concern, give the immediate action and an evidence-based target. Reserve encouragement for a completed objective; when the plan changes, explain the trigger in one short sentence. Do not borrow signature catchphrases or claim to be a real engineer.',
+    ttsDirection: 'Original calm pit-wall voice, warm but restrained, clear articulation and short pauses before numbers. Give urgent commands cleanly without raising volume. Do not imitate a real person.'
+  },
+  bozzi: {
+    id: 'bozzi',
+    llmPrompt: 'Bozzi-inspired radio: precise, responsive and constructive. Connect driver feedback to the next measurable action; state a strategy choice and its condition. Offer brief, specific praise only when telemetry supports it. Keep warmth without commentary, exaggerated celebration or imitation of a real radio exchange.',
+    ttsDirection: 'Original clear pit-wall voice, moderate pace and a little warmth. Put emphasis on the actionable number; allow a slight lift for earned praise. Avoid theatrical emotion or imitation of a real person.'
+  },
+  adami: {
+    id: 'adami',
+    llmPrompt: 'Adami-inspired radio: reserved, measured and technically dense. State the verified status, required action and next update point. If checking something, say what is being checked and return with the answer; never use repeated "we are checking" or silence to evade a driver question. Do not invent strategy codes or imitate a real radio exchange.',
+    ttsDirection: 'Original reserved pit-wall voice, even pacing, clean numbers and a neutral ending. Keep calls short but intelligible; do not imitate a real person.'
+  }
 }
 
 export function getEngineerSkill(id?: string): EngineerSkill {
   return SKILLS[normalizeEngineerStyleId(id)]
-}
-
-function buildSkill(id: EngineerStyleId, markdown: string): EngineerSkill {
-  const ttsDirection = extractNumberedSection(markdown, 0) || 'calm, concise F1 race engineer radio voice'
-  return {
-    id,
-    markdown,
-    llmPrompt: [
-      'ENGINEER STYLE SKILL:',
-      'Follow the following skill as the selected race-engineer communication style.',
-      'Do not claim to be a real person or real team employee; imitate only the generalized radio communication style described here.',
-      markdown.trim()
-    ].join('\n\n'),
-    ttsDirection
-  }
-}
-
-function extractNumberedSection(markdown: string, sectionNumber: number): string {
-  const lines = markdown.replace(/\r\n/g, '\n').split('\n')
-  const startPattern = new RegExp(`^#\\s*${sectionNumber}(?:\\.|\\b)`)
-  const nextTopLevelPattern = /^#\s+\d+(?:\.|\b)/
-  const start = lines.findIndex((line) => startPattern.test(line.trim()))
-  if (start === -1) return ''
-
-  let end = lines.length
-  for (let i = start + 1; i < lines.length; i++) {
-    const line = lines[i].trim()
-    if (nextTopLevelPattern.test(line)) {
-      end = i
-      break
-    }
-  }
-
-  return lines
-    .slice(start + 1, end)
-    .filter((line) => !/^---+$/.test(line.trim()))
-    .join('\n')
-    .trim()
 }
