@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRaceStore } from '../../store'
 import { getTrack } from '@shared/index'
 import { CALIBRATED_TRACK_MAPS, type CalibratedTrackMap, type TrackBounds, type TrackPoint } from './trackMapAssets'
@@ -15,8 +15,20 @@ export function TrackMap(): React.ReactElement {
   const track = getTrack(trackId)
   const positions = race?.trackPositions ?? []
   const trackMap = CALIBRATED_TRACK_MAPS[trackId]
-  const geometry = useMemo(() => (trackMap ? buildGeometry(trackMap) : null), [trackMap])
-  const marker = geometry ? markerSize(geometry.bounds) : 1
+  const viewport = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ width: 600, height: 360 })
+  useEffect(() => {
+    const element = viewport.current
+    if (!element) return
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      if (width > 0 && height > 0) setSize({ width, height })
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  const geometry = useMemo(() => (trackMap ? buildGeometry(trackMap, size) : null), [trackMap, size])
+  const marker = geometry?.marker ?? 1
 
   return (
     <div className="glass relative flex h-full flex-col p-4">
@@ -25,7 +37,7 @@ export function TrackMap(): React.ReactElement {
         <span className="text-[9px] text-white/30">{track?.country}</span>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden">
+      <div ref={viewport} className="relative min-h-0 flex-1 overflow-hidden">
         {geometry ? (
           <svg viewBox={geometry.viewBox} className="absolute inset-0 block h-full w-full" preserveAspectRatio="xMidYMid meet">
             <g>
@@ -33,7 +45,7 @@ export function TrackMap(): React.ReactElement {
                 points={geometry.fusedPoints}
                 fill="none"
                 stroke="rgba(6,12,18,0.96)"
-                strokeWidth={marker * 3.3}
+                strokeWidth={marker * 2.7}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
@@ -41,7 +53,7 @@ export function TrackMap(): React.ReactElement {
                 points={geometry.fusedPoints}
                 fill="none"
                 stroke="rgba(250,252,255,0.98)"
-                strokeWidth={marker * 1.25}
+                strokeWidth={marker * 1.95}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
@@ -62,7 +74,7 @@ export function TrackMap(): React.ReactElement {
                   points={line}
                   fill="none"
                   stroke={SECTOR_STROKES[idx]}
-                  strokeWidth={marker * 0.7}
+                  strokeWidth={marker * 1.15}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
@@ -78,7 +90,7 @@ export function TrackMap(): React.ReactElement {
               />
             </g>
 
-            {positions.map((p) => {
+            {[...positions].sort((a, b) => Number(a.isPlayer) - Number(b.isPlayer)).map((p) => {
               const pt = pointForPosition(p, geometry)
               if (!pt) return null
               const isP = p.isPlayer
@@ -126,6 +138,7 @@ export function TrackMap(): React.ReactElement {
 }
 
 interface TrackGeometry {
+  marker: number
   bounds: TrackBounds
   sourceBounds: TrackBounds
   sourceFused: TrackPoint[]
@@ -146,18 +159,23 @@ const SECTOR_STROKES = [
   'rgba(34,197,94,0.42)'
 ] as const
 
-function buildGeometry(trackMap: CalibratedTrackMap): TrackGeometry {
-  const project = displayProjection(trackMap)
+function buildGeometry(trackMap: CalibratedTrackMap, size: { width: number; height: number }): TrackGeometry {
+  const project = displayProjection(trackMap, size)
   const fused = trackMap.fusedLine.map(project)
-  const bounds = projectedBounds(trackMap.bounds, project)
+  const bounds = lineBounds([...fused, ...(trackMap.pitLine ?? []).map(project)])
+  // Reserve screen-space room for the player halo, independent of track length.
+  const scale = Math.min(Math.max(1, size.width - 40) / Math.max(1, bounds[2] - bounds[0]), Math.max(1, size.height - 40) / Math.max(1, bounds[3] - bounds[1]))
+  const marker = 4 / scale
+  const padding = 20 / scale
   const cumulative = cumulativeDistances(fused)
   const totalLength = cumulative[cumulative.length - 1] ?? 0
   return {
+    marker,
     bounds,
     sourceBounds: trackMap.bounds,
     sourceFused: trackMap.fusedLine,
     project,
-    viewBox: viewBoxWithTrackMargin(bounds),
+    viewBox: `${bounds[0] - padding} ${bounds[1] - padding} ${bounds[2] - bounds[0] + padding * 2} ${bounds[3] - bounds[1] + padding * 2}`,
     fused,
     cumulative,
     totalLength,
@@ -170,18 +188,30 @@ function buildGeometry(trackMap: CalibratedTrackMap): TrackGeometry {
   }
 }
 
-function displayProjection(trackMap: CalibratedTrackMap): (p: TrackPoint) => TrackPoint {
-  if (trackMap.id !== 3) return p => p
+function displayProjection(trackMap: CalibratedTrackMap, size: { width: number; height: number }): (p: TrackPoint) => TrackPoint {
   const [minX, minY, maxX, maxY] = trackMap.bounds
   const cx = (minX + maxX) / 2
   const cy = (minY + maxY) / 2
-  return ([x, y]) => [cx + y - cy, cy - x + cx]
+  const lines = [...trackMap.fusedLine, ...(trackMap.pitLine ?? [])]
+  let bestScale = 0
+  let bestProject = (p: TrackPoint): TrackPoint => p
+  // Rotation only: preserve shape and use the identical transform for live cars.
+  for (let degrees = -90; degrees <= 90; degrees += 3) {
+    const angle = degrees * Math.PI / 180
+    const cos = Math.cos(angle)
+    const sin = Math.sin(angle)
+    const project = ([x, y]: TrackPoint): TrackPoint => [cos * (x - cx) - sin * (y - cy), sin * (x - cx) + cos * (y - cy)]
+    const bounds = lineBounds(lines.map(project))
+    const scale = Math.min(Math.max(1, size.width - 40) / Math.max(1, bounds[2] - bounds[0]), Math.max(1, size.height - 40) / Math.max(1, bounds[3] - bounds[1]))
+    if (scale > bestScale * 1.005) {
+      bestScale = scale
+      bestProject = project
+    }
+  }
+  return bestProject
 }
 
-function projectedBounds(bounds: TrackBounds, project: (p: TrackPoint) => TrackPoint): TrackBounds {
-  const [minX, minY, maxX, maxY] = bounds
-  const corners = [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]] as TrackPoint[]
-  const points = corners.map(project)
+function lineBounds(points: TrackPoint[]): TrackBounds {
   return [
     Math.min(...points.map(p => p[0])),
     Math.min(...points.map(p => p[1])),
@@ -235,21 +265,6 @@ function cumulativeDistances(points: TrackPoint[]): number[] {
     distances.push(total)
   }
   return distances
-}
-
-function viewBoxWithTrackMargin(bounds: TrackBounds): string {
-  const [minX, minY, maxX, maxY] = bounds
-  const width = maxX - minX
-  const height = maxY - minY
-  const padX = Math.max(55, width * 0.1)
-  const padY = Math.max(55, height * 0.1)
-  return `${minX - padX} ${minY - padY} ${width + padX * 2} ${height + padY * 2}`
-}
-
-function markerSize(bounds: TrackBounds): number {
-  const [, , maxX, maxY] = bounds
-  const [minX, minY] = bounds
-  return Math.max(4.2, Math.min(maxX - minX, maxY - minY) * 0.011)
 }
 
 function pointsAttr(points: TrackPoint[]): string {
