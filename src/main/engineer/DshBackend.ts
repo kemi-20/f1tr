@@ -140,7 +140,10 @@ export class DshBackend implements EngineerBackend {
     const driverText = manualPrompt ?? firing.reason
     const prompt = `${manual ? 'SOURCE: driver_manual. The driver asked directly; call speak_radio with your answer.' : 'SOURCE: automatic_event. Speak only when an actionable radio message is warranted.'}\n${manual ? `DRIVER: ${driverText.slice(0, 1024)}\n` : ''}${digestText}`
     return new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => this.cancel(), manual ? 180_000 : 90_000)
+      const timer = setTimeout(() => {
+        this.finish(new Error('Engineer response timed out. Please retry or reduce the model reasoning effort.'))
+        this.stop()
+      }, manual ? 180_000 : 90_000)
       this.current = { firing, onDelta, resolve, reject, text: '', calls: 0, screenshots: 0, webSearchControllers: new Set(), speeches: 0, corrected: false, timer }
       void this.request('session/prompt', { sessionId: this.sessionId, contentBlocks: [{ type: 'text', text: prompt }] })
         .catch((error: Error) => { if (this.current) this.finish(error) })
@@ -291,7 +294,7 @@ export class DshBackend implements EngineerBackend {
     const p = frame.params as JsonRecord
     if (p.sessionId !== this.sessionId) return
     if (frame.method === 'session.status' && p.status === 'idle') {
-      if (active.firing.reasonCode === 'manual' && active.speeches === 0 && !active.corrected) {
+      if (active.firing.reasonCode === 'manual' && active.speeches === 0 && !active.text.trim() && !active.corrected) {
         active.corrected = true
         void this.request('session/prompt', { sessionId: this.sessionId, contentBlocks: [{ type: 'text', text: 'Driver is waiting. Call speak_radio now with your direct answer.' }] })
           .catch((error: Error) => { if (this.current) this.finish(error) })
@@ -394,15 +397,16 @@ export class DshBackend implements EngineerBackend {
           active.webSearchControllers.delete(controller)
         }
       } else if (req.name === 'speak_radio') {
-        if (++active.speeches > 2) throw new Error('Radio limit exceeded')
+        if (active.speeches >= 2) throw new Error('Radio limit exceeded')
         const now = Date.now()
         this.radioTimes = this.radioTimes.filter(time => now - time < 10_000)
         if (this.radioTimes.length >= 2) throw new Error('Radio rate limit exceeded')
         const text = args.text
         if (typeof text !== 'string' || !text.trim() || text.length > 600) throw new Error('Invalid radio text')
         if (socket.destroyed || this.current !== active) throw new Error('Engineer turn cancelled')
-        this.radioTimes.push(now)
         this.speak(text.trim(), active.firing)
+        active.speeches++
+        this.radioTimes.push(now)
         result = 'Radio message accepted'
       } else throw new Error('Unknown tool')
       if (socket.destroyed || this.current !== active) throw new Error('Engineer turn cancelled')

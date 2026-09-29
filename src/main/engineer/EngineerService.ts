@@ -28,6 +28,8 @@ export class EngineerService {
   private direction = '冷静果断的 F1 赛车工程师语气'
   private inFlight: Promise<void> | null = null
   private activePriority: TriggerFiring['priority'] | null = null
+  private activeManual = false
+  private interruptedByCritical = false
   private pending: { state: RaceState; firing: TriggerFiring; audioBase64?: string } | null = null
   private onSpeak: (text: string, firing: TriggerFiring, voice: string, direction: string) => void = () => {}
   private onInterrupt: () => void = () => {}
@@ -112,12 +114,14 @@ export class EngineerService {
       void this.run(state, firing, audioBase64)
     } else {
       if (firing.reasonCode === 'manual' || firing.priority === 'critical' ||
-          (firing.priority === 'high' && this.activePriority !== 'critical' && this.activePriority !== 'high')) {
+          (firing.priority === 'high' && !this.activeManual && this.activePriority !== 'critical' && this.activePriority !== 'high')) {
+        this.interruptedByCritical = this.activeManual && firing.reasonCode !== 'manual' && firing.priority === 'critical'
         this.llm?.cancel?.()
         this.onInterrupt()
       }
       // only replace pending if the new firing is higher-or-equal priority
-      if (this.pending && !this.priorityGte(firing.priority, this.pending.firing.priority)) {
+      if (this.pending && ((this.pending.firing.reasonCode === 'manual' && firing.reasonCode !== 'manual') ||
+          (firing.reasonCode !== 'manual' && !this.priorityGte(firing.priority, this.pending.firing.priority)))) {
         return // existing pending is higher priority — keep it
       }
       this.pending = { state, firing, audioBase64 }
@@ -131,12 +135,15 @@ export class EngineerService {
 
   private async run(state: RaceState, firing: TriggerFiring, audioBase64?: string): Promise<void> {
     this.activePriority = firing.priority
+    this.activeManual = firing.reasonCode === 'manual'
+    this.interruptedByCritical = false
     this.inFlight = this.advise(state, firing, undefined, audioBase64)
     try {
       await this.inFlight
     } finally {
       this.inFlight = null
       this.activePriority = null
+      this.activeManual = false
       if (this.pending) {
         const next = this.pending
         this.pending = null
@@ -200,11 +207,8 @@ export class EngineerService {
         this.clearIdleTimer()
         return
       }
-      // Skip sending empty advice (e.g. model returned only a tool call with no text)
       if (!cleanText) {
-        Sender.send('engineer:status', { status: 'idle' })
-        this.clearIdleTimer()
-        return
+        throw new Error('模型结束了思考，但没有返回回答或成功调用无线电工具，请重试。')
       }
 
       Sender.send('engineer:advice', {
@@ -222,7 +226,9 @@ export class EngineerService {
       if (this.isAbort(err)) {
         logger.info('engineer advice aborted')
         this.clearIdleTimer()
-        Sender.send('engineer:status', { status: 'idle' })
+        Sender.send('engineer:status', this.interruptedByCritical
+          ? { status: 'error', message: '本次提问被紧急比赛提醒打断，请稍后重新提问。' }
+          : { status: 'idle' })
         return
       }
       const message = (err as Error)?.message ?? String(err)
