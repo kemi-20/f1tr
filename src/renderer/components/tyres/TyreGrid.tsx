@@ -120,7 +120,7 @@ function CarSilhouette(): React.ReactElement {
   } as CSSProperties
 
   return (
-    <svg className="origin-style-car" style={carStyle} viewBox="0 0 220 580" role="img" aria-label="F1 car thermal map">
+    <svg className="origin-style-car" style={carStyle} viewBox="-4 10 228 554" role="img" aria-label="F1 car thermal map">
       <title>Tyre surface, core, brake and engine temperatures</title>
       <g strokeLinejoin="round">
         {/* Swept split wing: retain a clear silhouette at dashboard scale. */}
@@ -158,10 +158,12 @@ function CarSilhouette(): React.ReactElement {
         <rect className="wing-endplate" x="53" y="208" width="18" height="10" rx="3" />
         <rect className="wing-endplate" x="149" y="208" width="18" height="10" rx="3" />
 
-        {/* Compact engine thermal overlay, separate from aerodynamic silhouette. */}
+        {/* Stepped thermal schematic with distinct cylinder banks and lower housing. */}
         <g className="engine-core">
-          <path d="M98 350 H122 L129 360 V382 L119 395 H101 L91 382 V360 Z" />
-          <path d="M102 357 H118 V386 H102 Z" />
+          <path className="engine-housing" d="M100 351 H120 V358 H130 V369 H135 L131 386 H123 L120 397 H115 V405 H105 V397 H100 L97 386 H89 L85 369 H90 V358 H100 Z" />
+          <path className="engine-bank" d="M95 363 H103 L106 383 H98 L94 375 Z M117 363 H125 L126 375 L122 383 H114 Z" />
+          <path className="engine-spine" d="M106 357 H114 V385 L111 397 H109 L106 385 Z" />
+          <path className="engine-detail" d="M96 368 H103 M97 374 H104 M99 380 H105 M117 368 H124 M116 374 H123 M115 380 H121 M102 390 H118" />
         </g>
         <text className="engine-caption" x="110" y="319" textAnchor="middle">ENGINE</text>
         <text className="engine-temp-label" x="110" y="342" textAnchor="middle">{engineTemp > 0 ? `${engineTemp}°C` : '--°C'}</text>
@@ -183,10 +185,11 @@ function CarSilhouette(): React.ReactElement {
 
 function TemperatureWheel({ corner, x, y }: { corner: keyof Corners; x: number; y: number }): React.ReactElement {
   const brakeX = corner === 'fr' || corner === 'rr' ? -10 : 27
+  const outerX = corner === 'fr' || corner === 'rr' ? 0 : -10
   return (
     <g className={`temp-wheel temp-wheel-${corner}`} transform={`translate(${x} ${y}) scale(${corner === 'rl' || corner === 'rr' ? '1.3 1.2' : '1.15 1'})`}>
-      <rect className="tyre-surface-band" x="0" y="0" width="24" height="61" rx="5" />
-      <rect className="tyre-inner-band" x="6" y="7" width="12" height="47" rx="3" />
+      <rect className="tyre-surface-band" x={outerX} y="-3" width="34" height="67" rx="6" />
+      <rect className="tyre-inner-band" x={outerX + 7} y="5" width="20" height="51" rx="3" />
       <rect className="brake-temp-block" x={brakeX} y="18" width="7" height="25" rx="2" />
     </g>
   )

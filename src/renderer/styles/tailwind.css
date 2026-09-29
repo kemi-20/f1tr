@@ -414,7 +414,7 @@ body {
   display: grid;
   min-height: 0;
   overflow: hidden;
-  grid-template-columns: minmax(140px, 1fr) minmax(128px, 168px) minmax(140px, 1fr);
+  grid-template-columns: minmax(140px, 1fr) minmax(128px, 208px) minmax(140px, 1fr);
   grid-template-rows: repeat(2, minmax(0, 1fr));
   align-items: center;
   column-gap: 8px;
@@ -434,7 +434,7 @@ body {
   height: 100%;
   object-fit: contain;
   max-height: 100%;
-  width: min(168px, 100%);
+  width: 100%;
   filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.42));
 }
 
@@ -526,14 +526,15 @@ body {
 }
 
 .origin-style-car .temp-wheel .tyre-surface-band {
-  stroke: currentColor;
-  stroke-width: 3;
-  fill: rgba(0, 0, 0, 0.28);
+  stroke: #080d11;
+  stroke-width: 1.5;
+  fill: currentColor;
 }
 
 .origin-style-car .temp-wheel .tyre-inner-band {
-  stroke: none;
-  opacity: 0.92;
+  stroke: #080d11;
+  stroke-width: 3;
+  opacity: 1;
 }
 
 .origin-style-car .temp-wheel .brake-temp-block {
@@ -566,16 +567,33 @@ body {
 .origin-style-car .temp-wheel-rr .tyre-inner-band { fill: var(--inner-rr); }
 .origin-style-car .temp-wheel-rr .brake-temp-block { fill: var(--brake-rr); color: var(--brake-rr); }
 
-.origin-style-car .engine-core path:first-child {
-  fill: var(--engine-temp);
-  stroke: rgba(255, 255, 255, 0.3);
-  stroke-width: 1.1;
+.origin-style-car .engine-core {
+  color: var(--engine-temp);
 }
 
-.origin-style-car .engine-core path:last-child {
-  fill: rgba(255, 255, 255, 0.18);
-  stroke: rgba(255, 255, 255, 0.32);
-  stroke-width: 0.8;
+.origin-style-car .engine-housing {
+  fill: #10191d;
+  stroke: currentColor;
+  stroke-width: 3;
+}
+
+.origin-style-car .engine-bank {
+  fill: var(--engine-temp);
+  fill-opacity: 0.5;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.origin-style-car .engine-spine {
+  fill: var(--engine-temp);
+  fill-opacity: 0.8;
+}
+
+.origin-style-car .engine-detail {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-linecap: round;
 }
 
 .origin-style-car .engine-temp-label {
