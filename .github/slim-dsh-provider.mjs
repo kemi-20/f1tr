@@ -8,7 +8,7 @@ const modules = join(runtime, 'node_modules')
 const adapter = join(modules, '@deepseek-ai/dsh-llm-pi-ai')
 const pi = join(modules, '@earendil-works/pi-ai')
 const manifest = JSON.parse(readFileSync(join(adapter, 'package.json'), 'utf8'))
-if (manifest.version !== '0.1.7-rc.2' || JSON.parse(readFileSync(join(pi, 'package.json'), 'utf8')).version !== '0.85.1') {
+if (manifest.version !== '0.2.0-rc.1' || JSON.parse(readFileSync(join(pi, 'package.json'), 'utf8')).version !== '0.85.1') {
   throw new Error('Provider slimming requires the audited pinned DSH/pi-ai versions')
 }
 let source = readFileSync(join(adapter, 'lib/index.js'), 'utf8').replaceAll('\r\n', '\n')

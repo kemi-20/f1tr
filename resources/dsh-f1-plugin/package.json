@@ -12,6 +12,6 @@
     "README.md"
   ],
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "0.1.7-rc.2"
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.1"
   }
 }

@@ -4,7 +4,7 @@ This package registers bounded race tools and has no shell, filesystem, generic 
 
 ## DSH API
 
-Verified against the immutable `dsh-v0.1.7-rc.2` source. The entry follows the tagged tool-authoring contract: `export const name`, `export const inject = ['tools']`, `apply(ctx)`, `ctx.tools.register(defineTool(...))`, and a required canonical `output` with `schema: { type: 'string' }` and a text renderer. The runtime package peer is pinned to `@deepseek-ai/dsh-tools` `0.1.7-rc.2`.
+Verified against the pinned `dsh-v0.2.0-rc.1` runtime and CI smoke tests. The entry follows the tagged tool-authoring contract: `export const name`, `export const inject = ['tools']`, `apply(ctx)`, `ctx.tools.register(defineTool(...))`, and a required canonical `output` with `schema: { type: 'string' }` and a text renderer. The runtime package peer is pinned to `@deepseek-ai/dsh-tools` `0.2.0-rc.1`.
 
 The DSH parameter root is implicitly open, and its author schema DSL does not express numeric bounds or string-length limits. The plugin therefore rejects unknown keys and validates all ranges and text limits again inside `execute`.
 

@@ -164,7 +164,7 @@ if (forbidden.length > 0) {
 // Narrow that graph to the selected runtime and explicitly expose race-llm.
 const cliManifestPath = join(modules, '@deepseek-ai', 'dsh', 'package.json')
 const cliManifest = JSON.parse(readFileSync(cliManifestPath, 'utf8'))
-if (cliManifest.name !== '@deepseek-ai/dsh' || cliManifest.version !== '0.1.7-rc.2') {
+if (cliManifest.name !== '@deepseek-ai/dsh' || cliManifest.version !== '0.2.0-rc.1') {
   throw new Error('Unexpected DSH CLI package; refusing to rewrite its runtime graph')
 }
 cliManifest.dependencies = Object.fromEntries(roots

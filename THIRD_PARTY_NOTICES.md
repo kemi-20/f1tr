@@ -6,7 +6,7 @@ F1 Race Engineer is licensed under [MIT](LICENSE). This file identifies prominen
 
 | Component | Version checked | License declaration | Source / license text |
 | --- | --- | --- | --- |
-| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`@deepseek-ai/dsh`, `dsh-compaction-basic`, `dsh-llm-pi-ai`, `dsh-token-meter`) | `0.1.7-rc.2` | MIT | Each installed package includes `LICENSE` in `resources/dsh-runtime/node_modules/@deepseek-ai/` |
+| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`@deepseek-ai/dsh`, `dsh-compaction-basic`, `dsh-llm-pi-ai`, `dsh-token-meter`) | `0.2.0-rc.1` | MIT | Each installed package includes `LICENSE` in `resources/dsh-runtime/node_modules/@deepseek-ai/` |
 | [pi-ai](https://github.com/earendil-works/pi) (via DSH's OpenAI Completions adapter) | `0.85.1` in the pinned runtime | MIT | `resources/dsh-f1-plugin/PI-LICENSE.txt`; CI includes its text in the slim provider's `THIRD_PARTY_LICENSES.txt` |
 | [Electron](https://www.electronjs.org/) | `44.0.0` | MIT; includes Chromium and other separately licensed components | Electron distribution license files and Chromium notices; verify their presence in release artifacts |
 | [`@z0mt3c/f1-telemetry-client`](https://www.npmjs.com/package/@z0mt3c/f1-telemetry-client) | `2.1.0` | MIT | Installed package license |
