@@ -3,6 +3,7 @@ import { useHealthStore } from '../../store'
 import { useConfigStore } from '../../store'
 import { fmtLapTime } from '@shared/index'
 import type { SessionState } from '@shared/types/state'
+import { sessionKind } from '@shared/util/sessionKind'
 
 export function TopStrip(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
@@ -13,8 +14,9 @@ export function TopStrip(): React.ReactElement {
   const player = race?.player
 
   const raceSignal = session ? getRaceSignal(session) : null
-  const isPractice = session ? isPracticeSession(session.sessionType, session.sessionTypeLabel) : false
-  const isRace = session ? [13, 14, 15].includes(session.sessionType) : false
+  const kind = session ? sessionKind(session) : 'unknown'
+  const isPractice = kind === 'practice'
+  const isRace = kind === 'race'
   const lapText = !isRace
     ? String(session?.currentLap ?? 0)
     : `${session?.currentLap ?? 0}${session?.totalLaps ? `/${session.totalLaps}` : ''}`
@@ -149,8 +151,4 @@ function getRaceSignal(session: SessionState): RaceSignal | null {
     return { label: 'GREEN', detail: 'Green flag', tone: 'green', color: '#33D17A' }
   }
   return null
-}
-
-function isPracticeSession(sessionType: number, label: string): boolean {
-  return [1, 2, 3, 4, 11].includes(sessionType) || /practice|^p[123]$/i.test(label)
 }

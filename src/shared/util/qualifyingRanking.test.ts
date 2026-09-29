@@ -7,11 +7,11 @@ function rival(carIndex: number, position: number, bestLapTimeS: number | null):
 }
 
 describe('isQualifyingOrPracticeSession', () => {
-  it.each([1, 2, 3, 4, 11, 5, 6, 7, 8, 9, 12])('enables best-lap ranking for session type %i', (sessionType) => {
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])('enables best-lap ranking for session type %i', (sessionType) => {
     expect(isQualifyingOrPracticeSession(sessionType, '')).toBe(true)
   })
 
-  it.each([0, 10, 13, 14, 15, 16])('preserves non-practice, non-qualifying behavior for session type %i', (sessionType) => {
+  it.each([15, 16, 17, 18])('preserves non-practice, non-qualifying behavior for session type %i', (sessionType) => {
     expect(isQualifyingOrPracticeSession(sessionType, 'Practice')).toBe(false)
   })
 

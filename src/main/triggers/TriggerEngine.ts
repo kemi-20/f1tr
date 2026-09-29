@@ -5,6 +5,7 @@ import { Cooldown } from './Cooldown'
 import { logger } from '../logging/Logger'
 import { lapsToFlag, raceFuelMargin } from '@shared/util/raceDistance'
 import { holdQualifyingRadio, isQualifying } from '@shared/util/lapPhase'
+import { sessionKind } from '@shared/util/sessionKind'
 
 /**
  * TriggerEngine — evaluates rule conditions each tick + on events, applies
@@ -469,8 +470,7 @@ function minPositive(...values: number[]): number | null {
 }
 
 function isRaceSession(state: RaceState): boolean {
-  const { sessionType, sessionTypeLabel } = state.session
-  return [13, 14, 15].includes(sessionType) || /^race$/i.test(sessionTypeLabel)
+  return sessionKind(state.session) === 'race'
 }
 
 export { Cooldown }

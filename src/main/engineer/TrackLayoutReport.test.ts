@@ -17,9 +17,11 @@ describe('track layout position report', () => {
     } as RivalState
     const result = readTrackLayout(state, { section: 'positions' }) as {
       positions: { rivals: Array<{ lapDifference: number; raceDistanceSeparationM: number;
-        trackRelativeSeparationM: number; distanceFromStartM: number }> }
+        trackRelativeSeparationM: number; distanceFromStartM: number;
+        forwardCircuitDistanceM: number; backwardCircuitDistanceM: number }> }
     }
     expect(result.positions.rivals[0]).toMatchObject({ lapDifference: 1,
-      raceDistanceSeparationM: 6275, trackRelativeSeparationM: 100, distanceFromStartM: 1100 })
+      raceDistanceSeparationM: 6275, trackRelativeSeparationM: 100, distanceFromStartM: 1100,
+      forwardCircuitDistanceM: 100, backwardCircuitDistanceM: 6075 })
   })
 })

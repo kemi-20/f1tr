@@ -67,6 +67,15 @@ export class StateAggregator {
     const sessionChanged = this.lastSessionUID && this.lastSessionUID !== uid
     s.sessionType = p.m_sessionType
     s.sessionTypeLabel = sessionTypeLabel(p.m_sessionType)
+    s.sessionLengthCode = Number.isInteger(p.m_sessionLength) && p.m_sessionLength >= 0 && p.m_sessionLength <= 7
+      ? p.m_sessionLength : null
+    const count = p.m_numSessionsInWeekend
+    const structure = Array.isArray(p.m_weekendStructure) && Number.isSafeInteger(count) &&
+      count >= 1 && count <= 12 && count <= p.m_weekendStructure.length
+      ? p.m_weekendStructure.slice(0, count) : null
+    s.isSprintRace = s.sessionType === 15 && structure && structure.every(
+      (type: unknown) => Number.isSafeInteger(type) && Number(type) >= 0 && Number(type) <= 18)
+      ? structure.includes(16) : s.sessionType >= 16 && s.sessionType <= 17 ? false : null
     s.trackId = p.m_trackId
     s.trackName = getTrack(p.m_trackId)?.name ?? (p.m_trackId >= 0 ? `Track ${p.m_trackId}` : '')
     s.totalLaps = p.m_totalLaps || null

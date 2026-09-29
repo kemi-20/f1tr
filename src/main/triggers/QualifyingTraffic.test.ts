@@ -243,7 +243,7 @@ describe('qualifying traffic warnings', () => {
   it('does not run the qualifying traffic rule during a race session', () => {
     const { engine, firings } = makeEngine()
     const state = qualifyingState('out')
-    state.session.sessionType = 13
+    state.session.sessionType = 15
     state.session.sessionTypeLabel = 'Race'
     addRival(state)
 

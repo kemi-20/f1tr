@@ -1,4 +1,5 @@
 import type { RaceState } from '../types/state'
+import { sessionKind } from './sessionKind'
 
 /** Current lap is one-based and includes its uncompleted fraction. */
 export function lapsToFlag(state: RaceState): number | null {
@@ -11,11 +12,10 @@ export function lapsToFlag(state: RaceState): number | null {
 }
 
 export function raceFuelMargin(state: RaceState): number | null {
-  const { sessionType, sessionTypeLabel } = state.session
   const margin = state.player.fuelRemainingLaps
   // The race MFD value is already relative to the finish. Practice uses a run
   // estimate, so must not inherit the race surplus/deficit interpretation.
-  if (!([13, 14, 15].includes(sessionType) || /^race$/i.test(sessionTypeLabel)) ||
+  if (sessionKind(state.session) !== 'race' ||
       margin == null || !Number.isFinite(margin)) return null
   return margin
 }

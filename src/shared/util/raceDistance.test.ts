@@ -5,7 +5,7 @@ import { lapsToFlag, raceFuelMargin } from './raceDistance'
 function raceState(totalLaps: number | null, lap: number, lapDistancePct = 0) {
   const state = emptyRaceState()
   state.session.totalLaps = totalLaps
-  state.session.sessionType = 13
+  state.session.sessionType = 15
   state.session.sessionTypeLabel = 'Race'
   state.player.lap = lap
   state.player.lapDistancePct = lapDistancePct
@@ -43,7 +43,7 @@ describe('lapsToFlag', () => {
 })
 
 describe('raceFuelMargin', () => {
-  it.each([13, 14, 15])('accepts race session type %i as signed margin', (sessionType) => {
+  it.each([15, 16, 17])('accepts race session type %i as signed margin', (sessionType) => {
     const state = raceState(20, 5)
     state.session.sessionType = sessionType
     state.session.sessionTypeLabel = 'Unknown'
@@ -53,7 +53,7 @@ describe('raceFuelMargin', () => {
 
   it('accepts a Race label case-insensitively and preserves a positive surplus', () => {
     const state = raceState(20, 5)
-    state.session.sessionType = 5
+    state.session.sessionType = 0
     state.session.sessionTypeLabel = 'rAcE'
     state.player.fuelRemainingLaps = 2
     expect(raceFuelMargin(state)).toBe(2)
@@ -61,7 +61,7 @@ describe('raceFuelMargin', () => {
 
   it.each(['Practice', 'Qualifying', '', 'Race Weekend'])('does not infer race margin from label %j', (label) => {
     const state = raceState(20, 5)
-    state.session.sessionType = 5
+    state.session.sessionType = 0
     state.session.sessionTypeLabel = label
     state.player.fuelRemainingLaps = -4
     expect(raceFuelMargin(state)).toBeNull()

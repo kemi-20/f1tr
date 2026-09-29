@@ -173,6 +173,9 @@ export interface WeatherState {
 export interface SessionState {
   sessionType: number
   sessionTypeLabel: string
+  /** Null until a valid weekend structure identifies whether Race 1 is a sprint. */
+  isSprintRace: boolean | null
+  sessionLengthCode: number | null
   trackId: number
   trackName: string
   totalLaps: number | null

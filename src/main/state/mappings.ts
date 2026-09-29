@@ -145,13 +145,15 @@ const SESSION_TYPES: Record<number, string> = {
   7: 'Q3',
   8: 'Short Q',
   9: 'OSQ',
-  10: 'TT',
-  11: 'Practice',
-  12: 'Qualifying',
-  13: 'Race',
-  14: 'Race',
+  10: 'SQ1',
+  11: 'SQ2',
+  12: 'SQ3',
+  13: 'Short SQ',
+  14: 'OSQ Sprint',
   15: 'Race',
-  16: 'Time Trial'
+  16: 'Race 2',
+  17: 'Race 3',
+  18: 'Time Trial'
 }
 
 export function sessionTypeLabel(t: number): string {

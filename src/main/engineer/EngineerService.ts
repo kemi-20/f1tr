@@ -80,6 +80,7 @@ export class EngineerService {
     if (current && !qualifyingYieldStillRelevant(current, firing)) throw new Error('Traffic warning expired or car no longer approaching behind. Remain silent.')
     this.lastRadioFiring = firing
     this.lastToolRadio = text
+    if (current) this.analysis.noteRadio(current, text)
     Sender.send('engineer:status', { status: 'idle' })
     Sender.send('engineer:advice', {
       id: nanoid(10), text, firing: { code: firing.reasonCode, priority: firing.priority }, ts: Date.now()

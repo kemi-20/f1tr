@@ -27,6 +27,7 @@ Thumbs.db
 .env.*.local
 .origin/
 .mimocode/
+.agents/
 
 # Test artifacts
 coverage/
@@ -38,9 +39,6 @@ release/
 
 # temporary / research / agent output files
 .tmp/
-
-# CLAUDE-FABLE-5.md
-CLAUDE-FABLE-5.md
 
 # agent-only reference doc (NOT for public repo)
 README_for_agent.md

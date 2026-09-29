@@ -5,6 +5,8 @@ export function emptyRaceState(format: PacketFormat = 2025): RaceState {
     session: {
       sessionType: 0,
       sessionTypeLabel: '',
+      isSprintRace: null,
+      sessionLengthCode: null,
       trackId: -1,
       trackName: '',
       totalLaps: null,

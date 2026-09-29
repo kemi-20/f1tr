@@ -1,8 +1,9 @@
 import type { RaceState } from '../types/state'
 import type { TriggerFiring } from '../types/triggers'
+import { sessionKind } from './sessionKind'
 
 export function isQualifying(state: RaceState): boolean {
-  return [5, 6, 7, 8, 9, 12].includes(state.session.sessionType)
+  return sessionKind(state.session) === 'qualifying'
 }
 
 /** Unknown on-track qualifying phases stay quiet until preparation is confirmed. */

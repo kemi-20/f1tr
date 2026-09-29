@@ -26,7 +26,7 @@ function evaluateFuelMargin(configure: (state: ReturnType<typeof emptyRaceState>
 describe('TriggerEngine fuel margin', () => {
   it('does not subtract remaining race distance from a positive race surplus', () => {
     const firings = evaluateFuelMargin(state => {
-      state.session.sessionType = 13
+      state.session.sessionType = 15
       state.session.sessionTypeLabel = 'Race'
       state.player.fuelRemainingKg = 1
       state.player.fuelRemainingLaps = 2
@@ -48,7 +48,7 @@ describe('TriggerEngine fuel margin', () => {
 
   it('does not interpret practice fuelRemainingLaps as race margin', () => {
     const firings = evaluateFuelMargin(state => {
-      state.session.sessionType = 5
+      state.session.sessionType = 1
       state.session.sessionTypeLabel = 'Practice'
       state.player.fuelRemainingKg = 8
       state.player.fuelRemainingLaps = -20

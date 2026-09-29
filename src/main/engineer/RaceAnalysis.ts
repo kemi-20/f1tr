@@ -2,6 +2,7 @@ import type { Corners, RaceState } from '@shared/types/state'
 import { lapsToFlag, raceFuelMargin } from '@shared/util/raceDistance'
 import { StrategyObservations } from './StrategyObservations'
 import { isQualifying } from '@shared/util/lapPhase'
+import { sessionKind } from '@shared/util/sessionKind'
 
 const corners = ['fl', 'fr', 'rl', 'rr'] as const
 
@@ -36,6 +37,15 @@ export class RaceAnalysis {
   private laps: LapSample[] = []
   private cleanLap = false
   private gaps: { ts: number; id: number; gap: number; lap: number }[] = []
+  private pitInstruction: { uid: string; lap: number; pitStops: number } | null = null
+
+  noteRadio(state: RaceState, text: string): void {
+    if (sessionKind(state.session) !== 'race') return
+    if (/^(?:box(?:,?\s+box)?(?:\s+this\s+lap)?\b|本圈进站|这圈(?:就)?进站)/i.test(text.trim().slice(0, 200))) {
+      this.pitInstruction = { uid: state.session.sessionUID, lap: state.player.lap,
+        pitStops: state.player.pitStopCount }
+    }
+  }
 
   observe(state: RaceState, now = Date.now()): void {
     this.strategy.observe(state, now)
@@ -43,7 +53,12 @@ export class RaceAnalysis {
     const s = state.session
     if (state.flashbackActive || !state.lastPacketMs || now - state.lastPacketMs > 5000) {
       this.resetStint()
+      this.pitInstruction = null
       return
+    }
+    if (this.pitInstruction && (this.pitInstruction.uid !== s.sessionUID ||
+      p.pitStopCount > this.pitInstruction.pitStops || p.lap < this.pitInstruction.lap)) {
+      this.pitInstruction = null
     }
     const current: Observation = {
       uid: s.sessionUID, frame: s.overallFrameIdentifier, lap: p.lap,
@@ -111,15 +126,37 @@ export class RaceAnalysis {
     }
     const samples = this.laps
     if (isQualifying(state)) {
-      lines.push(`QUALIFYING RUN: ${p.lapPhase ?? 'unknown'}; ${p.lapPhaseEvidence ?? 'no phase evidence'}. Lap invalid: ${p.currentLapInvalid ?? 'unknown'}. Session time left ${s.sessionTimeLeftS ?? 'unknown'}s. Scheduled race laps are NOT a qualifying run target.`)
+      lines.push(`QUALIFYING/SPRINT SHOOTOUT RUN: ${p.lapPhase ?? 'unknown'}; ${p.lapPhaseEvidence ?? 'no phase evidence'}. Lap invalid: ${p.currentLapInvalid ?? 'unknown'}. Session time left ${s.sessionTimeLeftS ?? 'unknown'}s. Scheduled race laps are NOT a qualifying run target.`)
       lines.push('Keep radio silent on flying/uncertain laps except immediate safety or a direct driver question. Review best VALID laps, not race-position gaps. In/out/cooling intent can be inferred, not guaranteed; invalid alone does not imply cooling. Check physical traffic and valid flying cars behind during preparation laps.')
       return lines.join('\n')
     }
+    if (sessionKind(s) === 'practice') {
+      lines.push(`PRACTICE RUN: ${s.sessionType === 4 ? 'short practice' : s.sessionType >= 1 && s.sessionType <= 3 ? `full practice P${s.sessionType}` : 'practice'}; ${s.sessionTimeLeftS ?? 'unknown'}s remaining; current lap ${p.lap}. No mandatory race stop or race-distance fuel target applies.`)
+      lines.push(`Comparable clean laps this run: ${samples.map(l => `L${l.lap}=${l.time.toFixed(3)}s`).join(', ') || 'not enough yet'}. Compare balance, tyre warm-up, wear and fuel use within the same run; choose a specific test objective and a return-to-garage time. Do not box solely at 30% wear or treat a planned run end as an emergency.`)
+      return lines.join('\n')
+    }
+    if (sessionKind(s) !== 'race') {
+      lines.push('Session is neither race, practice nor qualifying; do not infer a race pit obligation or lap target.')
+      return lines.join('\n')
+    }
     lines.push(...this.strategy.report(state))
+    if (this.pitInstruction && this.pitInstruction.uid === s.sessionUID &&
+      p.lap > this.pitInstruction.lap && p.pitStopCount === this.pitInstruction.pitStops) {
+      lines.push(`Driver continued after our L${this.pitInstruction.lap} BOX instruction. Treat this as a likely strategy objection, not proof that pit entry was impossible. Do not repeat the same call without a new rule/safety/time-loss reason. Recalculate and briefly explain the tradeoff; ask for confirmation only if a decision is still time-critical.`)
+    }
     const remaining = lapsToFlag(state)
     lines.push(remaining == null
       ? 'Race distance unavailable: query current session; do not assume a full Grand Prix distance or invent a stop lap.'
       : `Race distance: ${s.totalLaps} scheduled laps; ${remaining.toFixed(2)} laps to flag. All stint, fuel and stop-payback estimates must use this distance, not a full-length Grand Prix.`)
+    const dryNow = !state.weather.isRaining && state.weather.wetness < 0.08 &&
+      ['soft', 'medium', 'hard'].includes(p.tyres.compound)
+    lines.push(s.totalLaps != null && s.totalLaps <= 5
+      ? 'Very short 3/5-lap race: do not impose the ordinary dry two-compound stop rule; stop only for a supported time/safety reason.'
+      : s.isSprintRace === true
+        ? 'Confirmed sprint race: no ordinary dry two-compound stop obligation.'
+        : s.isSprintRace === false && dryNow
+          ? 'Dry Grand Prix: plan to use at least two different slick compounds unless this game session has a special rule or wet tyres are used. Check session history before claiming the obligation is already fulfilled.'
+          : 'Two-compound obligation not established from live data: verify sprint/weekend structure, short-race setting, weather history and game rules before ordering a mandatory stop.')
     const margin = raceFuelMargin(state)
     if (remaining != null && remaining > 0 && margin != null) {
       lines.push(`Game MFD fuel margin ${margin >= 0 ? '+' : ''}${margin.toFixed(2)} laps to finish (already surplus/deficit; do not subtract race distance again). ${margin >= 0.25 ? 'Fuel is sufficient at the current rate; do not request lift-and-coast or repeatedly warn about fuel.' : margin >= 0 ? 'Positive but narrow margin; monitor, no saving instruction solely from this reading.' : 'Estimated shortfall; assess recent consumption before requesting saving.'} Game estimate changes with pace and neutralisation.`)
@@ -168,6 +205,7 @@ export class RaceAnalysis {
   reset(): void {
     this.strategy.reset()
     this.resetStint()
+    this.pitInstruction = null
   }
 
   private resetStint(): void {

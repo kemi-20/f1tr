@@ -51,7 +51,9 @@
 
 Actions 的 `F1-Race-Engineer-Unpacked` 下载包解压后可直接运行目录内的 `F1 Race Engineer.exe`，后续启动无需重复自解压。请保留整个目录。
 
-工程师内置固定版本 DSH `0.1.7-rc.2`，复用 Electron 自带的 Node，无需安装 DSH 或 Node，也不读取电脑上独立 DSH 的配置。主对话使用 OpenAI Chat Completions；没有重新引入其他厂商的 SDK。AI 可调用遥测、历史、截图、无线电和联网搜索工具。
+### AI 引擎：DeepSeek Harness
+
+比赛工程师使用 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 固定版本 `dsh-v0.1.7-rc.2`，不是仅借用它的提示词。应用在独立目录内置精简后的 DSH 运行时，通过 Electron 自带的 Node 启动；用户无需安装 DSH 或 Node，也不会读取或修改电脑上独立 DSH 的配置。F1 专用插件注册 `f1-race-engineer` agent 预设，以及实时遥测、赛道位置、历史、原始数据包、截图、联网搜索和 `speak_radio` 工具。主模型使用用户配置的 OpenAI Chat Completions 接口；DSH 的内部模型适配依赖仍随精简运行时一起打包。
 
 设置中的“支持网络搜索”开启时，由当前配置的模型搜索；官方 MiMo 使用它的 Chat Completions `web_search`，其他服务按 Responses 搜索接口调用，接口不兼容会返回实际错误，不偷偷切换服务。关闭时由 MiMo `mimo-v2.6-flash` 代搜，需要 MiMo Key 和已开通的联网服务。模型可按问题继续搜索，每次调用最多 4 个去重查询；应用保留缓存和每分钟请求上限。外部资料只作背景，实时遥测才是当前比赛依据。
 
@@ -131,4 +133,4 @@ npm run build:win    # 打包 Windows 安装器 + 绿色版（产物在 release/
 
 ## 许可
 
-MIT
+项目代码采用 [MIT 许可](LICENSE)。内置开源组件、赛道数据与车队标识的来源和许可状态见 [第三方声明](THIRD_PARTY_NOTICES.md)。该声明不代表项目与 Formula 1、游戏发行商或车队存在关联。

@@ -11,7 +11,7 @@ function sample(lap: number, totalLaps = 20, lapDistancePct = 0): RaceState {
   state.lastPacketMs = 100_000
   state.session.sessionUID = 'race-one'
   state.session.overallFrameIdentifier = lap * 100
-  state.session.sessionType = 13
+  state.session.sessionType = 15
   state.session.sessionTypeLabel = 'Race'
   state.session.totalLaps = totalLaps
   state.weather.weatherCode = 0
@@ -109,5 +109,48 @@ describe('RaceAnalysis strategy evidence', () => {
     expect(report).toContain('player tyre sets packet 12')
     expect(report).toContain('session history packet 11')
     expect(report).toContain('Do not label these unavailable until checked.')
+  })
+
+  it('uses a timed run plan for full and short practice', () => {
+    for (const [type, label] of [[1, 'full practice P1'], [4, 'short practice']] as const) {
+      const state = sample(3, 20)
+      state.session.sessionType = type
+      state.session.sessionTimeLeftS = 900
+      const report = new RaceAnalysis().report(state, 100_000)
+      expect(report).toContain(label)
+      expect(report).toContain('900s remaining')
+      expect(report).not.toContain('laps to flag')
+      expect(report).not.toContain('pit-loss observation')
+    }
+  })
+
+  it('does not impose the dry compound obligation on a sprint or five-lap race', () => {
+    const short = sample(2, 5)
+    short.session.isSprintRace = false
+    expect(new RaceAnalysis().report(short, 100_000)).toContain('Very short 3/5-lap race')
+    const sprint = sample(2, 20)
+    sprint.session.isSprintRace = true
+    expect(new RaceAnalysis().report(sprint, 100_000)).toContain('Confirmed sprint race')
+  })
+
+  it('plans the dry two-compound obligation only for a confirmed Grand Prix', () => {
+    const grandPrix = sample(2, 20)
+    grandPrix.session.isSprintRace = false
+    expect(new RaceAnalysis().report(grandPrix, 100_000)).toContain('Dry Grand Prix: plan to use at least two different slick compounds')
+
+    grandPrix.session.isSprintRace = null
+    expect(new RaceAnalysis().report(grandPrix, 100_000)).toContain('Two-compound obligation not established')
+  })
+
+  it('recognizes a passed box call as likely disagreement and clears it after a stop', () => {
+    const analysis = new RaceAnalysis()
+    const call = sample(5)
+    analysis.noteRadio(call, 'BOX THIS LAP. Mediums ready.')
+    expect(analysis.report(call, 100_000)).not.toContain('likely strategy objection')
+    const continued = sample(6)
+    expect(analysis.report(continued, 100_000)).toContain('likely strategy objection')
+    continued.player.pitStopCount = 1
+    analysis.observe(continued, 100_000)
+    expect(analysis.report(continued, 100_000)).not.toContain('likely strategy objection')
   })
 })

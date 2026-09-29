@@ -2,6 +2,7 @@ import type { Digest } from '@shared/index'
 import type { RaceState, RivalState } from '@shared/types/state'
 import type { TriggerFiring } from '@shared/types/triggers'
 import { fmtLapTime, fmtGap, fmtPct } from '@shared/util/format'
+import { sessionKind } from '@shared/util/sessionKind'
 
 const MAX_RECENT_EVENT_AGE_MS = 120_000
 
@@ -226,7 +227,6 @@ export class DigestBuilder {
   }
 
   private isRaceSession(state: RaceState): boolean {
-    const { sessionType, sessionTypeLabel } = state.session
-    return [13, 14, 15].includes(sessionType) || /^race$/i.test(sessionTypeLabel)
+    return sessionKind(state.session) === 'race'
   }
 }

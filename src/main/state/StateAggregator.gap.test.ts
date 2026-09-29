@@ -28,7 +28,7 @@ function sessionPacket(trackLength: number) {
   return {
     m_header: { m_sessionUID: 1n, m_playerCarIndex: 0, m_frameIdentifier: 1, m_overallFrameIdentifier: 1,
       m_packetFormat: 2025, m_gameYear: 25 },
-    m_sessionType: 10, m_trackId: 29, m_totalLaps: 25, m_trackLength: trackLength,
+    m_sessionType: 15, m_trackId: 29, m_totalLaps: 25, m_trackLength: trackLength,
     m_safetyCarStatus: 0, m_numRedFlagPeriods: 0, m_pitSpeedLimit: 80, m_sessionTimeLeft: 3000
   }
 }
@@ -46,6 +46,22 @@ function telemetryPacket(speeds: Record<number, number>) {
 }
 
 describe('gap and separation precision', () => {
+  it('recognises a sprint only from a valid weekend structure with a second race', () => {
+    const agg = new StateAggregator()
+    const packet = sessionPacket(5000)
+    agg.onSession({ ...packet, m_numSessionsInWeekend: 3, m_weekendStructure: [5, 15, 16] } as never)
+    expect(agg.getState().session.isSprintRace).toBe(true)
+
+    agg.onSession({ ...packet, m_numSessionsInWeekend: 2, m_weekendStructure: [5, 15] } as never)
+    expect(agg.getState().session.isSprintRace).toBe(false)
+
+    agg.onSession({ ...packet, m_numSessionsInWeekend: 3, m_weekendStructure: [5, 15] } as never)
+    expect(agg.getState().session.isSprintRace).toBeNull()
+
+    agg.onSession({ ...packet, m_numSessionsInWeekend: -1, m_weekendStructure: [5, 15, 16] } as never)
+    expect(agg.getState().session.isSprintRace).toBeNull()
+  })
+
   it('derives lap-aware physical separation from total distance', () => {
     const agg = new StateAggregator()
     agg.onSession(sessionPacket(6175) as never)

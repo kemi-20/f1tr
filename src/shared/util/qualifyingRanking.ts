@@ -1,7 +1,6 @@
 import type { RivalState } from '../types/state'
+import { sessionKind } from './sessionKind'
 
-const PRACTICE_SESSION_TYPES = new Set([1, 2, 3, 4, 11])
-const QUALIFYING_SESSION_TYPES = new Set([5, 6, 7, 8, 9, 12])
 const MAX_VALID_LAP_TIME_S = 600
 
 type LapTimeRival = Pick<RivalState, 'carIndex' | 'position' | 'bestLapTimeS'>
@@ -13,10 +12,7 @@ export interface BestLapRankedRival<T extends LapTimeRival> {
 }
 
 export function isQualifyingOrPracticeSession(sessionType: number, sessionTypeLabel: string): boolean {
-  if (PRACTICE_SESSION_TYPES.has(sessionType) || QUALIFYING_SESSION_TYPES.has(sessionType)) return true
-  if (Number.isInteger(sessionType) && sessionType >= 0 && sessionType <= 16) return false
-
-  return /^(?:practice|p[123]|short p|qualifying|q[123]|short q|osq)$/i.test(sessionTypeLabel.trim())
+  return ['practice', 'qualifying'].includes(sessionKind({ sessionType, sessionTypeLabel }))
 }
 
 export function rankRivalsByBestLap<T extends LapTimeRival>(

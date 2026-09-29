@@ -292,9 +292,9 @@ function shouldInferNewWeekend(active: WeekendIdentitySnapshot, candidate: Candi
 }
 
 function sessionPhase(sessionType: number): number {
-  if ([1, 2, 3, 4, 11].includes(sessionType)) return 1
-  if ([5, 6, 7, 8, 9, 12].includes(sessionType)) return 2
-  if ([13, 14, 15].includes(sessionType)) return 3
+  if (sessionType >= 1 && sessionType <= 4) return 1
+  if (sessionType >= 5 && sessionType <= 14) return 2
+  if (sessionType >= 15 && sessionType <= 17) return 3
   return 0
 }
 

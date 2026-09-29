@@ -26,7 +26,7 @@ export function readTrackLayout(state: RaceState, args: TrackLayoutArgs): unknow
     officialLengthM: layout.lengthM,
     sessionReportedLengthM: state.session.trackLengthM,
     lengthMismatch: trackLengthDisagrees(state.session.trackLengthM, layout),
-    note: 'distanceFromStartM and trackRelativeSeparationM describe physical circuit location. totalDistanceM and raceDistanceSeparationM describe cumulative race progress, including whole laps. Race position and timing-chain gap are separate again. A zone whose end is below its start wraps the line.'
+    note: 'distanceFromStartM and trackRelativeSeparationM describe physical circuit location. forwardCircuitDistanceM and backwardCircuitDistanceM give both paths around the loop; neither proves who is closing. totalDistanceM and raceDistanceSeparationM describe cumulative race progress, including whole laps. Race position and timing-chain gap are separate again. A zone whose end is below its start wraps the line.'
   }
 
   if (section === 'summary') {
@@ -52,9 +52,12 @@ export function readTrackLayout(state: RaceState, args: TrackLayoutArgs): unknow
         racePosition: r.position,
         pitStatus: r.pitStatus,
         lapPhase: r.lapPhase ?? null,
+        onTrack: r.status === 'running' && r.pitStatus === 0,
+        lapDataAgeMs: r.lapDataUpdatedAt != null ? Math.max(0, Date.now() - r.lapDataUpdatedAt) : null,
         lapDifference: r.lap - state.player.lap,
         raceDistanceSeparationM: r.separationFromPlayerM != null ? Math.round(r.separationFromPlayerM) : null,
-        trackRelativeSeparationM: r.trackRelativeSeparationM != null ? Math.round(r.trackRelativeSeparationM) : null
+        trackRelativeSeparationM: r.trackRelativeSeparationM != null ? Math.round(r.trackRelativeSeparationM) : null,
+        ...circuitPaths(state.player.distanceFromStartM, r.distanceFromStartM, layout.lengthM)
       }))
   }
   if (section === 'positions') return { ...base, positions }
@@ -96,4 +99,12 @@ function describeCar(name: string, distanceM: number | null, totalM: number | nu
 function validLapDistance(distanceM: number | null, lengthM: number): distanceM is number {
   return distanceM != null && Number.isFinite(distanceM) &&
     distanceM >= -lengthM && distanceM <= lengthM * 2
+}
+
+function circuitPaths(playerM: number | null, rivalM: number | null, lengthM: number) {
+  if (!validLapDistance(playerM, lengthM) || !validLapDistance(rivalM, lengthM)) {
+    return { forwardCircuitDistanceM: null, backwardCircuitDistanceM: null }
+  }
+  const forward = ((rivalM - playerM) % lengthM + lengthM) % lengthM
+  return { forwardCircuitDistanceM: Math.round(forward), backwardCircuitDistanceM: Math.round((lengthM - forward) % lengthM) }
 }
