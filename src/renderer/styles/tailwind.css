@@ -13,11 +13,6 @@
   font-display: swap;
 }
 @font-face {
-  font-family: 'F1 Wide';
-  src: url('../assets/fonts/F1-Wide.ttf') format('truetype');
-  font-display: swap;
-}
-@font-face {
   font-family: 'F1 Display Black';
   src: url('../assets/fonts/F1-Display-Black.ttf') format('truetype');
   font-display: swap;

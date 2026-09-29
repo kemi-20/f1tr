@@ -4,7 +4,6 @@ import type { AnyParsedPacket } from './UdpReceiver'
 import { StateAggregator } from '../state/StateAggregator'
 import { SnapshotEmitter } from '../state/SnapshotEmitter'
 import { TriggerEngine } from '../triggers/TriggerEngine'
-import { Sender } from '../ipc/sender'
 import { logger } from '../logging/Logger'
 import type { PacketFormat, TriggerConfig, TriggerFiring, RecentEvent } from '@shared/index'
 import type { RaceState } from '@shared/types/state'
@@ -26,7 +25,6 @@ export class TelemetryService {
   private pendingEvents: RecentEvent[] = []
   private lastOverallFrame = 0
   private lastSessionUID = ''
-  private lastTrackId = -1
   private running = false
   private udpStale = false
   private onUdpStale?: () => void
@@ -70,7 +68,6 @@ export class TelemetryService {
         this.aggregator.reset(this.receiver.currentFormat ?? 2025)
       }
       this.aggregator.onSession(p)
-      this.maybeEmitSessionMeta()
     })
     this.receiver.on(P.motion, (p) => this.aggregator.onMotion(p))
     this.receiver.on(P.participants, (p) => this.aggregator.onParticipants(p))
@@ -90,23 +87,6 @@ export class TelemetryService {
     })
     this.receiver.on(P.sessionHistory, (p) => this.aggregator.onSessionHistory(p))
   }
-
-  /** Emit session:meta when format or track changes (so the UI can react). */
-  private maybeEmitSessionMeta(): void {
-    const s = this.aggregator.getState().session
-    const fmt = this.receiver.currentFormat
-    if (fmt && (s.trackId !== this.lastTrackId || fmt !== this.lastMetaFormat)) {
-      this.lastTrackId = s.trackId
-      this.lastMetaFormat = fmt
-      Sender.send('session:meta', {
-        packetFormat: fmt,
-        trackName: s.trackName,
-        trackId: s.trackId,
-        sessionTypeLabel: s.sessionTypeLabel
-      })
-    }
-  }
-  private lastMetaFormat: number | null = null
 
   start(): void {
     if (this.running) return
@@ -196,8 +176,6 @@ export class TelemetryService {
     this.aggregator.reset(this.receiver.currentFormat ?? 2025)
     this.lastOverallFrame = 0
     this.lastSessionUID = ''
-    this.lastTrackId = -1
-    this.lastMetaFormat = null
     this.pendingEvents = []
   }
 
@@ -207,15 +185,11 @@ export class TelemetryService {
     this.aggregator.reset(this.receiver.currentFormat ?? 2025)
     this.lastOverallFrame = 0
     this.lastSessionUID = ''
-    this.lastTrackId = -1
-    this.lastMetaFormat = null
     this.pendingEvents = []
   }
 
   setFormatOverride(format: 'auto' | PacketFormat): void {
     this.receiver.setFormatOverride(format)
     this.aggregator.reset(this.receiver.currentFormat ?? 2025)
-    this.lastTrackId = -1
-    this.lastMetaFormat = null
   }
 }

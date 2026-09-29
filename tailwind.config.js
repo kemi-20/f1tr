@@ -19,11 +19,6 @@ export default {
           ember: 'rgb(var(--accent-ember-rgb) / <alpha-value>)'
         }
       },
-      fontFamily: {
-        sans: ['Inter', 'Geist', 'system-ui', 'sans-serif'],
-        display: ['Oxanium', 'Rajdhani', 'Inter', 'sans-serif'],
-        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace']
-      },
       boxShadow: {
         glass: '0 8px 40px -12px rgba(0,0,0,0.6), inset 0 1px 0 0 rgba(255,255,255,0.05)'
       },

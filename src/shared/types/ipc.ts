@@ -1,39 +1,5 @@
 import type { TriggerFiring } from './triggers'
 
-/**
- * IPC channel definitions and message shapes.
- * Two frequencies protect the renderer from 60Hz packet flooding:
- *   - SNAPSHOT ~12Hz (paint-only fast fields)
- *   - PAINT    ~2Hz + on-change diff (full panels)
- */
-export const IPC = {
-  // main -> renderer
-  SNAPSHOT: 'telemetry:snapshot',
-  PAINT: 'state:paint',
-  ENGINEER: 'engineer:text', // streaming token delta
-  ADVICEDONE: 'engineer:advice', // completed message object
-  STATUS: 'engineer:status', // 'idle'|'listening'|'thinking'|'speaking'|'error'
-  AUDIO_START: 'audio:start', // { utteranceId, priority }
-  AUDIO_CHUNK: 'audio:chunk', // { utteranceId, seq, base64Pcm16 }
-  AUDIO_END: 'audio:end', // { utteranceId, reason }
-  AUDIO_FINISHED: 'audio:finished', // renderer -> main: playback actually drained
-  SESSION_META: 'session:meta', // format detected, track changed
-  HEALTH: 'health', // packet watchdog, API errors
-
-  // renderer -> main
-  CONFIG_GET: 'config:get',
-  CONFIG_SET: 'config:set',
-  TEST_LLM: 'config:test:llm',
-  TEST_TTS: 'config:test:tts',
-  TEST_UDP: 'config:test:udp',
-  ASK: 'engineer:request', // manual trigger
-  CANCEL: 'engineer:cancel',
-  VOICE: 'engineer:voice', // voice → ASR → driver message
-  HOTKEY: 'hotkey:trigger', // global shortcut fired → renderer
-  AUDIO_MUTE: 'audio:mute',
-  AUDIO_VOL: 'audio:volume'
-} as const
-
 export type EngineerStatus = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error'
 
 export interface EngineerStatusPayload {
@@ -85,13 +51,6 @@ export interface AudioChunk {
 export interface AudioEnd {
   utteranceId: string
   reason: 'complete' | 'cancel' | 'error' | 'preempt'
-}
-
-export interface SessionMeta {
-  packetFormat: 2025 | 2026
-  trackName: string
-  trackId: number
-  sessionTypeLabel: string
 }
 
 export interface HealthPayload {

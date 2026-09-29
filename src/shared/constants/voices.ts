@@ -53,8 +53,3 @@ export const LANGUAGE_PROFILE: Record<LanguageMode, LanguageProfile> = {
     direction: '冷静果断，遇到技术术语保留英文原词'
   }
 }
-
-export function resolveVoice(mode: LanguageMode, voice?: string): string {
-  if (voice) return voice
-  return LANGUAGE_PROFILE[mode].defaultVoice
-}

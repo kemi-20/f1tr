@@ -60,7 +60,7 @@ function createWindow(): void {
   // replay the latest of each channel once the renderer is ready, so events emitted
   // before React mounted are not permanently lost (paint/health/advice/status).
   mainWindow.webContents.once('did-finish-load', () => {
-    for (const ch of ['state:paint', 'health', 'engineer:advice', 'engineer:status', 'session:meta']) {
+    for (const ch of ['state:paint', 'health', 'engineer:advice', 'engineer:status']) {
       Sender.flush(ch)
     }
   })
