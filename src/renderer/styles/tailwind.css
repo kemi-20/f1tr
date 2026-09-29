@@ -506,9 +506,16 @@ body {
 }
 
 .origin-style-car .floor-plate {
-  fill: rgba(255, 255, 255, 0.035);
-  stroke: rgba(255, 255, 255, 0.16);
+  fill: rgba(140, 157, 168, 0.16);
+  stroke: rgba(210, 222, 230, 0.4);
   stroke-width: 1;
+}
+
+.origin-style-car .damage-wing {
+  fill: currentColor;
+  fill-opacity: 0.3;
+  stroke: currentColor;
+  stroke-width: 2.5;
 }
 
 .origin-style-car .vent-lines,
