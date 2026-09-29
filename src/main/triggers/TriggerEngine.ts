@@ -98,9 +98,11 @@ export class TriggerEngine {
     if (this.inFlashback()) return
     switch (ev.type) {
       case 'safetyCar':
+        if (sessionKind(state.session) === 'qualifying') break
         this.tryFire(state, 'safety_car', 'critical', 'sc_active', `Safety Car: ${ev.text}`)
         break
       case 'vsc':
+        if (sessionKind(state.session) === 'qualifying') break
         this.tryFire(state, 'vsc', 'critical', 'vsc_active', `Virtual Safety Car: ${ev.text}`)
         break
       case 'redFlag':
@@ -110,6 +112,13 @@ export class TriggerEngine {
         this.tryFire(state, 'fastest_lap', 'normal', 'fastest_lap', ev.text)
         break
       case 'yellowFlag':
+        if (sessionKind(state.session) === 'qualifying') {
+          this.tryFire(state, ev.type, 'normal', ev.type,
+            `${ev.text}. Game qualifying: yellow alone does not require slowing down. Do not invent SC/VSC or a delta; warn about avoidance only with actual traffic/incident evidence.`)
+          break
+        }
+        this.tryFire(state, ev.type, 'critical', ev.type, ev.text)
+        break
       case 'blueFlag':
       case 'greenFlag':
         this.tryFire(state, ev.type, ev.type === 'greenFlag' ? 'high' : 'critical', ev.type, ev.text)
