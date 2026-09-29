@@ -123,10 +123,11 @@ function CarSilhouette(): React.ReactElement {
     <svg className="origin-style-car" style={carStyle} viewBox="0 0 220 580" role="img" aria-label="F1 car thermal map">
       <title>Tyre surface, core, brake and engine temperatures</title>
       <g strokeLinejoin="round">
-        {/* Multi-element front wing and curved endplates. */}
-        <path className="front-wing-main" d="M18 26 Q64 17 97 28 H123 Q156 17 202 26 L199 67 Q161 71 128 56 H92 Q59 71 21 67 Z" />
-        <path className="front-wing-flap" d="M23 37 Q60 29 94 39 M126 39 Q160 29 197 37 M23 48 Q58 42 94 49 M126 49 Q162 42 197 48 M25 60 Q60 55 91 56 M129 56 Q160 55 195 60" />
-        <path className="wing-endplate" d="M14 23 H21 L25 70 H18 Z M199 23 H206 L202 70 H195 Z" />
+        {/* Swept split wing: retain a clear silhouette at dashboard scale. */}
+        <path className="front-wing-main" d="M101 19 Q83 19 65 28 L17 51 L18 88 Q41 87 61 79 L91 64 L103 58 Z M119 19 Q137 19 155 28 L203 51 L202 88 Q179 87 159 79 L129 64 L117 58 Z" />
+        <path className="front-wing-flap" d="M22 63 L68 42 Q83 34 99 33 M198 63 L152 42 Q137 34 121 33 M23 78 Q43 76 61 68 L94 52 M197 78 Q177 76 159 68 L126 52" />
+        <path className="wing-endplate" d="M14 50 L20 48 L23 90 L16 92 Z M200 48 L206 50 L204 92 L197 90 Z" />
+        <path className="front-wing-flap" d="M91 64 L99 84 H121 L129 64" />
 
         {/* Floor edge, venturi entrances and diffuser remain distinct from bodywork. */}
         <path className="floor-plate" d="M81 191 L58 218 L48 259 L46 411 L66 457 L83 496 H137 L154 457 L174 411 L172 259 L162 218 L139 191 Z" />
@@ -140,9 +141,9 @@ function CarSilhouette(): React.ReactElement {
         <path className="suspension suspension-rl" d="M48 462 L96 425 M48 468 L99 493 M48 465 L98 457" />
         <path className="suspension suspension-rr" d="M172 462 L124 425 M172 468 L121 493 M172 465 L122 457" />
 
-        <path className="body-shell" d="M104 30 Q110 25 116 30 L122 114 L133 176 L138 219 L132 252 L127 283 L127 339 L137 397 L124 449 L119 501 H101 L96 449 L83 397 L93 339 V283 L88 252 L82 219 L87 176 L98 114 Z" />
-        <path className="nose-highlight" d="M105 37 H115 L118 112 L124 166 Q110 158 96 166 L102 112 Z" />
-        <path className="center-stripe" d="M110 38 V180 M110 283 V318 M110 398 V498" />
+        <path className="body-shell" d="M100 29 Q100 13 110 13 Q120 13 120 29 L121 87 L122 114 L133 176 L138 219 L132 252 L127 283 L127 339 L137 397 L124 449 L119 501 H101 L96 449 L83 397 L93 339 V283 L88 252 L82 219 L87 176 L98 114 L99 87 Z" />
+        <path className="nose-highlight" d="M105 30 Q110 21 115 30 L116 90 L118 112 L124 166 Q110 158 96 166 L102 112 L104 90 Z" />
+        <path className="center-stripe" d="M110 32 V180 M110 283 V318 M110 398 V498" />
         <path className="sidepod" d="M88 248 Q65 241 58 266 Q55 316 64 354 Q72 384 92 405 L99 384 L95 308 Z M132 248 Q155 241 162 266 Q165 316 156 354 Q148 384 128 405 L121 384 L125 308 Z" />
         <path className="car-intake" d="M60 263 Q71 251 89 257 L91 271 Q72 267 60 278 Z M160 263 Q149 251 131 257 L129 271 Q148 267 160 278 Z" />
         <path className="floor-outline" d="M62 290 Q63 347 88 384 M158 290 Q157 347 132 384" />
