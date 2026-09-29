@@ -127,6 +127,7 @@ export class RaceAnalysis {
     const samples = this.laps
     if (isQualifying(state)) {
       lines.push(`QUALIFYING/SPRINT SHOOTOUT RUN: ${p.lapPhase ?? 'unknown'}; ${p.lapPhaseEvidence ?? 'no phase evidence'}. Lap invalid: ${p.currentLapInvalid ?? 'unknown'}. Session time left ${s.sessionTimeLeftS ?? 'unknown'}s. Scheduled race laps are NOT a qualifying run target.`)
+      lines.push('QUALIFYING DEADLINE: cross the start/finish line to START the timed lap before zero; it may FINISH after zero if valid. Zero on the countdown alone does not end an ongoing flying lap or justify boxing. Verify start/completion evidence before asserting eligibility; no new timed lap after zero.')
       lines.push('Keep radio silent on flying/uncertain laps except immediate safety or a direct driver question. Review best VALID laps, not race-position gaps. In/out/cooling intent can be inferred, not guaranteed; invalid alone does not imply cooling. Check physical traffic and valid flying cars behind during preparation laps.')
       return lines.join('\n')
     }
