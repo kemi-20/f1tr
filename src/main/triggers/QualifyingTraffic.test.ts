@@ -196,6 +196,10 @@ describe('qualifying traffic warnings', () => {
       vi.advanceTimersByTime(1_000)
       refreshTelemetry(state, 0.97) // 250m behind; closing at 50m/s
       engine.evaluate(state)
+      expect(expectWarnings(firings)).toHaveLength(0) // require a third coherent sample
+      vi.advanceTimersByTime(1_000)
+      refreshTelemetry(state, 0.98)
+      engine.evaluate(state)
 
       const warnings = expectWarnings(firings)
       expect(warnings).toHaveLength(1)
@@ -240,6 +244,10 @@ describe('qualifying traffic warnings', () => {
 
     vi.advanceTimersByTime(1_000)
     refreshTelemetry(state, 0.95)
+    engine.evaluate(state)
+    expect(expectWarnings(firings)).toHaveLength(0)
+    vi.advanceTimersByTime(1_000)
+    refreshTelemetry(state, 0.96)
     engine.evaluate(state)
     expect(expectWarnings(firings)).toHaveLength(1)
   })

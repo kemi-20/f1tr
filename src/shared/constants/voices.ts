@@ -30,26 +30,33 @@ export interface LanguageProfile {
   direction: string
 }
 
+/** Generic language-level TTS direction. A selected engineer style overrides it. */
+export const ENGINEER_TTS_DIRECTIONS: Record<LanguageMode, string> = {
+  zh: '冷静果断的 F1 赛车工程师语气',
+  en: 'calm, decisive F1 race engineer',
+  mixed: '冷静果断，遇到技术术语保留英文原词'
+}
+
 export const LANGUAGE_PROFILE: Record<LanguageMode, LanguageProfile> = {
   zh: {
     promptLang: 'zh-CN',
     speak: 'zh',
     defaultVoice: '冰糖',
     voices: VOICE_CATALOG.zh,
-    direction: '冷静果断的 F1 赛车工程师语气'
+    direction: ENGINEER_TTS_DIRECTIONS.zh
   },
   en: {
     promptLang: 'en',
     speak: 'en',
     defaultVoice: 'Mia',
     voices: VOICE_CATALOG.en,
-    direction: 'calm, decisive F1 race engineer'
+    direction: ENGINEER_TTS_DIRECTIONS.en
   },
   mixed: {
     promptLang: 'zh-CN', // Chinese body, English F1 terms + callsigns
     speak: 'zh with English terms (DRS, ERS, box, box box, push, out lap)',
     defaultVoice: 'mimo_default',
     voices: [...VOICE_CATALOG.zh, ...VOICE_CATALOG.en.filter((v) => !VOICE_CATALOG.zh.some((z) => z.id === v.id))],
-    direction: '冷静果断，遇到技术术语保留英文原词'
+    direction: ENGINEER_TTS_DIRECTIONS.mixed
   }
 }

@@ -1,5 +1,6 @@
 import { SseParser } from './SseParser'
 import { logger } from '../logging/Logger'
+import { ENGINEER_TTS_DIRECTIONS } from '@shared/constants/voices'
 
 export interface MiMoConfig {
   baseURL: string // e.g. https://api.xiaomimimo.com/v1  (must include /v1)
@@ -65,7 +66,7 @@ export class MiMoTtsClient {
     const body = {
       model: this.config.model,
       messages: [
-        { role: 'user', content: direction || 'calm, decisive F1 race engineer' },
+        { role: 'user', content: direction || ENGINEER_TTS_DIRECTIONS.en },
         { role: 'assistant', content: text }
       ],
       audio: { format: 'pcm16', voice },

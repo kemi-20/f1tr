@@ -1,4 +1,4 @@
-import type { RaceState } from '../types/state'
+import type { RaceState, RivalState } from '../types/state'
 import type { TriggerFiring } from '../types/triggers'
 import { sessionKind } from './sessionKind'
 import { forwardDistance, validCircuitDistance } from './trackLayout'
@@ -20,18 +20,33 @@ export function holdQualifyingRadio(state: RaceState, firing: TriggerFiring, now
   return !['out', 'cooling', 'in', 'garage'].includes(player.lapPhase ?? 'unknown')
 }
 
-export function qualifyingYieldStillRelevant(state: RaceState, firing: TriggerFiring, now = Date.now()): boolean {
-  if (firing.reasonCode !== 'qualifying_yield') return true
+const LAP_DATA_FRESH_MS = 2500
+
+function freshLapData(ts: number | undefined, now: number): boolean {
+  return ts != null && Number.isFinite(ts) && now >= ts && now - ts <= LAP_DATA_FRESH_MS
+}
+
+/**
+ * The single definition of a valid flying rival physically behind the player on a
+ * preparation lap. Both the trigger stage and the playback recheck use this gate;
+ * they differ only in how they measure closing speed and ETA.
+ */
+export function qualifyingYieldGeometry(state: RaceState, rival: RivalState | undefined, now = Date.now()): { distanceM: number } | null {
   const p = state.player
-  const car = Number(firing.ruleId.replace(/^qualifying_yield_/, ''))
-  const r = state.rivals[car]
   const length = state.session.trackLengthM
   if (!isTimedRunSession(state) || !['out', 'cooling', 'in'].includes(p.lapPhase ?? '') ||
-      !p.onTrack || p.pitStatus !== 0 || !p.lapDataUpdatedAt || now < p.lapDataUpdatedAt || now - p.lapDataUpdatedAt > 2500 ||
-      !r || r.status !== 'running' || r.pitStatus !== 0 || r.lapPhase !== 'flying' ||
-      r.currentLapInvalid !== false || !r.lapDataUpdatedAt || now < r.lapDataUpdatedAt || now - r.lapDataUpdatedAt > 2500 ||
-      !validCircuitDistance(p.distanceFromStartM, length) || !validCircuitDistance(r.distanceFromStartM, length) ||
-      now < firing.ts || now - firing.ts > 12_000) return false
-  const distance = forwardDistance(r.distanceFromStartM, p.distanceFromStartM, length)
-  return distance >= 1 && distance <= Math.min(800, length * 0.2)
+      !p.onTrack || p.pitStatus !== 0 || !freshLapData(p.lapDataUpdatedAt, now) ||
+      !rival || rival.status !== 'running' || rival.pitStatus !== 0 || rival.lapPhase !== 'flying' ||
+      rival.currentLapInvalid !== false || !freshLapData(rival.lapDataUpdatedAt, now) ||
+      !validCircuitDistance(p.distanceFromStartM, length) || !validCircuitDistance(rival.distanceFromStartM, length)) return null
+  const distance = forwardDistance(rival.distanceFromStartM, p.distanceFromStartM, length)
+  if (!(distance >= 1 && distance <= Math.min(800, length * 0.2))) return null
+  return { distanceM: distance }
+}
+
+export function qualifyingYieldStillRelevant(state: RaceState, firing: TriggerFiring, now = Date.now()): boolean {
+  if (firing.reasonCode !== 'qualifying_yield') return true
+  const car = Number(firing.ruleId.replace(/^qualifying_yield_/, ''))
+  if (now < firing.ts || now - firing.ts > 12_000) return false
+  return qualifyingYieldGeometry(state, state.rivals[car], now) != null
 }

@@ -4,9 +4,10 @@ import type { Priority } from '@shared/types/audio'
 import { Cooldown } from './Cooldown'
 import { logger } from '../logging/Logger'
 import { lapsToFlag, raceFuelMargin } from '@shared/util/raceDistance'
-import { holdQualifyingRadio, isTimedRunSession } from '@shared/util/lapPhase'
-import { forwardDistance, validCircuitDistance } from '@shared/util/trackLayout'
+import { holdQualifyingRadio, isTimedRunSession, qualifyingYieldGeometry } from '@shared/util/lapPhase'
+import { validCircuitDistance } from '@shared/util/trackLayout'
 import { sessionKind } from '@shared/util/sessionKind'
+import { estimateClosing, type DistanceSample } from '../engineer/ClosingEstimate'
 
 /**
  * TriggerEngine — evaluates rule conditions each tick + on events, applies
@@ -36,7 +37,7 @@ export class TriggerEngine {
   private flashbackUntilMs = 0
   private sessionUID = ''
   private reviewLap = 0
-  private approachingCars = new Map<number, { distance: number; ts: number }>()
+  private approachingCars = new Map<number, DistanceSample[]>()
   private onFiring: (f: TriggerFiring) => void
 
   constructor(
@@ -392,24 +393,21 @@ export class TriggerEngine {
     const seen = new Set<number>()
     const threats: { car: number; distance: number; eta: number }[] = []
     for (const r of Object.values(state.rivals)) {
-      if (r.carIndex === p.carIndex || r.pitStatus !== 0 || r.status !== 'running' ||
-          r.lapPhase !== 'flying' || r.currentLapInvalid !== false || !r.lapDataUpdatedAt ||
-          now < r.lapDataUpdatedAt || now - r.lapDataUpdatedAt > 2500 ||
-          Math.abs(r.lapDataUpdatedAt - p.lapDataUpdatedAt) > 750 ||
-          !validCircuitDistance(r.distanceFromStartM, length)) continue
-      const distance = forwardDistance(r.distanceFromStartM, p.distanceFromStartM, length)
-      if (distance < 1 || distance > Math.min(800, length * 0.2)) continue
+      if (r.carIndex === p.carIndex) continue
+      const geometry = qualifyingYieldGeometry(state, r, now)
+      // The trigger stage additionally needs synchronised LapData before deriving a rate.
+      if (!geometry || Math.abs((r.lapDataUpdatedAt ?? 0) - (p.lapDataUpdatedAt ?? 0)) > 750) continue
+      const distance = geometry.distanceM
       seen.add(r.carIndex)
-      const prev = this.approachingCars.get(r.carIndex)
-      if (!prev) { this.approachingCars.set(r.carIndex, { distance, ts: now }); continue }
-      const dt = (now - prev.ts) / 1000
-      if (dt < 1) continue
-      this.approachingCars.set(r.carIndex, { distance, ts: now })
-      if (dt > 3) continue
-      const closing = (prev.distance - distance) / dt
-      if (closing < 5 || closing > 120) continue
-      const eta = distance / closing
-      if (eta <= 12) threats.push({ car: r.carIndex, distance, eta })
+      const ts = p.lapDataUpdatedAt!
+      const samples = (this.approachingCars.get(r.carIndex) ?? []).filter(sample => ts - sample.ts <= 3000 && sample.ts <= ts)
+      if (samples.length && ts - samples[samples.length - 1].ts < 500) continue
+      samples.push({ distance, ts })
+      this.approachingCars.set(r.carIndex, samples.slice(-7))
+      const motion = estimateClosing(samples)
+      if (motion.closingMps != null && motion.closingMps >= 5 && motion.catchEstimateS != null && motion.catchEstimateS <= 12) {
+        threats.push({ car: r.carIndex, distance, eta: motion.catchEstimateS })
+      }
     }
     for (const id of this.approachingCars.keys()) if (!seen.has(id)) this.approachingCars.delete(id)
     const threat = threats.sort((a, b) => a.eta - b.eta)[0]
@@ -483,6 +481,3 @@ function minPositive(...values: number[]): number | null {
 function isRaceSession(state: RaceState): boolean {
   return sessionKind(state.session) === 'race'
 }
-
-export { Cooldown }
-export type { TriggerConfig }

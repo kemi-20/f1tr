@@ -136,7 +136,7 @@ describe('RaceAnalysis strategy evidence', () => {
   it('plans the dry two-compound obligation only for a confirmed Grand Prix', () => {
     const grandPrix = sample(2, 20)
     grandPrix.session.isSprintRace = false
-    expect(new RaceAnalysis().report(grandPrix, 100_000)).toContain('Dry Grand Prix: plan to use at least two different slick compounds')
+    expect(new RaceAnalysis().report(grandPrix, 100_000)).toContain('Dry Grand Prix: two-compound planning obligation applies')
 
     grandPrix.session.isSprintRace = null
     expect(new RaceAnalysis().report(grandPrix, 100_000)).toContain('Two-compound obligation not established')

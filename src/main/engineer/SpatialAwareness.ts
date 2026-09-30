@@ -1,5 +1,6 @@
 import type { RaceState, RivalState } from '@shared/types/state'
 import { sessionKind } from '@shared/util/sessionKind'
+import { estimateClosing } from './ClosingEstimate'
 import { forwardDistance, validCircuitDistance } from '@shared/util/trackLayout'
 export { validCircuitDistance } from '@shared/util/trackLayout'
 
@@ -87,7 +88,6 @@ export function relativeMotion(states: readonly RaceState[], carIndex: number, n
       player: state.player.distanceFromStartM!, rival: r.distanceFromStartM!, frame: state.session.overallFrameIdentifier })
   }
   if (samples.length < 3 || now - samples.at(-1)!.ts > FRESH_MS) return unavailable
-  const rates: number[] = []
   for (let i = 1; i < samples.length; i++) {
     const a = samples[i - 1], b = samples[i]
     const dt = (b.ts - a.ts) / 1000
@@ -98,16 +98,11 @@ export function relativeMotion(states: readonly RaceState[], carIndex: number, n
       const advance = forwardDistance(a[key], b[key], length)
       if (advance > 120 * dt && advance < length - 2) return unavailable
     }
-    rates.push((Math.abs(a.distance) - Math.abs(b.distance)) / dt)
   }
   const first = samples[0], last = samples.at(-1)!
   const dt = (last.ts - first.ts) / 1000
   if (dt < 1 || Math.abs(last.distance) >= Math.min(1000, length / 4)) return unavailable
-  const closing = (Math.abs(first.distance) - Math.abs(last.distance)) / dt
-  const stable = rates.every(rate => rate > 1) && Math.max(...rates) - Math.min(...rates) <= 20
-  const eta = stable && closing > 1 ? Math.abs(last.distance) / closing : null
-  return { closingMps: Math.round(closing * 10) / 10,
-    catchEstimateS: eta != null && eta <= 30 ? Math.round(eta * 10) / 10 : null,
+  return { ...estimateClosing(samples),
     sampleCount: samples.length, observationWindowS: dt,
     evidence: 'Observed shortest-arc change on the same racing route. Positive closing means converging; ETA assumes rates persist, is not a timing gap and is not a pit-rejoin prediction.' }
 }

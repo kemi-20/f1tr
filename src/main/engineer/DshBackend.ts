@@ -5,7 +5,6 @@ import { mkdtempSync, rmSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID, randomBytes } from 'node:crypto'
-import type { Digest } from '@shared/types/digest'
 import type { TriggerFiring } from '@shared/types/triggers'
 import type { ReasoningEffort } from '@shared/index'
 import type { EngineerBackend } from './EngineerService'
@@ -13,6 +12,7 @@ import type { TelemetryHistory } from './TelemetryHistory'
 import { executeTelemetryTool, isTelemetryTool } from './TelemetryHarness'
 import { captureF1Screenshot } from '../screenshot/ScreenshotService'
 import { searchWeb } from './WebSearchClient'
+import { toolResultFits } from './toolLimits'
 import { safeToolError } from './ToolError'
 import type { MiMoVisionClient } from './MiMoVisionClient'
 import { logger } from '../logging/Logger'
@@ -51,10 +51,6 @@ export class DshBackend implements EngineerBackend {
     private readonly speak: (text: string, firing: TriggerFiring) => void,
     private readonly persona: string
   ) {}
-
-  async ping(): Promise<boolean> {
-    return (await this.testConnection()).ok
-  }
 
   async testConnection(): Promise<{ ok: boolean; message: string }> {
     try {
@@ -130,14 +126,11 @@ export class DshBackend implements EngineerBackend {
     this.stop()
   }
 
-  async dispose(): Promise<void> { this.cancel() }
-
-  async generate(_digest: Digest, digestText: string, firing: TriggerFiring, manualPrompt: string | undefined, onDelta: (delta: string) => void, audioBase64?: string): Promise<string> {
-    if (audioBase64) throw new Error('Voice input must be transcribed before DSH')
+  async generate(digestText: string, firing: TriggerFiring, onDelta: (delta: string) => void): Promise<string> {
     if (this.current) throw new Error('Engineer turn already running')
     await this.start()
     const manual = firing.reasonCode === 'manual'
-    const driverText = manualPrompt ?? firing.reason
+    const driverText = firing.reason
     const prompt = `${manual ? 'SOURCE: driver_manual. The driver asked directly; call speak_radio with your answer.' : 'SOURCE: automatic_event. Speak only when an actionable radio message is warranted.'}\n${manual ? `DRIVER: ${driverText.slice(0, 1024)}\n` : ''}${digestText}`
     return new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -410,7 +403,7 @@ export class DshBackend implements EngineerBackend {
         result = 'Radio message accepted'
       } else throw new Error('Unknown tool')
       if (socket.destroyed || this.current !== active) throw new Error('Engineer turn cancelled')
-      if (Buffer.byteLength(result, 'utf8') > 54_000) result = 'Result exceeds context budget; use a narrower section or page.'
+      if (!toolResultFits(result)) result = 'Result exceeds context budget; use a narrower section or page.'
       socket.end(JSON.stringify({ id, ok: true, result }) + '\n')
     } catch (error) {
       if (!socket.destroyed) {

@@ -44,10 +44,6 @@ export class AudioPipeline {
     this.maxQueueDepth = Math.max(1, n)
   }
 
-  get active(): boolean {
-    return this.current != null
-  }
-
   /** Enqueue a synthesis request. Higher priority preempts / jumps the queue. */
   enqueue(text: string, priority: Priority, voice: string, direction: string): void {
     const norm = this.normalize(text)

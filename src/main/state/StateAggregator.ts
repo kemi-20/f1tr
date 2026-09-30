@@ -533,6 +533,9 @@ export class StateAggregator {
     pl.powerUnit.gearbox = 1 - clamp01(normPctTo01(d.m_gearBoxDamage))
     pl.powerUnit.exhaust = pl.powerUnit.engine
     // wing damage is uint8 0..100 — divide by 100, NOT clamp01 (which would max any value > 1).
+    pl.damage.telemetryReceived = [d.m_frontLeftWingDamage, d.m_frontRightWingDamage, d.m_rearWingDamage,
+      d.m_floorDamage, d.m_sidepodDamage].every((value) =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100)
     pl.damage.frontLeftWing = clamp01(normPctTo01(d.m_frontLeftWingDamage))
     pl.damage.frontRightWing = clamp01(normPctTo01(d.m_frontRightWingDamage))
     pl.damage.rearWing = clamp01(normPctTo01(d.m_rearWingDamage))

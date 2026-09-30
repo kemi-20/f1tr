@@ -119,7 +119,7 @@ export class RaceAnalysis {
     const s = state.session
     const lines = ['ENGINEERING OBSERVATIONS (estimates, not commands):',
       `Telemetry age: ${state.lastPacketMs ? Math.max(0, now - state.lastPacketMs) + 'ms' : 'unknown'}; format ${state.packetFormat}; flag ${s.trackFlag}; pit status ${p.pitStatus}; penalties ${p.penaltiesS}s.`,
-      'Corner order in digest: RL/RR/FL/FR. Rival signed gap: positive=ahead, negative=behind; never infer DRS eligibility from gap alone.',
+      'Corner order in digest: RL/RR/FL/FR. Rival signed gap: positive=ahead, negative=behind.',
       `Brake C RL/RR/FL/FR: ${Object.values({ rl: p.tyres.brakeTempC.rl, rr: p.tyres.brakeTempC.rr, fl: p.tyres.brakeTempC.fl, fr: p.tyres.brakeTempC.fr }).map(Math.round).join('/')}; floor damage ${(p.damage.floor * 100).toFixed(0)}%.`]
     if (!state.lastPacketMs || now - state.lastPacketMs > 5000 || state.flashbackActive) {
       return lines.concat('STALE/UNAVAILABLE: no live strategy or trend claims; request fresh telemetry.').join('\n')
@@ -127,13 +127,11 @@ export class RaceAnalysis {
     const samples = this.laps
     if (isQualifying(state)) {
       lines.push(`QUALIFYING/SPRINT SHOOTOUT RUN: ${p.lapPhase ?? 'unknown'}; ${p.lapPhaseEvidence ?? 'no phase evidence'}. Lap invalid: ${p.currentLapInvalid ?? 'unknown'}. Session time left ${s.sessionTimeLeftS ?? 'unknown'}s. Scheduled race laps are NOT a qualifying run target.`)
-      lines.push('QUALIFYING DEADLINE: cross the start/finish line to START the timed lap before zero; it may FINISH after zero if valid. Zero on the countdown alone does not end an ongoing flying lap or justify boxing. Verify start/completion evidence before asserting eligibility; no new timed lap after zero.')
-      lines.push('Keep radio silent on flying/uncertain laps except immediate safety or a direct driver question. Review best VALID laps, not race-position gaps. In/out/cooling intent can be inferred, not guaranteed; invalid alone does not imply cooling. Check physical traffic and valid flying cars behind during preparation laps.')
       return lines.join('\n')
     }
     if (sessionKind(s) === 'practice') {
       lines.push(`PRACTICE RUN: ${s.sessionType === 4 ? 'short practice' : s.sessionType >= 1 && s.sessionType <= 3 ? `full practice P${s.sessionType}` : 'practice'}; ${s.sessionTimeLeftS ?? 'unknown'}s remaining; current lap ${p.lap}. No mandatory race stop or race-distance fuel target applies.`)
-      lines.push(`Comparable clean laps this run: ${samples.map(l => `L${l.lap}=${l.time.toFixed(3)}s`).join(', ') || 'not enough yet'}. Compare balance, tyre warm-up, wear and fuel use within the same run; choose a specific test objective and a return-to-garage time. Do not box solely at 30% wear or treat a planned run end as an emergency.`)
+      lines.push(`Comparable clean laps this run: ${samples.map(l => `L${l.lap}=${l.time.toFixed(3)}s`).join(', ') || 'not enough yet'}.`)
       return lines.join('\n')
     }
     if (sessionKind(s) !== 'race') {
@@ -143,24 +141,24 @@ export class RaceAnalysis {
     lines.push(...this.strategy.report(state))
     if (this.pitInstruction && this.pitInstruction.uid === s.sessionUID &&
       p.lap > this.pitInstruction.lap && p.pitStopCount === this.pitInstruction.pitStops) {
-      lines.push(`Driver continued after our L${this.pitInstruction.lap} BOX instruction. Treat this as a likely strategy objection, not proof that pit entry was impossible. Do not repeat the same call without a new rule/safety/time-loss reason. Recalculate and briefly explain the tradeoff; ask for confirmation only if a decision is still time-critical.`)
+      lines.push(`Driver continued after our L${this.pitInstruction.lap} BOX instruction: likely strategy objection, not proof that pit entry was impossible.`)
     }
     const remaining = lapsToFlag(state)
     lines.push(remaining == null
-      ? 'Race distance unavailable: query current session; do not assume a full Grand Prix distance or invent a stop lap.'
-      : `Race distance: ${s.totalLaps} scheduled laps; ${remaining.toFixed(2)} laps to flag. All stint, fuel and stop-payback estimates must use this distance, not a full-length Grand Prix.`)
+      ? 'Race distance unavailable: query the current session before assuming a full Grand Prix distance.'
+      : `Race distance: ${s.totalLaps} scheduled laps; ${remaining.toFixed(2)} laps to flag.`)
     const dryNow = !state.weather.isRaining && state.weather.wetness < 0.08 &&
       ['soft', 'medium', 'hard'].includes(p.tyres.compound)
     lines.push(s.totalLaps != null && s.totalLaps <= 5
-      ? 'Very short 3/5-lap race: do not impose the ordinary dry two-compound stop rule; stop only for a supported time/safety reason.'
+      ? 'Very short 3/5-lap race: the ordinary dry two-compound stop rule does not apply.'
       : s.isSprintRace === true
-        ? 'Confirmed sprint race: no ordinary dry two-compound stop obligation.'
+        ? 'Confirmed sprint race: the ordinary dry two-compound stop obligation does not apply.'
         : s.isSprintRace === false && dryNow
-          ? 'Dry Grand Prix: plan to use at least two different slick compounds unless this game session has a special rule or wet tyres are used. Check session history before claiming the obligation is already fulfilled.'
-          : 'Two-compound obligation not established from live data: verify sprint/weekend structure, short-race setting, weather history and game rules before ordering a mandatory stop.')
+          ? 'Dry Grand Prix: two-compound planning obligation applies unless special session rules or wet tyres change it.'
+          : 'Two-compound obligation not established from live data (weekend structure, short-race setting, wet usage or special rules unknown).')
     const margin = raceFuelMargin(state)
     if (remaining != null && remaining > 0 && margin != null) {
-      lines.push(`Game MFD fuel margin ${margin >= 0 ? '+' : ''}${margin.toFixed(2)} laps to finish (already surplus/deficit; do not subtract race distance again). ${margin >= 0.25 ? 'Fuel is sufficient at the current rate; do not request lift-and-coast or repeatedly warn about fuel.' : margin >= 0 ? 'Positive but narrow margin; monitor, no saving instruction solely from this reading.' : 'Estimated shortfall; assess recent consumption before requesting saving.'} Game estimate changes with pace and neutralisation.`)
+      lines.push(`Game MFD fuel margin ${margin >= 0 ? '+' : ''}${margin.toFixed(2)} laps to finish (already surplus/deficit; do not subtract race distance again). Game estimate changes with pace and neutralisation.`)
     }
     lines.push(`Comparable observed laps: ${samples.map(l => `L${l.lap}=${l.time.toFixed(3)}s`).join(', ') || 'not enough yet'}. Pit/neutralised/weather-change laps excluded; validity and traffic can still confound pace.`)
     if (samples.length >= 3) {
@@ -177,7 +175,7 @@ export class RaceAnalysis {
           const projected = wear + rate * remaining
           lines.push(`${corner.toUpperCase()} wear: ${wear.toFixed(1)}% now, +${rate.toFixed(2)}pp/lap over ${samples.length} comparable laps; no-stop linear finish projection ${projected.toFixed(1)}%. ${projected > 100 ? 'Beyond physical range: this extrapolation cannot support staying out.' : 'Not a safety guarantee or puncture threshold.'}`)
           const rates = samples.map(lap => lap.cornerWearAdded[corner])
-          lines.push(`${corner.toUpperCase()} observed-rate sensitivity: ${(wear + Math.min(...rates) * remaining).toFixed(1)}-${(wear + Math.max(...rates) * remaining).toFixed(1)}% at flag. Range uses sampled minimum/maximum rates, NOT a statistical confidence interval; pace and handling still decide whether extending is worthwhile.`)
+          lines.push(`${corner.toUpperCase()} observed-rate sensitivity: ${(wear + Math.min(...rates) * remaining).toFixed(1)}-${(wear + Math.max(...rates) * remaining).toFixed(1)}% at flag. Range uses sampled minimum/maximum rates, not a statistical confidence interval.`)
         }
       }
       const fuelSamples = samples.map(l => l.fuelUsed).filter((v): v is number => v != null)
@@ -186,9 +184,9 @@ export class RaceAnalysis {
         const projected = p.fuelRemainingKg - rate * remaining
         lines.push(`Fuel burn observed range ${Math.min(...fuelSamples).toFixed(2)}-${Math.max(...fuelSamples).toFixed(2)}kg/lap; flag-fuel sensitivity ${(p.fuelRemainingKg - Math.max(...fuelSamples) * remaining).toFixed(2)}-${(p.fuelRemainingKg - Math.min(...fuelSamples) * remaining).toFixed(2)}kg. Scenario range, not a guaranteed reserve.`)
         if (margin != null && margin >= 0.25 && projected > 0) {
-          lines.push('Historical fuel cross-check also projects positive fuel at the flag. No fuel-saving instruction is warranted at the current rate; avoid repeating this status unless it changes.')
+          lines.push('Historical fuel cross-check also projects positive fuel at the flag.')
         } else {
-          lines.push(`Historical fuel cross-check: ${projected.toFixed(2)}kg at flag using ${rate.toFixed(2)}kg/lap across ${fuelSamples.length} laps. This is remaining fuel, NOT a deficit or target; positive fuel at the flag means enough to finish at this rate. Use game fuel-laps estimate above as the primary current signal when available. No reserve included; driving/SC changes invalidate projection. F1 race refuelling is not an option.`)
+          lines.push(`Historical fuel cross-check: ${projected.toFixed(2)}kg at flag using ${rate.toFixed(2)}kg/lap across ${fuelSamples.length} laps; this is remaining fuel, not a deficit or target.`)
         }
       }
     }
@@ -202,7 +200,7 @@ export class RaceAnalysis {
       }
       lines.push(`Rival ${label}: last lap ${r.lastLapTimeS?.toFixed(3) ?? 'unknown'}s, pit status ${r.pitStatus}; wear ${r.tyreWearAvg == null ? 'unavailable' : r.tyreWearAvg.toFixed(0) + '% (may be restricted)'}.`)
     }
-    lines.push('Strategy inputs not computed in this summary: query session packet 1 for pit window/rejoin/rules, player tyre sets packet 12 for availability, session history packet 11 and stint/events for compound use and pit observations. Use inventory keys and timestamps. Do not label these unavailable until checked. No fixed pit loss or guaranteed tyre life is supplied; give a provisional stay-out/stop-window plan with explicit revision conditions from available evidence.')
+    lines.push('Strategy inputs not computed in this summary: query session packet 1 for pit window/rejoin/rules, player tyre sets packet 12 for availability, session history packet 11 and stint/events for compound use and pit observations. Use inventory keys and timestamps. Do not label these unavailable until checked.')
     return lines.join('\n')
   }
 

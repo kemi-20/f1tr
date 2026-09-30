@@ -1,42 +1,26 @@
 import type { TelemetryHistory } from './TelemetryHistory'
 import { readTrackLayout, TRACK_LAYOUT_SECTIONS } from './TrackLayoutReport'
 
+import { toolResultFits } from './toolLimits'
+
 const sections = ['all', 'player', 'rivals', 'weather', 'session', 'trackPositions', 'events']
-const sectionProperty = { type: 'string', enum: sections, description: 'Select the relevant data category to avoid unnecessary context.' }
-const paging = {
-  section: sectionProperty,
-  offset: { type: 'integer', minimum: 0, maximum: 100000, description: 'Newest-first offset; follow nextOffset for older records.' },
-  limit: { type: 'integer', minimum: 1, maximum: 4 }
-}
 
-export const TELEMETRY_TOOLS = [
-  tool('get_race_state', 'Read latest complete normalized telemetry: all cars, player tyres/temperatures/damage/setup/energy, weather, flags and positions. Returned ts is capture time, not execution time.', { section: sectionProperty }, ['section']),
-  tool('get_track_layout', 'Read circuit sectors/zones plus each car\'s lap location, signed physical circuit separation, cumulative race-distance separation, lap difference, pit/phase and speed. Use before naming a location or assessing traffic. Physical proximity and race-order gap are different.', {
-    section: { type: 'string', enum: TRACK_LAYOUT_SECTIONS, description: 'geometry returns the full circuit polyline from bundled JSON. positions returns physical arcs, world positions, best-lap deltas, race timing and measured relative motion.' }
-  }, []),
-  tool('get_telemetry_history', 'Inspect 5-second time samples from the last 5 minutes to test temperature, gap, energy, fuel or damage trends. Fields retain their real units and nulls. Returns newest first with pagination.', paging, ['section']),
-  tool('get_lap_history', 'Inspect completed-lap boundary snapshots (up to 120 retained). Use player for pace/fuel/wear trends and rivals for opponent laps/stops; all includes conditions. These are observations, not guarantees of clean laps.', paging, ['section']),
-  tool('get_race_events', 'Read recorded flags, pit entries/exits, penalties, damage and other race events across the current weekend, newest first.', {
-    offset: { type: 'integer', minimum: 0, maximum: 8191 }, limit: { type: 'integer', minimum: 1, maximum: 20 }
-  }, []),
-  tool('get_stint_history', 'Read tyre and fuel stint summaries across the current weekend, newest first.', {
-    offset: { type: 'integer', minimum: 0, maximum: 8191 }, limit: { type: 'integer', minimum: 1, maximum: 20 }
-  }, []),
-  tool('read_telemetry_packet', 'Read original decoded fields absent from the dashboard: sector/validity history, tyre sets, motion, setups, actual energy harvest/deploy and weather forecasts. Use an exact key from the TELEMETRY TOOLS inventory (packetId or packetId:carIndex). Offset 0 is the live latest value; up to 12 samples per key at 5-second spacing. Large packets are rejected as too large: then re-query with field, and with arrayOffset/arrayLimit when that field is an array. Field paths are dot-separated own properties such as m_tyreSets or m_tyreWear.', {
-    packet: { type: 'string', pattern: '^\\d{1,2}(?::\\d{1,2})?$' },
-    offset: { type: 'integer', minimum: 0, maximum: 11 },
-    field: { type: 'string', minLength: 1, maxLength: 256 },
-    arrayOffset: { type: 'integer', minimum: 0, maximum: 10000 },
-    arrayLimit: { type: 'integer', minimum: 1, maximum: 64 }
-  }, ['packet'])
-]
+/**
+ * Host-side trust boundary. The model-facing schema and descriptions live in
+ * resources/dsh-f1-plugin/index.mjs; the host only keeps the name allowlist and
+ * validates each argument again before touching retained telemetry.
+ */
+export const TELEMETRY_TOOL_NAMES = [
+  'get_race_state',
+  'get_track_layout',
+  'get_telemetry_history',
+  'get_lap_history',
+  'read_telemetry_packet',
+  'get_race_events',
+  'get_stint_history'
+] as const
 
-function tool(name: string, description: string, properties: Record<string, unknown>, required: string[]) {
-  return { type: 'function' as const, function: { name, description,
-    parameters: { type: 'object' as const, properties, required, additionalProperties: false } } }
-}
-
-const telemetryToolNames = new Set(TELEMETRY_TOOLS.map(tool => tool.function.name))
+const telemetryToolNames = new Set<string>(TELEMETRY_TOOL_NAMES)
 
 export function isTelemetryTool(name: string): boolean {
   return telemetryToolNames.has(name)
@@ -67,18 +51,22 @@ function runTool(history: TelemetryHistory, name: string, args: unknown): string
     const layoutOnly = name === 'get_track_layout'
     const allowed = name === 'read_telemetry_packet'
       ? ['packet', 'offset', 'field', 'arrayOffset', 'arrayLimit']
-      : layoutOnly ? ['section']
+      : layoutOnly ? ['section', 'exitAfterMinS', 'exitAfterMaxS']
       : name === 'get_race_state' ? ['section'] : historyOnly ? ['offset', 'limit'] : ['section', 'offset', 'limit']
     if (Object.keys(a).some(k => !allowed.includes(k))) return 'Invalid telemetry arguments: unknown field'
     if (layoutOnly) {
       const section = a.section ?? 'all'
       if (typeof section !== 'string' || !TRACK_LAYOUT_SECTIONS.includes(section)) return 'Invalid telemetry section'
+      const min = a.exitAfterMinS, max = a.exitAfterMaxS
+      if ((min !== undefined || max !== undefined) && (section !== 'rejoin' ||
+          typeof min !== 'number' || typeof max !== 'number' || !Number.isFinite(min) || !Number.isFinite(max) ||
+          min < 0 || max < min || max > 180)) return 'Invalid rejoin horizon: require 0 <= min <= max <= 180 seconds'
       const state = history.latestState()
       if (!state) return 'No live telemetry state is retained yet. Start or resume a session, then retry.'
       const now = Date.now()
       const output = JSON.stringify({ dataOnly: true, queriedAt: now,
-        result: readTrackLayout(state, { section }, now, history.recentPositionStates(now)) })
-      return new TextEncoder().encode(output).length <= 59000 ? output : 'Result exceeds context budget; select positions, geometry or zones separately.'
+        result: readTrackLayout(state, { section, exitAfterMinS: min as number | undefined, exitAfterMaxS: max as number | undefined }, now, history.recentPositionStates(now)) })
+      return toolResultFits(output) ? output : 'Result exceeds context budget; select positions, geometry or zones separately.'
     }
     if (name === 'read_telemetry_packet') return history.query(a)
     const section = typeof a.section === 'string' ? a.section : ''
@@ -96,5 +84,5 @@ function runTool(history: TelemetryHistory, name: string, args: unknown): string
       default: return 'Unknown telemetry tool'
     }
     const encoded = JSON.stringify({ dataOnly: true, queriedAt: Date.now(), result })
-    return encoded.length <= 60000 ? encoded : 'Result exceeds context budget; select a narrower section or limit=1.'
+    return toolResultFits(encoded) ? encoded : 'Result exceeds context budget; select a narrower section or limit=1.'
 }

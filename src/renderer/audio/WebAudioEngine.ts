@@ -1,4 +1,5 @@
 import { api } from '../ipc/ipcClient'
+import { useEngineerStore } from '../store'
 import type { AudioChunk, AudioEnd, AudioStart } from '@shared/index'
 
 /**
@@ -20,7 +21,6 @@ class WebAudioEngineImpl {
   private finishedNotified = new Set<string>()
   private muted = false
   private volume = 1
-  private started = false
   private preemptGeneration = 0
   /** id of the utterance currently allowed to play; chunks from any other id are dropped
    *  (e.g. after a preempt the old synthesis's late chunks must not keep sounding). */
@@ -34,7 +34,6 @@ class WebAudioEngineImpl {
     this.master.gain.value = this.muted ? 0 : this.volume
     this.master.connect(this.ctx.destination)
     this.nextStart = this.ctx.currentTime
-    this.started = true
   }
 
   private base64ToBytes(b64: string): Uint8Array {
@@ -62,8 +61,10 @@ class WebAudioEngineImpl {
     src.start(startAt)
     this.nextStart = startAt + buf.duration
     this.active.set(src, utteranceId)
+    useEngineerStore.getState().setSpeaking(true)
     src.onended = () => {
       this.active.delete(src)
+      useEngineerStore.getState().setSpeaking(this.active.size > 0)
       this.notifyIfDrained(utteranceId)
     }
   }
@@ -162,16 +163,9 @@ class WebAudioEngineImpl {
       }
     })
     this.active.clear()
+    useEngineerStore.getState().setSpeaking(false)
     this.activeUtteranceId = null
     if (this.ctx) this.nextStart = this.ctx.currentTime
-  }
-
-  get isStarted(): boolean {
-    return this.started
-  }
-
-  get contextState(): AudioContextState | 'none' {
-    return this.ctx?.state ?? 'none'
   }
 
   get currentUtteranceId(): string | null {

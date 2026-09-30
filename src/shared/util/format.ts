@@ -65,14 +65,6 @@ export function compoundCName(rawId: number | undefined): string {
   }
 }
 
-/** Map tyre surface temp (C) to a 0..1 heat scale for color. */
-export function tempScale(c: number | null | undefined): number {
-  if (c == null || !isFinite(c)) return 0.5
-  const lo = 70
-  const hi = 120
-  return Math.max(0, Math.min(1, (c - lo) / (hi - lo)))
-}
-
 /** F1-overlay style tyre wear colour: calm when fresh, alarming as wear climbs. */
 export function tyreWearColor(wear: number | null | undefined): string {
   if (wear == null || !isFinite(wear)) return 'rgba(255, 255, 255, 0.34)'

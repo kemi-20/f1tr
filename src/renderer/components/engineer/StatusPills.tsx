@@ -10,10 +10,11 @@ const STATUSES: { id: Status; label: string; color: string }[] = [
 
 export function StatusPills(): React.ReactElement {
   const status = useEngineerStore((s) => s.status)
+  const speaking = useEngineerStore((s) => s.speaking)
   return (
     <div className="status-pills">
       {STATUSES.map((s) => {
-        const active = status === s.id
+        const active = s.id === 'speaking' ? speaking : status === s.id
         return (
           <div
             key={s.id}

@@ -28,6 +28,7 @@ export interface TyreState {
 }
 
 export interface DamageState {
+  telemetryReceived?: boolean // valid player CarDamage fields received in this session
   frontLeftWing: number // 0..1 (from m_frontLeftWingDamage, 0-100)
   frontRightWing: number // 0..1 (from m_frontRightWingDamage, 0-100)
   rearWing: number

@@ -13,7 +13,7 @@ const CORNERS: Array<{ key: keyof Corners; label: string; side: 'left' | 'right'
 export function TyreGrid(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const tyres = race?.player.tyres
-  const dmg = race?.player?.damage
+  const dmg = race?.player.damage.telemetryReceived ? race.player.damage : undefined
   const playerName = race ? race.rivals[race.player.carIndex]?.name || 'DRIVER' : 'DRIVER'
   const compound = tyres?.compound ?? 'unknown'
   const rawId = tyres?.rawCompoundId ?? -1
@@ -46,11 +46,11 @@ export function TyreGrid(): React.ReactElement {
 
         <div className="damage-map">
           <div className="car-status-section">DAMAGE</div>
-          <DamageLine label="FL WING" value={dmg?.frontLeftWing ?? 0} />
-          <DamageLine label="FR WING" value={dmg?.frontRightWing ?? 0} />
-          <DamageLine label="REAR WING" value={dmg?.rearWing ?? 0} />
-          <DamageLine label="FLOOR" value={dmg?.floor ?? 0} />
-          <DamageLine label="SIDEPOD" value={Math.max(dmg?.sidepodL ?? 0, dmg?.sidepodR ?? 0)} />
+          <DamageLine label="FL WING" value={dmg?.frontLeftWing} />
+          <DamageLine label="FR WING" value={dmg?.frontRightWing} />
+          <DamageLine label="REAR WING" value={dmg?.rearWing} />
+          <DamageLine label="FLOOR" value={dmg?.floor} />
+          <DamageLine label="SIDEPOD" value={dmg ? Math.max(dmg.sidepodL, dmg.sidepodR) : undefined} />
         </div>
       </div>
     </section>
@@ -80,17 +80,17 @@ function TyreInfo({ corner, label, side }: { corner: keyof Corners; label: strin
   )
 }
 
-function DamageLine({ label, value }: { label: string; value: number }): React.ReactElement {
-  const pct = Math.round(value * 100)
+function DamageLine({ label, value }: { label: string; value: number | undefined }): React.ReactElement {
+  const pct = value == null ? null : Math.round(value * 100)
   const color = damageColor(value)
   return (
     <div className="damage-line">
       <div className="damage-line-head">
         <span>{label}</span>
-        <strong style={{ color }}>{pct}%</strong>
+        <strong style={{ color }}>{pct == null ? '--' : pct}%</strong>
       </div>
       <div className="damage-track">
-        <div className="damage-fill" style={{ width: `${pct}%`, background: color }} />
+        <div className="damage-fill" style={{ width: `${pct ?? 0}%`, background: color }} />
       </div>
     </div>
   )
@@ -109,7 +109,7 @@ function CarSilhouette(): React.ReactElement {
   const inner = tyres?.innerTempC ?? { fl: 0, fr: 0, rl: 0, rr: 0 }
   const brake = tyres?.brakeTempC ?? { fl: 0, fr: 0, rl: 0, rr: 0 }
   const engineTemp = Math.round(race?.player.engineTempC ?? 0)
-  const damage = race?.player.damage
+  const damage = race?.player.damage.telemetryReceived ? race.player.damage : undefined
   const carStyle = {
     '--surface-fl': tyreSurfaceColor(surface.fl),
     '--surface-fr': tyreSurfaceColor(surface.fr),

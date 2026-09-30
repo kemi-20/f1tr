@@ -52,9 +52,9 @@ describe('qualifying radio at playback time', () => {
     const firing: TriggerFiring = { ruleId: 'heartbeat', reasonCode: 'heartbeat', reason: '',
       priority: 'low', kind: 'heartbeat', ts: Date.now() }
     vi.mocked(Sender.send).mockClear()
-    service.setBackend({ generate: async (_digest, _text, _firing, _prompt, onDelta) => {
-      onDelta('HOLD, no radio needed')
-      return 'HOLD, no radio needed'
+    service.setBackend({ generate: async (_text, _firing, onDelta) => {
+      onDelta('Warm the tyres and keep it clean.')
+      return 'Warm the tyres and keep it clean.'
     } })
     await service.advise(state, firing)
     expect(vi.mocked(Sender.send).mock.calls.some(([channel]) =>

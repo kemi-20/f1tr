@@ -6,17 +6,17 @@ import { TelemetryHistory } from './TelemetryHistory'
 import { getEngineerSkill } from './EngineerSkillLibrary'
 import type { TriggerFiring } from '@shared/types/triggers'
 import type { RaceState } from '@shared/types/state'
-import type { LanguageMode } from '@shared/constants/voices'
+import { ENGINEER_TTS_DIRECTIONS, type LanguageMode } from '@shared/constants/voices'
 import { logger } from '../logging/Logger'
 import { holdQualifyingRadio, qualifyingYieldStillRelevant } from '@shared/util/lapPhase'
 import { relativeMotion } from './SpatialAwareness'
 
 /**
- * EngineerService — orchestrates digest -> advice -> UI streaming + (later) TTS enqueue.
+ * EngineerService — orchestrates digest -> DSH turn -> UI streaming and radio speech.
  *
  * The DSH backend owns conversation state and compaction, so this service only has to
- * build the digest and shuttle advice to the UI/TTS. The manual "Ask Engineer" path
- * reuses the digest so the model always sees the current race picture.
+ * build the digest and route the model's output: manual prose to the chat, and
+ * speak_radio tool calls to the audio pipeline. Automatic triggers never surface prose.
  */
 export class EngineerService {
   private digestBuilder = new DigestBuilder()
@@ -25,16 +25,15 @@ export class EngineerService {
   private llm: EngineerBackend | null = null
   private language: LanguageMode = 'zh'
   private voice = '冰糖'
-  private direction = '冷静果断的 F1 赛车工程师语气'
+  private direction = ENGINEER_TTS_DIRECTIONS.zh
   private inFlight: Promise<void> | null = null
   private activePriority: TriggerFiring['priority'] | null = null
   private activeManual = false
   private interruptedByCritical = false
-  private pending: { state: RaceState; firing: TriggerFiring; audioBase64?: string } | null = null
+  private pending: { state: RaceState; firing: TriggerFiring } | null = null
   private onSpeak: (text: string, firing: TriggerFiring, voice: string, direction: string) => void = () => {}
   private onInterrupt: () => void = () => {}
   private lastToolRadio = ''
-  private idleTimer: NodeJS.Timeout | null = null
   private latestState: (() => RaceState) | null = null
   private lastRadioFiring: TriggerFiring | null = null
 
@@ -59,7 +58,7 @@ export class EngineerService {
       motion.catchEstimateS != null && motion.catchEstimateS <= 12
   }
 
-  /** P3 injects the real LLM backend here; null = stub mode. */
+  /** The private DSH backend is injected here; null means no model is configured. */
   setBackend(b: EngineerBackend | null): void {
     this.llm = b
   }
@@ -76,11 +75,10 @@ export class EngineerService {
 
   setVoice(voice: string, direction: string): void {
     this.voice = voice
-    if (direction && !['冷静果断的 F1 赛车工程师语气', 'calm, decisive F1 race engineer',
-      '冷静果断，遇到技术术语保留英文原词'].includes(direction)) this.direction = direction
+    if (direction && !Object.values(ENGINEER_TTS_DIRECTIONS).includes(direction)) this.direction = direction
   }
 
-  /** Set the callback that speaks completed advice (wired to the AudioPipeline in P5). */
+  /** Set the callback that speaks radio accepted through speak_radio. */
   setSpeakHandler(cb: (text: string, firing: TriggerFiring, voice: string, direction: string) => void): void {
     this.onSpeak = cb
   }
@@ -99,7 +97,6 @@ export class EngineerService {
     Sender.send('engineer:advice', {
       id: nanoid(10), text, firing: { code: firing.reasonCode, priority: firing.priority }, ts: Date.now()
     })
-    Sender.send('engineer:status', { status: 'speaking' })
     this.onSpeak(text, firing, this.voice, this.direction)
   }
 
@@ -108,10 +105,10 @@ export class EngineerService {
    * fire two overlapping LLM streams. If a new (higher-or-equal priority) firing arrives
    * while one is in flight, it replaces the pending one (last-wins coalescing).
    */
-  enqueue(state: RaceState, firing: TriggerFiring, audioBase64?: string): void {
+  enqueue(state: RaceState, firing: TriggerFiring): void {
     // if nothing in flight, run immediately; otherwise stash as pending (coalesce)
     if (!this.inFlight) {
-      void this.run(state, firing, audioBase64)
+      void this.run(state, firing)
     } else {
       if (firing.reasonCode === 'manual' || firing.priority === 'critical' ||
           (firing.priority === 'high' && !this.activeManual && this.activePriority !== 'critical' && this.activePriority !== 'high')) {
@@ -124,7 +121,7 @@ export class EngineerService {
           (firing.reasonCode !== 'manual' && !this.priorityGte(firing.priority, this.pending.firing.priority)))) {
         return // existing pending is higher priority — keep it
       }
-      this.pending = { state, firing, audioBase64 }
+      this.pending = { state, firing }
     }
   }
 
@@ -133,11 +130,11 @@ export class EngineerService {
     return rank[a] >= rank[b]
   }
 
-  private async run(state: RaceState, firing: TriggerFiring, audioBase64?: string): Promise<void> {
+  private async run(state: RaceState, firing: TriggerFiring): Promise<void> {
     this.activePriority = firing.priority
     this.activeManual = firing.reasonCode === 'manual'
     this.interruptedByCritical = false
-    this.inFlight = this.advise(state, firing, undefined, audioBase64)
+    this.inFlight = this.advise(state, firing)
     try {
       await this.inFlight
     } finally {
@@ -147,7 +144,7 @@ export class EngineerService {
       if (this.pending) {
         const next = this.pending
         this.pending = null
-        void this.run(next.state, next.firing, next.audioBase64)
+        void this.run(next.state, next.firing)
       }
     }
   }
@@ -155,17 +152,8 @@ export class EngineerService {
   /** Abort any in-flight work (Stop button / high-priority preempt). */
   cancel(): void {
     this.pending = null
-    this.clearIdleTimer()
     this.llm?.cancel?.()
     this.onInterrupt()
-  }
-
-  /** Clear the idle-settle timer to prevent a stale 'idle' status firing during a new request. */
-  private clearIdleTimer(): void {
-    if (this.idleTimer) {
-      clearTimeout(this.idleTimer)
-      this.idleTimer = null
-    }
   }
 
   /**
@@ -173,38 +161,36 @@ export class EngineerService {
    * Streams tokens to the renderer via 'engineer:text', then commits the full message.
    * Throws on cancel/abort (caught by run()); never commits a truncated message.
    */
-  async advise(state: RaceState, firing: TriggerFiring, manualPrompt?: string, audioBase64?: string): Promise<void> {
+  async advise(state: RaceState, firing: TriggerFiring): Promise<void> {
     if (holdQualifyingRadio(this.latestState?.() ?? state, firing)) return
     this.lastToolRadio = ''
     const id = nanoid(10)
-    const digest = this.digestBuilder.build(state, firing)
-    const digestText = this.digestBuilder.toText(digest) + '\n' + this.analysis.report(state) +
+    const digestText = this.digestBuilder.toText(this.digestBuilder.build(state, firing)) + '\n' + this.analysis.report(state) +
       '\nTELEMETRY TOOLS inventory: ' + this.telemetryHistory.inventory()
 
-    this.clearIdleTimer()
     Sender.send('engineer:status', { status: 'thinking' })
-    const emitDelta = createDeltaEmitter(firing, (delta) => {
+    // Automatic triggers never surface prose: only a speak_radio tool call produces radio.
+    const emitDelta = (delta: string): void => {
       if (firing.reasonCode === 'manual' && !this.lastToolRadio) Sender.send('engineer:text', { id, delta })
-    })
+    }
 
     try {
-      const rawText = this.llm
-        ? await this.llm.generate(digest, digestText, firing, manualPrompt, emitDelta, audioBase64)
-        : this.simulateStream(firing.reasonCode === 'manual'
-          ? this.language === 'en' ? '【NOW】AI engineer is not connected. Configure and test the model connection before requesting analysis.'
-            : '【NOW】AI 工程师尚未连接，请在设置中配置并测试模型连接，当前无法进行比赛分析。'
-          : '【HOLD】', emitDelta)
-      const text = cleanAutoTriggerAcknowledgement(rawText, firing)
-
-      const cleanText = text.replace(/^【(NOW|HOLD)】/i, '').trim()
+      if (!this.llm) {
+        if (firing.reasonCode === 'manual') {
+          throw new Error(this.language === 'en'
+            ? 'AI engineer is not connected. Configure and test the model connection before requesting analysis.'
+            : 'AI 工程师尚未连接，请在设置中配置并测试模型连接，当前无法进行比赛分析。')
+        }
+        Sender.send('engineer:status', { status: 'idle' })
+        return
+      }
+      const cleanText = (await this.llm.generate(digestText, firing, emitDelta)).trim()
       if (this.lastToolRadio) {
-        this.clearIdleTimer()
-        this.idleTimer = setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 6000)
+        Sender.send('engineer:status', { status: 'idle' })
         return
       }
       if (firing.reasonCode !== 'manual') {
         Sender.send('engineer:status', { status: 'idle' })
-        this.clearIdleTimer()
         return
       }
       if (!cleanText) {
@@ -219,13 +205,9 @@ export class EngineerService {
       })
       Sender.send('engineer:status', { status: 'idle' })
       logger.info(`engineer advice [${firing.reasonCode}]: ${cleanText.slice(0, 80)}`)
-      // settle to idle after the (approx) speaking window; clear any previous timer first
-      this.clearIdleTimer()
-      this.idleTimer = setTimeout(() => Sender.send('engineer:status', { status: 'idle' }), 6000)
     } catch (err) {
       if (this.isAbort(err)) {
         logger.info('engineer advice aborted')
-        this.clearIdleTimer()
         Sender.send('engineer:status', this.interruptedByCritical
           ? { status: 'error', message: '本次提问被紧急比赛提醒打断，请稍后重新提问。' }
           : { status: 'idle' })
@@ -234,31 +216,21 @@ export class EngineerService {
       const message = (err as Error)?.message ?? String(err)
       logger.error('engineer advice failed:', message)
       Sender.send('engineer:status', { status: 'error', message: message.slice(0, 500) })
-      this.clearIdleTimer()
     }
   }
 
   private isAbort(err: unknown): boolean {
     return err instanceof Error && err.name === 'AbortError'
   }
-
-  /** For the stub path, stream tokens to mimic the LLM (local, synchronous chunking). */
-  private simulateStream(text: string, onDelta: (d: string) => void): string {
-    for (const t of text.split(/(\s+)/)) if (t) onDelta(t)
-    return text
-  }
 }
 
-/** Backend interface — stub implements it inline, DshBackend implements it in P3. */
+/** Backend interface implemented by the private DSH runtime. */
 export interface EngineerBackend {
   cancel?(): void
   generate(
-    digest: ReturnType<DigestBuilder['build']>,
     digestText: string,
     firing: TriggerFiring,
-    manualPrompt: string | undefined,
-    onDelta: (delta: string) => void,
-    audioBase64?: string
+    onDelta: (delta: string) => void
   ): Promise<string>
 }
 
@@ -272,44 +244,4 @@ export function manualFiring(prompt?: string): TriggerFiring {
     reason: prompt || 'Driver is asking for an update.',
     ts: Date.now()
   }
-}
-
-function cleanAutoTriggerAcknowledgement(text: string, firing: TriggerFiring): string {
-  if (firing.reasonCode === 'manual') return text
-  return stripAutoAcknowledgement(text)
-}
-
-function stripAutoAcknowledgement(text: string): string {
-  return text
-    .replace(/^\s*(copy|copied|received|roger|ok|okay)[,.，。!\s-]*/i, '')
-    .replace(/^\s*(收到|明白|了解|好的|好)[，。,.！!\s-]*/u, '')
-}
-
-function createDeltaEmitter(firing: TriggerFiring, emit: (delta: string) => void): (delta: string) => void {
-  if (firing.reasonCode === 'manual') return emit
-  let pending = ''
-  let decided = false
-  return (delta: string): void => {
-    if (decided) {
-      emit(delta)
-      return
-    }
-    pending += delta
-    const stripped = stripAutoAcknowledgement(pending)
-    if (stripped !== pending) {
-      decided = true
-      if (stripped) emit(stripped)
-      return
-    }
-    if (mightStillBecomeAcknowledgement(pending)) return
-    decided = true
-    emit(pending)
-  }
-}
-
-function mightStillBecomeAcknowledgement(text: string): boolean {
-  const s = text.trimStart().toLowerCase()
-  if (!s) return true
-  const candidates = ['copy', 'copied', 'received', 'roger', 'ok', 'okay', '收到', '明白', '了解', '好的', '好']
-  return candidates.some((word) => word.startsWith(s))
 }

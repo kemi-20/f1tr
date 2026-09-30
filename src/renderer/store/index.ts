@@ -46,6 +46,8 @@ interface EngineerMessage {
 }
 
 interface EngineerState {
+  speaking: boolean
+  setSpeaking: (speaking: boolean) => void
   status: EngineerStatus
   statusMessage: string
   messages: EngineerMessage[]
@@ -61,6 +63,8 @@ interface EngineerState {
 }
 
 export const useEngineerStore = create<EngineerState>((set) => ({
+  speaking: false,
+  setSpeaking: (speaking) => set({ speaking }),
   status: 'idle',
   statusMessage: '',
   messages: [],
@@ -75,8 +79,7 @@ export const useEngineerStore = create<EngineerState>((set) => ({
     set((s) => ({
       messages: [{ id, text, ts: Date.now() }, ...s.messages].slice(0, 50),
       streamingId: null,
-      streamingText: '',
-      status: 'speaking'
+      streamingText: ''
     })),
   clearStream: () => set({ streamingId: null, streamingText: '' }),
   triggerHotkey: () => set((s) => ({ hotkeyTrigger: s.hotkeyTrigger + 1 })),

@@ -1,5 +1,5 @@
 import type { TriggerConfig } from './triggers'
-import type { LanguageMode } from '../constants/voices'
+import { ENGINEER_TTS_DIRECTIONS, type LanguageMode } from '../constants/voices'
 import { normalizeEngineerStyleId } from '../personas/engineer-styles'
 
 /** Recursively-optional type for config PATCHES (the main process merges them). */
@@ -74,7 +74,7 @@ export interface AppConfig {
 export const DEFAULT_CONFIG: AppConfig = {
   llm: { baseURL: '', apiKeyOverride: '', model: '', reasoningEffort: 'low', contextLimit: 200_000, useNativeWebSearch: false, hasSecret: false, keySource: 'none', visionSupported: false },
   tts: { baseURL: '', apiKeyOverride: '', model: 'mimo-v2.5-tts', hasSecret: false, keySource: 'none' },
-  language: { mode: 'zh', voice: '冰糖', direction: '冷静果断的 F1 赛车工程师语气', engineerStyle: 'gp' },
+  language: { mode: 'zh', voice: '冰糖', direction: ENGINEER_TTS_DIRECTIONS.zh, engineerStyle: 'gp' },
   telemetry: {
     port: 20777,
     host: '127.0.0.1',
