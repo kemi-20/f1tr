@@ -13,9 +13,9 @@ const runtime = resolve('resources/dsh-runtime')
 const home = await mkdtemp(join(tmpdir(), 'f1tr-completions-test-'))
 const token = randomBytes(32).toString('hex')
 const pipe = `\\\\.\\pipe\\f1tr-test-${randomUUID()}`
-const expectedTools = ['capture_screenshot', 'get_lap_history', 'get_race_events', 'get_race_state',
+const expectedTools = ['capture_screenshot', 'compare_strategies', 'get_lap_history', 'get_race_events', 'get_race_state',
   'get_stint_history', 'get_telemetry_history', 'get_track_layout', 'read_telemetry_packet',
-  'speak_radio', 'web_search'].sort()
+  'speak_radio', 'strategy_plan', 'web_search'].sort()
 let requests = 0
 const calls = []
 let failure
