@@ -85,12 +85,12 @@ export function DriverHud(): React.ReactElement {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="hud-pedals grid grid-cols-2 gap-3">
         <Bar label="Throttle" value={throttle} color="#2DD4BF" />
         <Bar label="Brake" value={brake} color="#FF3B3B" />
       </div>
 
-      <div>
+      <div className="hud-energy">
         <div className="mb-1 flex justify-between">
           <span className="label">ERS Deploy</span>
           <span className="num-mono text-xs text-white/60">{Math.round(ers * 100)}%</span>

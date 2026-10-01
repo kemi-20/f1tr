@@ -1,4 +1,4 @@
-import { useEngineerStore } from '../../store'
+import { useEngineerStore, useConfigStore } from '../../store'
 
 type Status = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error'
 
@@ -11,6 +11,14 @@ const STATUSES: { id: Status; label: string; color: string }[] = [
 export function StatusPills(): React.ReactElement {
   const status = useEngineerStore((s) => s.status)
   const speaking = useEngineerStore((s) => s.speaking)
+  const pitwall = useConfigStore((s) => s.config?.ui.style === 'pitwall')
+  if (pitwall) {
+    const current = STATUSES.find(s => s.id === status)
+    return <div className="radio-status" role="status">
+      <span style={{ color: current?.color ?? '#a1a5ac' }}><i />{current?.label ?? 'STANDBY'}</span>
+      {speaking && status !== 'speaking' && <span style={{ color: '#30d7ab' }}><i />SPEAKING</span>}
+    </div>
+  }
   return (
     <div className="status-pills">
       {STATUSES.map((s) => {

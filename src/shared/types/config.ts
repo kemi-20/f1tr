@@ -8,6 +8,7 @@ export type DeepPartial<T> = {
 }
 
 export type ReasoningEffort = 'none' | 'low' | 'high' | 'max'
+export type UiStyle = 'classic' | 'pitwall'
 
 /** Where the effective API key comes from (computed in main; the key itself never crosses IPC). */
 export type KeySource = 'override' | 'env' | 'none'
@@ -58,6 +59,7 @@ export interface AppConfig {
     preemptOnHigh: boolean
   }
   ui: {
+    style: UiStyle
     theme: 'midnight' | 'papaya' | 'racing'
     accent: string
     glassmorphism: boolean
@@ -96,7 +98,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     suppressLastLapLowPriority: false
   },
   audio: { muted: false, volume: 1, preemptOnHigh: true },
- ui: { theme: 'midnight', accent: '#00D2BE', glassmorphism: true, reduceMotion: false },
+ ui: { style: 'classic', theme: 'midnight', accent: '#00D2BE', glassmorphism: true, reduceMotion: false },
   hotkeys: { pushToTalk: 'Space' },
  advanced: { maxQueueDepth: 3 }
 }

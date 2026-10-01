@@ -1,7 +1,7 @@
 import type { StateAggregator } from './StateAggregator'
 import { Sender } from '../ipc/sender'
 import { logger } from '../logging/Logger'
-import type { SnapshotPayload, RaceState, HealthPayload } from '@shared/index'
+import type { SnapshotPayload, RaceState, HealthPayload, PositionPayload } from '@shared/index'
 
 const HEALTH_HZ = 2
 
@@ -10,12 +10,14 @@ const HEALTH_HZ = 2
  * Main process holds full-resolution state; we only send compact slices to the renderer:
  *   - SNAPSHOT up to 60Hz: fast paint fields (speed/gear/rpm/ers/drs/pedals)
  *   - PAINT    ~2Hz:  the full RaceState for panels (tyres/damage/rivals/positions)
+ *   - POSITIONS 20Hz: compact map positions, independent of slow panel repaint
  *   - HEALTH   ~2Hz:  packet watchdog + counters
  */
 export class SnapshotEmitter {
   private snapshotTimer: NodeJS.Timeout | null = null
   private paintTimer: NodeJS.Timeout | null = null
   private healthTimer: NodeJS.Timeout | null = null
+  private positionTimer: NodeJS.Timeout | null = null
   private lastPaintJson = ''
   private running = false
   private snapshotHz = 60
@@ -95,6 +97,13 @@ export class SnapshotEmitter {
     }
 
     this.snapshotTimer = setInterval(snapshot, 1000 / this.snapshotHz)
+    this.positionTimer = setInterval(() => {
+      const s = this.aggregator.state
+      const payload: PositionPayload = { ts: Date.now(), sessionUID: s.session.sessionUID,
+        trackId: s.session.trackId, flashbackActive: s.flashbackActive,
+        positions: s.trackPositions.slice(0, 24).map(p => ({ ...p })) }
+      Sender.send('telemetry:positions', payload)
+    }, 50)
     this.paintTimer = setInterval(paint, 1000 / this.paintHz)
     this.healthTimer = setInterval(health, 1000 / HEALTH_HZ)
     logger.info(`SnapshotEmitter started (snapshot ${this.snapshotHz}Hz, paint ${this.paintHz}Hz, health ${HEALTH_HZ}Hz)`)
@@ -107,10 +116,11 @@ export class SnapshotEmitter {
   }
 
   private stopTimers(): void {
-    for (const t of [this.snapshotTimer, this.paintTimer, this.healthTimer]) {
+    for (const t of [this.snapshotTimer, this.paintTimer, this.healthTimer, this.positionTimer]) {
       if (t) clearInterval(t)
     }
     this.snapshotTimer = this.paintTimer = this.healthTimer = null
+    this.positionTimer = null
   }
 }
 

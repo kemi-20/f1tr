@@ -36,6 +36,7 @@
     "electron-vite": "^2.3.0",
     "esbuild": "0.21.5",
     "eslint": "10.11.0",
+    "lucide-react": "1.49.0",
     "postcss": "^8.4.39",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

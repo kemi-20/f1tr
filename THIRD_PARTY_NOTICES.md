@@ -11,6 +11,7 @@ F1 Race Engineer is licensed under [MIT](LICENSE). This file identifies prominen
 | [Electron](https://www.electronjs.org/) | `44.0.0` | MIT; includes Chromium and other separately licensed components | Electron distribution license files and Chromium notices; verify their presence in release artifacts |
 | [`@z0mt3c/f1-telemetry-client`](https://www.npmjs.com/package/@z0mt3c/f1-telemetry-client) | `2.1.0` | MIT | Installed package license |
 | React, React DOM, react-markdown, remark-gfm, zustand, electron-store, electron-log, nanoid | See root lockfile | MIT as declared by the installed package manifests checked for this notice | Individual package license files and upstream repositories |
+| [Lucide React](https://lucide.dev/guide/react) | `1.49.0` | ISC; Feather-derived icons retain MIT | `resources/LUCIDE-LICENSE.txt` includes both notices; only imported icons are bundled |
 
 DSH is a third-party project by DeepSeek. This application bundles and configures a pinned copy; it is not the official DeepSeek Harness desktop client. DSH and its dependencies retain their own copyright and license notices. The F1-specific DSH plugin under `resources/dsh-f1-plugin/` is project code covered by the repository MIT license, except for any separately attributed material.
 

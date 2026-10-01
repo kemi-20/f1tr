@@ -1,0 +1,332 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  gap: 8px;
+  padding: 8px;
+}
+
+.console-workspace {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: clamp(230px, 15vw, 280px) minmax(250px, 0.86fr) minmax(270px, 1fr) clamp(330px, 20vw, 390px);
+  grid-template-rows: minmax(250px, 0.82fr) minmax(260px, 1fr);
+  grid-template-areas: 'timing drive track radio' 'timing car car radio';
+  gap: 8px;
+}
+
+.console-workspace > div { min-width: 0; min-height: 0; overflow: hidden; }
+.workspace-timing { grid-area: timing; }
+.workspace-track { grid-area: track; }
+.workspace-drive { grid-area: drive; }
+.workspace-car { grid-area: car; }
+.workspace-radio { grid-area: radio; }
+.settings-layout { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.settings-content { min-height: 0; }
+.style-choice { display: flex; align-items: center; gap: 10px; border: 1px solid #ffffff20; border-radius: 6px; padding: 12px; font-size: 13px; cursor: pointer; }
+.style-choice input { accent-color: rgb(var(--accent-carbon-rgb)); }
+.style-choice-active { border-color: rgb(var(--accent-carbon-rgb)); background: rgb(var(--accent-carbon-rgb) / 0.08); }
+.tyre-metric strong { font-weight: inherit; margin-left: 6px; }
+.settings-test button, .settings-test-result { display: inline-flex; align-items: center; gap: 6px; }
+
+/* The two skins share mounted controllers, not visual materials or layout. */
+[data-ui-style='pitwall'] {
+  --pw-border: #373a3e;
+  --pw-muted: #a1a5ac;
+  --pw-text: #f4f5f6;
+  background: #101113;
+  color: var(--pw-text);
+  font-family: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+[data-ui-style='pitwall']::before { content: none; }
+[data-ui-style='pitwall'] .console-workspace {
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 29vw, 480px);
+  grid-template-rows: minmax(0, 55fr) 76px minmax(0, 45fr);
+  grid-template-areas: 'track timing' 'drive drive' 'car radio';
+  gap: 1px;
+  background: var(--pw-border);
+}
+[data-ui-style='pitwall'] .glass,
+[data-ui-style='pitwall'] .broadcast-tower,
+[data-ui-style='pitwall'] .telemetry-hud,
+[data-ui-style='pitwall'] .car-status-panel {
+  border: 0;
+  border-radius: 0;
+  background: #191b1e;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-ui-style='pitwall'] .label { color: var(--pw-muted); font-family: inherit; font-size: 10px; letter-spacing: 0; }
+[data-ui-style='pitwall'] .num-mono { font-family: Consolas, 'SFMono-Regular', monospace; }
+[data-ui-style='pitwall'] .num-display { font-family: 'F1 Bold', system-ui, sans-serif; }
+[data-ui-style='pitwall'] button { cursor: pointer; }
+[data-ui-style='pitwall'] button:disabled { cursor: default; }
+[data-ui-style='pitwall'] :is(button, input, select, textarea, a, [tabindex]):focus-visible {
+  outline: 2px solid rgb(var(--accent-carbon-rgb));
+  outline-offset: -2px;
+}
+[data-ui-style='pitwall'] .pitwall-icon { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 3px; color: #d8dade; }
+[data-ui-style='pitwall'] .pitwall-icon:hover { background: #303337; }
+
+[data-ui-style='pitwall'] .pitwall-session {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 62px;
+  gap: 20px;
+  padding: 8px 16px;
+  border-top: 3px solid #e10600;
+  border-bottom: 1px solid var(--pw-border);
+  background: #111214;
+}
+[data-ui-style='pitwall'] .pitwall-brand { display: flex; align-items: center; gap: 9px; padding-right: 18px; border-right: 1px solid var(--pw-border); }
+[data-ui-style='pitwall'] .pitwall-brand img { width: 32px; height: 32px; border-radius: 4px; }
+[data-ui-style='pitwall'] .pitwall-brand strong { font-family: 'F1 Bold', sans-serif; font-size: 19px; }
+[data-ui-style='pitwall'] .session-identity { display: flex; flex-direction: column; gap: 3px; min-width: 110px; max-width: 200px; }
+[data-ui-style='pitwall'] .session-identity strong { font-family: 'F1 Bold', sans-serif; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-ui-style='pitwall'] .session-identity > span { font-size: 10px; color: var(--pw-muted); text-transform: uppercase; }
+[data-ui-style='pitwall'] .session-reading { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+[data-ui-style='pitwall'] .session-reading > span { color: var(--pw-muted); font-size: 9px; }
+[data-ui-style='pitwall'] .session-reading strong { font: 600 17px Consolas, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+[data-ui-style='pitwall'] .session-position strong { color: rgb(var(--accent-carbon-rgb)); }
+[data-ui-style='pitwall'] .session-lap-time small { color: var(--pw-muted); font-size: 13px; font-weight: 400; }
+[data-ui-style='pitwall'] .session-weather { margin-left: auto; display: flex; align-items: center; gap: 7px; font: 12px Consolas, monospace; color: #bfc3c8; white-space: nowrap; }
+[data-ui-style='pitwall'] .session-health { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--pw-muted); flex-shrink: 0; }
+[data-ui-style='pitwall'] .session-health i { width: 6px; height: 6px; border-radius: 50%; background: #f1cc42; }
+[data-ui-style='pitwall'] .session-health.is-connected i { background: #30d7ab; }
+[data-ui-style='pitwall'] .session-health.is-offline i { background: #ff5050; }
+[data-ui-style='pitwall'] .race-signal { display: flex; align-items: center; min-width: 0; gap: 5px; padding: 5px 7px; font-size: 11px; border-radius: 2px; box-shadow: none; }
+[data-ui-style='pitwall'] .race-signal-yellow { color: #ffd400; }
+[data-ui-style='pitwall'] .race-signal-red { color: #ff5050; }
+[data-ui-style='pitwall'] .race-signal-blue { color: #45a1ff; }
+[data-ui-style='pitwall'] .race-signal-green { color: #33d17a; }
+
+[data-ui-style='pitwall'] .pitwall-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 40px; flex-shrink: 0; padding: 0 16px; border-bottom: 1px solid var(--pw-border); }
+[data-ui-style='pitwall'] .pitwall-section-heading h2,
+[data-ui-style='pitwall'] .engineer-title h2 { font-family: 'F1 Bold', sans-serif; font-size: 12px; margin: 0; white-space: nowrap; }
+[data-ui-style='pitwall'] .pitwall-section-heading > span { color: var(--pw-muted); font: 10px Consolas, monospace; }
+[data-ui-style='pitwall'] .trackmap-panel { padding: 0; }
+[data-ui-style='pitwall'] .trackmap-heading { border-bottom-color: #2b2d31; }
+[data-ui-style='pitwall'] .trackmap-heading h2 > span { margin-left: 12px; font-family: inherit; color: var(--pw-muted); font-size: 11px; }
+[data-ui-style='pitwall'] .trackmap-panel > .relative { margin: 4px 10px; }
+[data-ui-style='pitwall'] .trackmap-sector { opacity: 0.5; }
+[data-ui-style='pitwall'] .trackmap-country { font-family: inherit; font-size: 11px; }
+[data-ui-style='pitwall'] .trackmap-weather { color: #b6bac1; font: 11px Consolas, monospace; background: #191b1e; padding: 2px 6px; }
+[data-ui-style='pitwall'] .trackmap-empty { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; gap: 10px; color: var(--pw-muted); font-size: 12px; }
+[data-ui-style='pitwall'] .trackmap-empty svg { position: static; color: #60656d; }
+[data-ui-style='pitwall'] .trackmap-empty strong { font-weight: 500; }
+[data-ui-style='pitwall'] .trackmap-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 20px; min-height: 28px; padding: 4px 16px; font: 9px Consolas, monospace; color: var(--pw-muted); border-top: 1px solid #2b2d31; }
+[data-ui-style='pitwall'] .trackmap-legend span { display: flex; align-items: center; gap: 6px; }
+[data-ui-style='pitwall'] .trackmap-legend i { width: 8px; height: 8px; border-radius: 50%; }
+[data-ui-style='pitwall'] .legend-player { border: 2px solid #ffe600; }
+[data-ui-style='pitwall'] .legend-team { background: #dedfe2; }
+[data-ui-style='pitwall'] .legend-sector b { width: 18px; height: 2px; background: #8ac5d7; margin-right: 4px; }
+[data-ui-style='pitwall'] .legend-sector b:nth-child(2) { background: #b7acd1; }
+[data-ui-style='pitwall'] .legend-sector b:last-child { background: #91c1a4; }
+[data-ui-style='pitwall'] .trackmap-legend .legend-pit { width: 20px; height: 0; border-radius: 0; border-top: 1px dashed #bfc3c8; }
+
+[data-ui-style='pitwall'] .broadcast-tower { font-family: inherit; }
+[data-ui-style='pitwall'] :is(.broadcast-row, .timing-columns) { display: grid; grid-template-columns: 30px 30px minmax(0, 1fr) 42px 82px 28px; align-items: center; gap: 4px; padding: 0 10px; }
+[data-ui-style='pitwall'] .timing-columns { height: 28px; flex-shrink: 0; color: var(--pw-muted); font: 9px Consolas, monospace; border-bottom: 1px solid var(--pw-border); }
+[data-ui-style='pitwall'] .timing-columns > :nth-last-child(-n+3) { text-align: right; }
+[data-ui-style='pitwall'] .broadcast-body { padding: 0; overflow-x: hidden; scrollbar-gutter: stable; }
+[data-ui-style='pitwall'] .broadcast-row { height: 32px; min-height: 32px; margin: 0; background: #191b1e; border-bottom: 1px solid #292c30; }
+[data-ui-style='pitwall'] .broadcast-row:nth-child(even) { background: #1d1f23; }
+[data-ui-style='pitwall'] .broadcast-row-player { box-shadow: none; border-left: 3px solid rgb(var(--accent-carbon-rgb)); padding-left: 7px; background: #292d31; }
+[data-ui-style='pitwall'] .broadcast-pos { background: none; font: 600 15px Consolas, monospace; }
+[data-ui-style='pitwall'] .broadcast-pos-leader { background: none; color: #fff; }
+[data-ui-style='pitwall'] .broadcast-team { text-shadow: none; width: 28px; }
+[data-ui-style='pitwall'] .broadcast-team img { filter: none; max-height: 16px; }
+[data-ui-style='pitwall'] .broadcast-code { font: 600 12px 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+[data-ui-style='pitwall'] .broadcast-gap { font: 13px Consolas, monospace; font-variant-numeric: tabular-nums; color: #e2e4e7; }
+[data-ui-style='pitwall'] .broadcast-wear { font: 600 11px Consolas, monospace; text-shadow: none; }
+[data-ui-style='pitwall'] .broadcast-tyre { font: 600 12px Consolas, monospace; }
+[data-ui-style='pitwall'] .broadcast-penalty { right: 12px; top: 1px; font: 8px Consolas, monospace; padding: 0 2px; }
+[data-ui-style='pitwall'] .timing-player { flex-shrink: 0; padding-top: 4px; border-top: 1px solid #62676d; background: #202327; }
+[data-ui-style='pitwall'] .timing-player > .label { display: block; margin: 0 10px 2px; font: 9px Consolas, monospace; }
+[data-ui-style='pitwall'] .timing-player .broadcast-row { border-bottom: 0; }
+[data-ui-style='pitwall'] .timing-player-empty { display: block; padding: 8px 10px; font-size: 11px; color: var(--pw-muted); }
+[data-ui-style='pitwall'] .broadcast-empty { color: var(--pw-muted); }
+
+[data-ui-style='pitwall'] .telemetry-hud { display: grid; position: relative; grid-template-columns: minmax(200px, 0.9fr) minmax(280px, 1.1fr) minmax(140px, 0.75fr) minmax(140px, 0.6fr); grid-template-rows: minmax(0, 1fr) 5px; align-items: center; gap: 0 28px; padding: 10px 18px 0; background: #121416; }
+[data-ui-style='pitwall'] .telemetry-hud > :first-child { grid-column: 1; grid-row: 1; gap: 12px; }
+[data-ui-style='pitwall'] .telemetry-hud > :first-child > :first-child { display: none; }
+[data-ui-style='pitwall'] .telemetry-hud .rev-lights { grid-column: 1 / -1; grid-row: 2; gap: 3px; align-self: end; }
+[data-ui-style='pitwall'] .rev-light { height: 4px; border-radius: 0; box-shadow: none !important; }
+[data-ui-style='pitwall'] .hud-primary { grid-column: 2; grid-row: 1; grid-template-columns: 0.45fr 1fr 1fr; gap: 24px; }
+[data-ui-style='pitwall'] .hud-primary > div { display: flex; align-items: baseline; gap: 7px; text-align: left; }
+[data-ui-style='pitwall'] .hud-gear .num-display { font-size: 34px; }
+[data-ui-style='pitwall'] .hud-speed .num-display { font-size: 32px; }
+[data-ui-style='pitwall'] .hud-rpm .num-mono { font-size: 22px; }
+[data-ui-style='pitwall'] .hud-primary .label { font-size: 9px; margin: 0; }
+[data-ui-style='pitwall'] .hud-pedals { grid-column: 3; grid-row: 1; gap: 10px; }
+[data-ui-style='pitwall'] .hud-energy { grid-column: 4; grid-row: 1; }
+[data-ui-style='pitwall'] .hud-energy .hud-bar > div { background: #31c6c0; }
+[data-ui-style='pitwall'] .hud-bar { height: 5px; border-radius: 0; background: #35383b; }
+[data-ui-style='pitwall'] .hud-drs { white-space: nowrap; padding: 6px 8px; font: 600 10px Consolas, monospace; border-radius: 2px; border-color: #44484e; color: #a6abb2; }
+[data-ui-style='pitwall'] .hud-drs-ready { color: #ffd400; border-color: #ffd400; }
+[data-ui-style='pitwall'] .hud-drs-active { color: #081a14; background: #32d5a0; border-color: #32d5a0; animation: none; }
+
+[data-ui-style='pitwall'] .car-status-panel { padding: 0 16px 12px; }
+[data-ui-style='pitwall'] .car-status-header { height: 40px; min-height: 40px; gap: 16px; border-bottom: 2px solid var(--status-accent); }
+[data-ui-style='pitwall'] .car-status-title { font-size: 12px; white-space: nowrap; }
+[data-ui-style='pitwall'] .car-status-driver { font-family: inherit; font-size: 13px; font-weight: 600; text-align: right; }
+[data-ui-style='pitwall'] .car-status-accent { display: none; }
+[data-ui-style='pitwall'] .car-status-meta { margin: 7px 0; font: 10px Consolas, monospace; color: var(--pw-muted); }
+[data-ui-style='pitwall'] .car-status-body { grid-template-columns: minmax(0, 1fr) 1px minmax(150px, 0.29fr); gap: 16px; }
+[data-ui-style='pitwall'] .car-status-section { font: 10px Consolas, monospace; margin-bottom: 4px; color: var(--pw-muted); }
+[data-ui-style='pitwall'] .tyre-map-grid { grid-template-columns: minmax(100px, 1fr) minmax(100px, 190px) minmax(100px, 1fr); column-gap: 14px; }
+[data-ui-style='pitwall'] .car-graphic svg { filter: none; }
+[data-ui-style='pitwall'] .origin-style-car .car-shadow { display: none; }
+[data-ui-style='pitwall'] .origin-style-car .temp-wheel .brake-temp-block { filter: none; }
+[data-ui-style='pitwall'] .tyre-map-corner { width: 100%; max-width: 180px; }
+[data-ui-style='pitwall'] .tyre-map-right { justify-self: end; }
+[data-ui-style='pitwall'] .tyre-corner-label { margin: 0; font: 600 11px Consolas, monospace; color: #dadde1; }
+[data-ui-style='pitwall'] .tyre-wear { font-family: 'F1 Bold', sans-serif; font-size: 32px; line-height: 1.1; margin: 1px 0; }
+[data-ui-style='pitwall'] .tyre-wear-caption { display: none; }
+[data-ui-style='pitwall'] .tyre-metric { display: flex; justify-content: space-between; gap: 8px; font: 11px Consolas, monospace; line-height: 1.5; color: var(--pw-muted); }
+[data-ui-style='pitwall'] .tyre-metric strong { font-weight: 400; color: #eef0f3; margin: 0; }
+[data-ui-style='pitwall'] .car-status-separator { display: block; background: var(--pw-border); }
+[data-ui-style='pitwall'] .damage-map { display: block; overflow-y: auto; scrollbar-gutter: stable; }
+[data-ui-style='pitwall'] .damage-line { padding: 7px 0; gap: 4px; }
+[data-ui-style='pitwall'] .damage-line-head { font-family: Consolas, monospace; font-size: 11px; }
+[data-ui-style='pitwall'] .damage-track { height: 3px; border-radius: 0; background: #35383b; }
+[data-ui-style='pitwall'] .damage-fill { border-radius: 0; }
+
+[data-ui-style='pitwall'] .engineer-panel { gap: 0; padding: 0; }
+[data-ui-style='pitwall'] .engineer-header { height: 40px; min-height: 40px; padding: 0 14px; gap: 8px; border-bottom: 1px solid var(--pw-border); }
+[data-ui-style='pitwall'] .engineer-title { transform: none; }
+[data-ui-style='pitwall'] .engineer-title h2 { font-size: 11px; }
+[data-ui-style='pitwall'] .radio-status { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; flex-wrap: wrap; font: 10px Consolas, monospace; }
+[data-ui-style='pitwall'] .radio-status > span { display: flex; align-items: center; gap: 5px; }
+[data-ui-style='pitwall'] .radio-status i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+[data-ui-style='pitwall'] .status-pills { flex-wrap: nowrap; gap: 4px; }
+[data-ui-style='pitwall'] .status-pills .chip { padding: 0; font: 8px Consolas, monospace; border: 0; border-radius: 0; background: none !important; box-shadow: none !important; }
+[data-ui-style='pitwall'] .status-pills .chip span { box-shadow: none !important; width: 4px; height: 4px; }
+[data-ui-style='pitwall'] .engineer-log { padding: 0 14px; border-radius: 0; background: #191b1e; scrollbar-gutter: stable; }
+[data-ui-style='pitwall'] .engineer-log > .flex { gap: 0; }
+[data-ui-style='pitwall'] .engineer-message { border-radius: 0; background: none; padding: 9px 0; border-bottom: 1px solid #34373c; font-size: 12px; }
+[data-ui-style='pitwall'] .engineer-message time { font: 10px Consolas, monospace; color: #a2a8b0; margin-bottom: 3px; }
+[data-ui-style='pitwall'] .engineer-stream { border: 0; border-radius: 0; background: none; padding: 9px 0; font-size: 12px; }
+[data-ui-style='pitwall'] .engineer-markdown { font-family: inherit; line-height: 1.55; }
+[data-ui-style='pitwall'] .engineer-markdown strong { font-family: inherit; font-weight: 700; }
+[data-ui-style='pitwall'] .engineer-markdown a { color: #58d6d0; }
+[data-ui-style='pitwall'] .engineer-markdown blockquote { border-color: #58d6d0; }
+[data-ui-style='pitwall'] .engineer-markdown pre { background: #101113; }
+[data-ui-style='pitwall'] .engineer-error { border-left: 2px solid #ff5050; margin: 8px 0; padding: 6px 10px; font-size: 12px; color: #ffb4af; overflow-wrap: anywhere; user-select: text; }
+[data-ui-style='pitwall'] .engineer-input-row { padding: 7px 12px; gap: 6px; border-top: 1px solid var(--pw-border); grid-template-columns: minmax(0, 1fr) 34px 34px; }
+[data-ui-style='pitwall'] .engineer-input-row button:last-child { grid-column: auto; }
+[data-ui-style='pitwall'] .engineer-input-row input { height: 34px; border: 1px solid #45494f; border-radius: 3px; background: #111315; font-family: inherit; font-size: 12px; padding: 5px 8px; }
+[data-ui-style='pitwall'] .engineer-action-btn { display: grid; place-items: center; padding: 0; height: 34px; width: 34px; min-width: 34px; border-radius: 3px; }
+[data-ui-style='pitwall'] .audio-controls { min-height: 32px; padding: 0 12px 6px; gap: 10px; border-radius: 0; background: none; }
+[data-ui-style='pitwall'] .audio-controls button { display: grid; place-items: center; padding: 3px; width: 24px; height: 24px; border: 0; border-radius: 2px; }
+[data-ui-style='pitwall'] .audio-controls input { min-width: 0; }
+
+[data-ui-style='pitwall'] .telemetry-notice { display: flex; align-items: center; gap: 12px; flex-shrink: 0; min-height: 30px; padding: 5px 16px; border-top: 1px solid #7b682d; color: #d5bf78; background: #212017; font-size: 11px; }
+[data-ui-style='pitwall'] .telemetry-notice strong { font-weight: 600; }
+[data-ui-style='pitwall'] .notice-path { margin-left: auto; color: #b8b1a0; font-size: 10px; }
+
+[data-ui-style='pitwall'] .settings-overlay { backdrop-filter: none; background: #000b; }
+[data-ui-style='pitwall'] .settings-dialog { width: 900px; height: min(690px, 90dvh); max-height: 90dvh; border: 1px solid #555b63; border-radius: 4px; background: #191b1e; }
+[data-ui-style='pitwall'] .settings-header { min-height: 54px; padding: 10px 20px; border-bottom: 1px solid var(--pw-border); background: #111214; }
+[data-ui-style='pitwall'] .settings-header h2 { display: flex; align-items: center; gap: 12px; color: var(--pw-text); font-family: 'F1 Bold', sans-serif; font-size: 15px; }
+[data-ui-style='pitwall'] .settings-layout { display: grid; grid-template-columns: 160px minmax(0, 1fr); }
+[data-ui-style='pitwall'] .settings-nav { flex-direction: column; align-items: stretch; gap: 2px; padding: 14px 0; border: 0; border-right: 1px solid var(--pw-border); background: #141619; }
+[data-ui-style='pitwall'] .settings-nav button { text-align: left; padding: 12px 16px; border-radius: 0; color: #acb2ba; font-size: 12px; border-left: 3px solid transparent; }
+[data-ui-style='pitwall'] .settings-nav button[aria-selected='true'] { border-color: rgb(var(--accent-carbon-rgb)); color: var(--pw-text); background: #292d32; }
+[data-ui-style='pitwall'] .settings-nav button > span { display: none; }
+[data-ui-style='pitwall'] .settings-content { padding: 20px 24px; scrollbar-gutter: stable; }
+[data-ui-style='pitwall'] .settings-content .label { font-size: 11px; font-weight: 500; color: #bec3cb; }
+[data-ui-style='pitwall'] .settings-content :is(input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) { min-width: 0; min-height: 36px; border: 1px solid #4e535b; border-radius: 3px; background: #121416; color: #edf0f3; font: 13px 'Segoe UI', 'Microsoft YaHei', sans-serif; box-shadow: none; }
+[data-ui-style='pitwall'] .settings-content input::placeholder { color: #8d949e; }
+[data-ui-style='pitwall'] .settings-content :is(input[type='checkbox'], input[type='radio']) { width: 15px; height: 15px; flex-shrink: 0; }
+[data-ui-style='pitwall'] .settings-content input[type='range'] { border-radius: 0; min-width: 0; }
+[data-ui-style='pitwall'] .settings-content button { border-radius: 3px; font-family: inherit; font-size: 12px; box-shadow: none; }
+[data-ui-style='pitwall'] .settings-content button span[style] { box-shadow: none !important; width: 10px; height: 10px; flex-shrink: 0; }
+[data-ui-style='pitwall'] .settings-content .text-white\/30,
+[data-ui-style='pitwall'] .settings-content .text-white\/40 { color: #9fa6b0; font-size: 11px; overflow-wrap: anywhere; }
+[data-ui-style='pitwall'] .settings-content .text-white\/60 { color: #c3c8d0; }
+[data-ui-style='pitwall'] .style-choice { border-radius: 3px; background: #141619; color: #bdc2cb; min-height: 44px; }
+[data-ui-style='pitwall'] .style-choice-active { border-color: rgb(var(--accent-carbon-rgb)); color: #fff; background: #252b30; }
+[data-ui-style='pitwall'] .settings-content label { line-height: 1.5; }
+[data-ui-style='pitwall'] .settings-content .grid > button { min-width: 0; }
+[data-ui-style='pitwall'] .settings-test { align-items: flex-start; flex-wrap: wrap; }
+[data-ui-style='pitwall'] .settings-test button { flex-shrink: 0; }
+[data-ui-style='pitwall'] .settings-test-result { overflow-wrap: anywhere; min-width: 0; align-items: flex-start; }
+[data-ui-style='pitwall'] .settings-test-result svg { flex-shrink: 0; }
+[data-ui-style='pitwall'] .settings-footer { padding: 10px 20px; border-color: var(--pw-border); text-align: left; }
+[data-ui-style='pitwall'] .settings-footer span { font-size: 10px; color: #989fa9; }
+[data-ui-style='pitwall'] ::-webkit-scrollbar { width: 6px; height: 6px; }
+[data-ui-style='pitwall'] ::-webkit-scrollbar-thumb { border-radius: 0; background: #555b63; }
+
+@media (max-height: 800px) and (min-width: 1101px) {
+  [data-ui-style='pitwall'] .pitwall-session { min-height: 56px; padding-block: 5px; }
+  [data-ui-style='pitwall'] .console-workspace { grid-template-rows: minmax(0, 55fr) 68px minmax(0, 45fr); }
+  [data-ui-style='pitwall'] .tyre-wear { font-size: 26px; }
+  [data-ui-style='pitwall'] .tyre-metric { font-size: 10px; line-height: 1.35; }
+  [data-ui-style='pitwall'] .damage-line { padding: 5px 0; }
+  [data-ui-style='pitwall'] .car-status-panel { padding-bottom: 8px; }
+}
+@media (max-width: 1350px) {
+  [data-ui-style='pitwall'] .pitwall-session { gap: 14px; padding-inline: 12px; }
+  [data-ui-style='pitwall'] .pitwall-brand { padding-right: 12px; }
+  [data-ui-style='pitwall'] .session-lap-time strong { font-size: 13px; }
+  [data-ui-style='pitwall'] .session-lap-time small { font-size: 11px; }
+  [data-ui-style='pitwall'] .telemetry-hud { grid-template-columns: minmax(190px, 0.8fr) minmax(250px, 1fr) minmax(140px, 0.6fr) minmax(140px, 0.5fr); column-gap: 16px; }
+  [data-ui-style='pitwall'] .hud-primary { gap: 12px; }
+  [data-ui-style='pitwall'] .car-status-body { gap: 12px; grid-template-columns: minmax(0, 1fr) 1px 150px; }
+}
+@media (max-width: 1100px) {
+  [data-ui-style='pitwall'] { overflow-y: auto; height: 100dvh; }
+  [data-ui-style='pitwall'] .pitwall-session { flex-wrap: wrap; gap: 10px 16px; }
+  [data-ui-style='pitwall'] .session-weather { margin-left: 0; }
+  [data-ui-style='pitwall'] .console-workspace { flex: none; min-height: 1000px; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: 380px 110px 310px 340px; grid-template-areas: 'track timing' 'drive drive' 'car car' 'radio radio'; }
+  [data-ui-style='pitwall'] .telemetry-hud { grid-template-columns: 1fr 1.2fr; grid-template-rows: 1fr 1fr 4px; gap: 8px 24px; padding: 10px 18px 0; }
+  [data-ui-style='pitwall'] .hud-pedals { grid-column: 1; grid-row: 2; }
+  [data-ui-style='pitwall'] .hud-energy { grid-column: 2; grid-row: 2; }
+  [data-ui-style='pitwall'] .telemetry-hud .rev-lights { grid-row: 3; }
+  [data-ui-style='pitwall'] .engineer-header { grid-template-columns: auto 1fr; }
+  [data-ui-style='pitwall'] .telemetry-notice { flex-wrap: wrap; }
+}
+@media (max-width: 700px) {
+  [data-ui-style='pitwall'] .pitwall-session { gap: 10px 14px; padding: 10px 12px; }
+  [data-ui-style='pitwall'] .pitwall-brand { border-right: 0; }
+  [data-ui-style='pitwall'] .session-identity { flex: 1; }
+  [data-ui-style='pitwall'] .session-reading strong { font-size: 15px; }
+  [data-ui-style='pitwall'] .session-lap-time { flex-basis: 100%; flex-direction: row; align-items: center; gap: 8px; }
+  [data-ui-style='pitwall'] .console-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: 350px 350px 140px 430px 340px; grid-template-areas: 'track' 'timing' 'drive' 'car' 'radio'; }
+  [data-ui-style='pitwall'] .telemetry-hud { column-gap: 16px; }
+  [data-ui-style='pitwall'] .hud-primary { gap: 8px; }
+  [data-ui-style='pitwall'] .hud-primary > div { flex-direction: column; gap: 4px; }
+  [data-ui-style='pitwall'] .hud-speed .num-display { font-size: 24px; }
+  [data-ui-style='pitwall'] .hud-rpm .num-mono { font-size: 16px; }
+  [data-ui-style='pitwall'] .hud-drs { font-size: 9px; padding: 6px; }
+  [data-ui-style='pitwall'] .car-status-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 110px; gap: 8px; }
+  [data-ui-style='pitwall'] .car-status-separator { display: none; }
+  [data-ui-style='pitwall'] .damage-map { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; }
+  [data-ui-style='pitwall'] .damage-map > .car-status-section { grid-column: 1 / -1; }
+  [data-ui-style='pitwall'] .damage-line-head { font-size: 9px; gap: 4px; }
+  [data-ui-style='pitwall'] .tyre-map-grid { grid-template-columns: minmax(80px, 1fr) minmax(90px, 110px) minmax(80px, 1fr); column-gap: 6px; }
+  [data-ui-style='pitwall'] .tyre-metric { font-size: 9px; gap: 4px; }
+  [data-ui-style='pitwall'] .tyre-wear { font-size: 24px; }
+  [data-ui-style='pitwall'] .trackmap-heading h2 { font-size: 10px; }
+  [data-ui-style='pitwall'] .trackmap-heading h2 > span { margin-left: 6px; font-size: 10px; }
+  [data-ui-style='pitwall'] .trackmap-legend { gap: 10px; font-size: 8px; }
+  [data-ui-style='pitwall'] .settings-dialog { width: 96vw; max-width: 96vw; height: 94dvh; max-height: 94dvh; }
+  [data-ui-style='pitwall'] .settings-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  [data-ui-style='pitwall'] .settings-nav { flex-direction: row; flex-wrap: wrap; gap: 0; padding: 0; border-right: 0; border-bottom: 1px solid var(--pw-border); }
+  [data-ui-style='pitwall'] .settings-nav button { padding: 9px 10px; font-size: 11px; border-left: 0; border-bottom: 2px solid transparent; }
+  [data-ui-style='pitwall'] .settings-content { padding: 16px; }
+  [data-ui-style='pitwall'] .settings-content .grid-cols-2,
+  [data-ui-style='pitwall'] .settings-content .grid-cols-3 { grid-template-columns: minmax(0, 1fr); }
+  [data-ui-style='pitwall'] .settings-content .grid-cols-4 { gap: 4px; }
+  [data-ui-style='pitwall'] .settings-content .grid-cols-4 button { padding: 8px 5px; gap: 5px; font-size: 10px; }
+  [data-ui-style='pitwall'] .style-selector .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-ui-style='pitwall'] .notice-path { margin-left: 0; }
+}

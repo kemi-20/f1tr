@@ -234,6 +234,8 @@ export class StateAggregator {
       r.pitStatus = numOr(d.m_pitStatus, r.pitStatus)
       // m_penalties is already in SECONDS (not ms) in the F1 spec — don't divide by 1000.
       r.penaltiesS = numOr(d.m_penalties, r.penaltiesS)
+      r.totalWarnings = warningCount(d.m_totalWarnings)
+      r.cornerCuttingWarnings = warningCount(d.m_cornerCuttingWarnings)
       r.lastLapTimeS = msToS(d.m_lastLapTimeInMS)
       r.currentLapTimeS = msToS(d.m_currentLapTimeInMS)
       r.gridPosition = numOr(d.m_gridPosition, r.gridPosition)
@@ -299,6 +301,8 @@ export class StateAggregator {
       pl.pitTimerS = msToS(pld.m_pitStopTimerInMS)
       pl.pitStopCount = numOr(pld.m_numPitStops, pl.pitStopCount)
       pl.penaltiesS = numOr(pld.m_penalties, pl.penaltiesS)
+      pl.totalWarnings = warningCount(pld.m_totalWarnings)
+      pl.cornerCuttingWarnings = warningCount(pld.m_cornerCuttingWarnings)
       // driverStatus 1-4 are all "on track" (flying lap, in lap, out lap, on track)
       pl.onTrack = (pld.m_driverStatus ?? 1) >= 1 && (pld.m_driverStatus ?? 1) <= 4
     }
@@ -331,7 +335,7 @@ export class StateAggregator {
       const pairIsUsable = (leader: RivalState, trailer: RivalState, gap: number | null): boolean => {
         if (gap == null || trailer.position !== leader.position + 1 || leader.lap !== trailer.lap ||
             leader.pitStatus !== 0 || trailer.pitStatus !== 0) return false
-        if (leader.totalDistanceM == null || trailer.totalDistanceM == null) return true
+        if (leader.totalDistanceM == null || trailer.totalDistanceM == null) return false
         const metres = leader.totalDistanceM - trailer.totalDistanceM
         if (metres < 0) return false
         const leaderSpeed = speeds.get(leader.carIndex) ?? 0
@@ -371,6 +375,15 @@ export class StateAggregator {
         }
         sorted[i].gapToPlayerS = validBehind && cumBehind >= 0 ? -cumBehind : null
       }
+      // Do not expose rejected raw links through state/history after rejecting the chain.
+      const links = sorted.map((car, i) => ({
+        front: i > 0 && pairIsUsable(sorted[i - 1], car, car.deltaToCarInFrontS) ? car.deltaToCarInFrontS : null,
+        behind: i + 1 < sorted.length && pairIsUsable(car, sorted[i + 1], car.deltaToCarBehindS) ? car.deltaToCarBehindS : null
+      }))
+      sorted.forEach((car, i) => {
+        car.deltaToCarInFrontS = links[i].front
+        car.deltaToCarBehindS = links[i].behind
+      })
     }
     for (const r of sorted) {
       r.relationToPlayer =
@@ -397,6 +410,7 @@ export class StateAggregator {
     const surf = (t.m_tyresSurfaceTemperature ?? []) as number[]
     const inner = (t.m_tyresInnerTemperature ?? []) as number[]
     const brakes = (t.m_brakesTemperature ?? []) as number[]
+    pl.carTelemetryUpdatedAt = Date.now()
     WHEEL.forEach((w, i) => {
       pl.tyres.surfaceTempC[w] = surf[i] ?? 0
       pl.tyres.innerTempC[w] = inner[i] ?? 0
@@ -661,7 +675,15 @@ export class StateAggregator {
         // penalty actually is, not just the car number.
         const penKey = `pen-${vIdx}-${d.penaltyType ?? ''}-${d.infringementType ?? ''}-${d.lapNum ?? ''}`
         if (!this.isDuplicate(penKey, uid, frame)) {
-          this.pushEvent('penalty', `Penalty for ${driver}`, vIdx ?? undefined)
+          const warning = d.penaltyType === 5
+          const timePenalty = d.penaltyType === 4
+          const penaltyType = warningCount(d.penaltyType)
+          const infringementType = warningCount(d.infringementType)
+          const penaltyName = penaltyType == null ? 'Unknown penalty type' : constants.PENALTIES[penaltyType] ?? 'Unknown penalty type'
+          const infringement = infringementType == null ? 'Unknown infringement' : constants.INFRINGEMENTS[infringementType] ?? 'Unknown infringement'
+          const seconds = warningCount(d.time)
+          this.pushEvent(warning ? 'warning' : 'penalty',
+            `${warning ? 'Warning (not time penalty)' : penaltyName} for ${driver}; infringement=${infringement}${timePenalty ? `; seconds=${seconds ?? 'unknown'}` : '; no time-penalty seconds established by this event'}`, vIdx ?? undefined)
         }
         break
       }
@@ -837,6 +859,9 @@ function normPctTo01(v: number | undefined | null): number {
 }
 function finiteOrNull(v: unknown): number | null {
   return typeof v === 'number' && isFinite(v) ? v : null
+}
+function warningCount(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 255 ? value : undefined
 }
 /** Event-detail reader: keeps a real car index, rejects missing/NaN placeholders (-1). */
 function numOrNull(v: number | undefined | null): number | null {

@@ -73,9 +73,9 @@ function TyreInfo({ corner, label, side }: { corner: keyof Corners; label: strin
       <div className="tyre-corner-label">{label}</div>
       <div className="tyre-wear">{wearText}</div>
       <div className="tyre-wear-caption">WORN</div>
-      <div className="tyre-metric">SURF&nbsp; {hasData ? surface : '--'}°C</div>
-      <div className="tyre-metric">IN&nbsp;&nbsp;&nbsp; {hasData ? inner : '--'}°C</div>
-      <div className="tyre-metric">BRAKE {hasData ? brake : '--'}°C</div>
+      <div className="tyre-metric"><span>SURFACE</span><strong>{hasData ? surface : '--'}°C</strong></div>
+      <div className="tyre-metric"><span>CORE</span><strong>{hasData ? inner : '--'}°C</strong></div>
+      <div className="tyre-metric"><span>BRAKE</span><strong>{hasData ? brake : '--'}°C</strong></div>
     </div>
   )
 }

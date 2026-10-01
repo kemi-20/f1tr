@@ -84,6 +84,9 @@ export interface PlayerCarState {
   lapPhase?: LapPhase
   lapPhaseEvidence?: string
   lapDataUpdatedAt?: number
+  carTelemetryUpdatedAt?: number
+  totalWarnings?: number
+  cornerCuttingWarnings?: number
   lastLapTimeS: number | null
   bestLapTimeS: number | null
   speedKmh: number
@@ -117,6 +120,8 @@ export interface PlayerCarState {
 }
 
 export interface RivalState {
+  totalWarnings?: number
+  cornerCuttingWarnings?: number
   driverStatus?: number
   currentLapInvalid?: boolean
   lapPhase?: LapPhase
@@ -206,6 +211,7 @@ export interface RecentEvent {
     | 'retirement'
     | 'sessionEnded'
     | 'penalty'
+    | 'warning'
     | 'raceWinner'
     | 'safetyCar'
     | 'vsc'

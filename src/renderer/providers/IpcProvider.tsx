@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { api } from '../ipc/ipcClient'
-import { useConfigStore, useEngineerStore, useHealthStore, useRaceStore, useTelemetryStore } from '../store'
+import { useConfigStore, useEngineerStore, useHealthStore, useRaceStore, useTelemetryStore, usePositionStore } from '../store'
 import { wireAudioIpc } from '../audio/WebAudioEngine'
-import type { EngineerAdvice, EngineerStatusPayload, EngineerToken, HealthPayload, RaceState, SnapshotPayload } from '@shared/index'
+import type { EngineerAdvice, EngineerStatusPayload, EngineerToken, HealthPayload, RaceState, SnapshotPayload, PositionPayload } from '@shared/index'
 
 /**
  * Boot provider: loads config, subscribes to all main->renderer IPC streams,
@@ -18,6 +18,7 @@ export function IpcProvider({ children }: { children: React.ReactNode }): React.
 
     const offs = [
       api.on('telemetry:snapshot', (p) => setSnapshot(p as SnapshotPayload)),
+      api.on('telemetry:positions', (p) => usePositionStore.getState().set(p as PositionPayload)),
       api.on('state:paint', (p) => useRaceStore.getState().setRace(p as RaceState)),
       api.on('health', (p) => {
         const h = p as HealthPayload

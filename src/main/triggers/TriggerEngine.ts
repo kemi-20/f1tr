@@ -8,6 +8,7 @@ import { holdQualifyingRadio, isTimedRunSession, qualifyingYieldGeometry } from 
 import { validCircuitDistance } from '@shared/util/trackLayout'
 import { sessionKind } from '@shared/util/sessionKind'
 import { estimateClosing, type DistanceSample } from '../engineer/ClosingEstimate'
+import { relativePosition } from '../engineer/SpatialAwareness'
 
 /**
  * TriggerEngine — evaluates rule conditions each tick + on events, applies
@@ -135,6 +136,11 @@ export class TriggerEngine {
           this.tryFire(state, 'penalty', 'normal', 'penalty', `Penalty: ${ev.text}`)
         }
         break
+      case 'warning':
+        if (ev.carIndex === state.player.carIndex) {
+          this.tryFire(state, 'warning', 'normal', 'warning', ev.text)
+        }
+        break
       default:
         break
     }
@@ -256,8 +262,9 @@ export class TriggerEngine {
     const ahead = Object.values(state.rivals).find((r) => r.position === playerPos - 1 && r.status === 'running' && r.pitStatus === 0)
     const behind = Object.values(state.rivals).find((r) => r.position === playerPos + 1 && r.status === 'running' && r.pitStatus === 0)
     // defending: car behind close (their gap to the car in front = gap to us)
-    if (behind && behind.deltaToCarInFrontS != null) {
-      const gap = behind.deltaToCarInFrontS
+    const behindGap = behind ? relativePosition(state, behind).raceTimingGapToPlayerS : null
+    if (behind && behindGap != null && behindGap < 0) {
+      const gap = -behindGap
       if (!this.defendActive && gap < this.config.defendGapS && gap > 0) {
         const fired = this.tryFire(
           state,
@@ -276,7 +283,7 @@ export class TriggerEngine {
     }
     // attacking: use the ahead car's deltaToCarBehindS (gap that the trailing car
     // has to the car ahead — i.e. the player's gap to the car in front)
-    const attackGap = ahead?.deltaToCarBehindS
+    const attackGap = ahead ? relativePosition(state, ahead).raceTimingGapToPlayerS : null
     if (attackGap != null && attackGap > 0) {
       if (!this.attackActive && attackGap < this.config.attackGapS) {
         const fired = this.tryFire(
@@ -467,6 +474,7 @@ function classifyKind(ruleId: string): 'heartbeat' | 'event' | 'threshold' {
     'red_flag',
     'fastest_lap',
     'penalty',
+    'warning',
     'race_winner'
   ])
   if (EVENT_RULES.has(ruleId)) return 'event'

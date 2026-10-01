@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Volume2, VolumeX, Square } from 'lucide-react'
 import { api } from '../../ipc/ipcClient'
 import { WebAudioEngine } from '../../audio/WebAudioEngine'
 import { useConfigStore, useEngineerStore } from '../../store'
@@ -6,6 +7,7 @@ import { useConfigStore, useEngineerStore } from '../../store'
 /** Mute / volume / Stop controls. */
 export function AudioControls(): React.ReactElement {
   const cfg = useConfigStore((s) => s.config)
+  const pitwall = cfg?.ui.style === 'pitwall'
   const status = useEngineerStore((s) => s.status)
   const [muted, setMuted] = useState(false)
   const [volume, setVolume] = useState(1)
@@ -49,13 +51,14 @@ export function AudioControls(): React.ReactElement {
   const isSpeaking = status === 'speaking' || status === 'thinking'
 
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-black/20 px-3 py-2">
+    <div className="audio-controls flex items-center gap-3 rounded-lg bg-black/20 px-3 py-2">
       <button
         onClick={toggleMute}
         className={`chip border ${muted ? 'border-accent-racing/50 text-accent-racing' : 'border-white/10 text-white/60'}`}
         title={muted ? '取消静音' : '静音'}
+        aria-label={muted ? '取消静音' : '静音'} aria-pressed={muted}
       >
-        {muted ? '🔇' : '🔊'}
+        {pitwall ? muted ? <VolumeX size={16} /> : <Volume2 size={16} /> : muted ? '🔇' : '🔊'}
       </button>
       <input
         type="range"
@@ -63,6 +66,7 @@ export function AudioControls(): React.ReactElement {
         max={1}
         step={0.01}
         value={volume}
+        aria-label="主音量"
         onChange={(e) => changeVol(Number(e.target.value))}
         className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-white/10 accent-accent-carbon"
       />
@@ -71,8 +75,9 @@ export function AudioControls(): React.ReactElement {
         onClick={stop}
         className={`chip border ${isSpeaking ? 'border-accent-racing/50 text-accent-racing' : 'border-white/10 text-white/60'}`}
         title="停止播报"
+        aria-label="停止播报"
       >
-        ■
+        {pitwall ? <Square size={14} /> : '■'}
       </button>
     </div>
   )

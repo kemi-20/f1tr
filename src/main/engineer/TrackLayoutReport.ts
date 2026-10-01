@@ -3,14 +3,17 @@ import { getTrackLayout, sectorAt, drsZoneAt, pitDistance, trackLengthDisagrees,
 import { sessionKind } from '@shared/util/sessionKind'
 import { relativeMotion, relativePosition, sampleAge, validCircuitDistance } from './SpatialAwareness'
 import { pitRejoinTraffic, type RejoinScenario } from './PitRejoin'
+import type { CircuitPace } from './CircuitPace'
+import { tyreThermalReport } from './TyreThermalReport'
 
-export const TRACK_LAYOUT_SECTIONS = ['summary', 'zones', 'geometry', 'positions', 'rejoin', 'all']
+export const TRACK_LAYOUT_SECTIONS = ['summary', 'zones', 'geometry', 'positions', 'rejoin', 'thermal', 'all']
 export interface TrackLayoutArgs extends RejoinScenario { section?: string }
 
 /** Static map geometry and live telemetry have separate sources and freshness. */
-export function readTrackLayout(state: RaceState, args: TrackLayoutArgs, now = Date.now(), history: readonly RaceState[] = []) {
+export function readTrackLayout(state: RaceState, args: TrackLayoutArgs, now = Date.now(), history: readonly RaceState[] = [], pace?: CircuitPace) {
   const section = args.section ?? 'all'
-  if (section === 'rejoin') return { queriedAt: now, result: pitRejoinTraffic(state, args, now) }
+  if (section === 'thermal') return { queriedAt: now, result: tyreThermalReport(state, history, now) }
+  if (section === 'rejoin') return { queriedAt: now, result: pitRejoinTraffic(state, args, now, pace) }
   const layout = getTrackLayout(state.session.trackId)
   const mismatch = layout ? trackLengthDisagrees(state.session.trackLengthM, layout) : null
   const base = {

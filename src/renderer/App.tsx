@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { Radio } from 'lucide-react'
 import { useRaceStore, useHealthStore } from './store'
 import { useConfigStore } from './store'
 import { TopStrip } from './components/layout/TopStrip'
@@ -15,33 +16,20 @@ export function App(): React.ReactElement {
   const ui = useConfigStore((s) => s.config?.ui)
   const theme = themeVars(ui?.theme ?? 'midnight', ui?.accent)
   const className = [
-    'app-backdrop flex h-screen w-screen flex-col gap-2 p-2',
+    'app-backdrop app-shell',
     ui?.glassmorphism === false ? 'theme-flat-glass' : '',
     ui?.reduceMotion ? 'theme-reduce-motion' : ''
   ].filter(Boolean).join(' ')
 
   return (
-    <div className={className} style={theme}>
+    <div className={className} style={theme} data-ui-style={ui?.style ?? 'classic'}>
       <TopStrip />
-
-      <div className="race-console-grid flex-1 overflow-hidden">
-        <div className="min-w-0 overflow-hidden">
-          <RivalsPanel />
-        </div>
-
-        <div className="grid min-w-0 grid-rows-[minmax(250px,0.82fr)_minmax(260px,1fr)] gap-2 overflow-hidden">
-          <div className="grid min-h-0 grid-cols-[minmax(330px,0.86fr)_minmax(360px,1fr)] gap-2 overflow-hidden">
-            <DriverHud />
-            <TrackMap />
-          </div>
-          <div className="min-h-0 overflow-hidden">
-            <TyreGrid />
-          </div>
-        </div>
-
-        <div className="min-w-0 overflow-hidden">
-          <EngineerPanel />
-        </div>
+      <div className="console-workspace">
+        <div className="workspace-timing"><RivalsPanel /></div>
+        <div className="workspace-drive"><DriverHud /></div>
+        <div className="workspace-track"><TrackMap /></div>
+        <div className="workspace-car"><TyreGrid /></div>
+        <div className="workspace-radio"><EngineerPanel /></div>
       </div>
 
       {/* settings modal */}
@@ -85,6 +73,17 @@ function hexToRgb(hex: string): string | null {
 }
 
 function WaitingOverlay(): React.ReactElement {
+  const pitwall = useConfigStore((s) => s.config?.ui.style === 'pitwall')
+  const port = useConfigStore((s) => s.config?.telemetry.port ?? 20777)
+  if (pitwall) return (
+    <div className="telemetry-notice" role="status">
+      <Radio size={16} aria-hidden="true" />
+      <strong>等待遥测</strong>
+      <span>F1 25 / 26</span>
+      <span>UDP {port} · 20–60 Hz</span>
+      <span className="notice-path">Options → Settings → UDP Telemetry Settings</span>
+    </div>
+  )
   return (
     <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
       <div className="pointer-events-auto glass flex max-w-md flex-col items-center gap-3 px-8 py-6 text-center">
@@ -98,7 +97,7 @@ function WaitingOverlay(): React.ReactElement {
           <br />
           <span className="text-white/70">Options → Settings → UDP Telemetry Settings</span>
           <br />
-          端口 <span className="num-mono text-accent-carbon">20777</span> · 速率 20–60Hz
+          端口 <span className="num-mono text-accent-carbon">{port}</span> · 速率 20–60Hz
         </div>
       </div>
     </div>

@@ -83,7 +83,7 @@ export class StrategyObservations {
       const comparable = this.stops.filter(stop => stop.phase === regime && stop.weather === state.weather.weatherCode)
       const recent = comparable[comparable.length - 1]
       lines.push(recent
-        ? `${regime} stop observation L${recent.lap}: relative gap loss ${recent.low.toFixed(2)}-${recent.high.toFixed(2)}s against ${recent.references} non-pitting references; ${comparable.length} retained stop(s). Noisy evidence, NOT calibrated net pit loss: includes pace, service/penalties and sampling error; verify with raw lap timers/history.`
+        ? `${regime} stop observation L${recent.lap}: relative gap loss ${recent.low.toFixed(2)}-${recent.high.toFixed(2)}s against ${recent.references} non-pitting references; ${comparable.length} retained stop(s). Noisy evidence, NOT calibrated net pit loss: includes pace, actual service and sampling error; verify with raw lap timers/history. Accumulated time penalties are not served by an ordinary EA F1 stop.`
         : `${regime} pit-loss observation: unavailable in this session/conditions. Query pit timers/history or use an explicitly uncertain range; do not fabricate a fixed loss.`)
     }
     return lines

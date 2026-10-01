@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api } from '../ipc/ipcClient'
-import type { AppConfig, SnapshotPayload, EngineerStatus, DeepPartial } from '@shared/index'
+import type { AppConfig, SnapshotPayload, EngineerStatus, DeepPartial, PositionPayload } from '@shared/index'
 import type { RaceState } from '@shared/types/state'
 
 interface TelemetryState {
@@ -11,6 +11,11 @@ interface TelemetryState {
 export const useTelemetryStore = create<TelemetryState>((set) => ({
   snapshot: null,
   setSnapshot: (snapshot) => set({ snapshot })
+}))
+
+export const usePositionStore = create<{ positions: PositionPayload | null; set: (p: PositionPayload) => void }>((set) => ({
+  positions: null,
+  set: (positions) => set({ positions })
 }))
 
 interface ConfigState {

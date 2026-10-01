@@ -15,6 +15,18 @@ export function AudioThemeTab(): React.ReactElement {
 
   return (
     <div className="flex flex-col gap-5">
+      <fieldset className="style-selector">
+        <legend className="label mb-2">界面风格</legend>
+        <div className="grid grid-cols-2 gap-2">
+          {([{ id: 'classic', label: '经典' }, { id: 'pitwall', label: 'F1 Pit Wall' }] as const).map((style) => (
+            <label key={style.id} className={`style-choice ${ui.style === style.id ? 'style-choice-active' : ''}`}>
+              <input type="radio" name="ui-style" value={style.id} checked={ui.style === style.id}
+                onChange={() => void patch({ ui: { style: style.id } })} />
+              <span>{style.label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <Field label={`主音量: ${Math.round(audio.volume * 100)}%`}>
         <input
           type="range"
@@ -48,13 +60,15 @@ export function AudioThemeTab(): React.ReactElement {
       </label>
 
       <div className="border-t border-white/[0.06] pt-4">
-        <div className="label mb-2">主题</div>
+        <div className="label mb-2">强调色</div>
         <div className="grid grid-cols-3 gap-2">
           {THEMES.map((t) => {
             const active = ui.theme === t.id
             return (
               <button
                 key={t.id}
+                type="button"
+                aria-pressed={active}
                 onClick={() => void patch({ ui: { theme: t.id, accent: t.accent } })}
                 className={`flex items-center gap-2 rounded-lg border p-3 transition ${
                   active ? 'border-accent-carbon/60 bg-accent-carbon/10' : 'border-white/[0.06] bg-white/[0.02] hover:border-white/20'

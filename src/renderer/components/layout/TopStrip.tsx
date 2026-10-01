@@ -4,12 +4,14 @@ import { useConfigStore } from '../../store'
 import { fmtLapTime } from '@shared/index'
 import type { SessionState } from '@shared/types/state'
 import { sessionKind } from '@shared/util/sessionKind'
+import { Settings, CloudRain, Thermometer, Flag } from 'lucide-react'
 
 export function TopStrip(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
   const healthWaiting = useHealthStore((s) => s.waiting)
   const healthConnected = useHealthStore((s) => s.connected)
   const openSettings = useConfigStore((s) => s.openSettings)
+  const pitwall = useConfigStore((s) => s.config?.ui.style === 'pitwall')
   const session = race?.session
   const player = race?.player
 
@@ -25,6 +27,29 @@ export function TopStrip(): React.ReactElement {
   const tl = timeLeft != null ? Math.max(0, timeLeft) : null
   const timeLeftStr = tl != null ? `${Math.floor(tl / 60)}:${String(Math.floor(tl % 60)).padStart(2, '0')}` : '--:--'
 
+  if (pitwall) return (
+    <header className="pitwall-session">
+      <div className="pitwall-brand"><img src="./favicon.png" alt="" /><strong>F1TR</strong></div>
+      <div className="session-identity">
+        <strong>{session?.trackName || 'RACE CONTROL'}</strong>
+        <span>{session?.sessionTypeLabel || 'NO SESSION'}</span>
+      </div>
+      <div className="session-reading"><span>{isPractice ? 'LAPS RUN' : 'LAP'}</span><strong>{lapText}</strong></div>
+      <div className="session-reading"><span>TIME LEFT</span><strong>{timeLeftStr}</strong></div>
+      <div className="session-reading session-position"><span>POSITION</span><strong>{player?.position ? `P${player.position}` : '--'}</strong></div>
+      <div className="session-reading session-lap-time"><span>LAST / BEST</span><strong>
+        {player?.lastLapTimeS ? fmtLapTime(player.lastLapTimeS * 1000) : '--'}
+        <small> / {player?.bestLapTimeS ? fmtLapTime(player.bestLapTimeS * 1000) : '--'}</small>
+      </strong></div>
+      {raceSignal && <div className={`race-signal race-signal-${raceSignal.tone}`}><Flag size={14} /><span>{raceSignal.label}</span></div>}
+      <div className="session-weather"><Thermometer size={14} /><span>{race ? `${race.weather.airTempC}° / ${race.weather.trackTempC}°` : '-- / --'}</span><CloudRain size={14} /><span>{race ? `${Math.round(race.weather.rainPercentage)}%` : '--'}</span></div>
+      <div className={`session-health ${healthWaiting ? 'is-waiting' : healthConnected ? 'is-connected' : 'is-offline'}`}>
+        <i /><span>{healthWaiting ? 'WAITING' : healthConnected ? 'LIVE' : 'OFFLINE'}</span>
+      </div>
+      <button type="button" className="pitwall-icon" onClick={openSettings} title="设置" aria-label="设置" data-settings-trigger><Settings size={18} /></button>
+    </header>
+  )
+
   return (
     <div className="glass relative flex items-center justify-between overflow-hidden px-5 py-3">
       <div className="flex items-center gap-5">
@@ -37,6 +62,7 @@ export function TopStrip(): React.ReactElement {
             onClick={openSettings}
             className="ml-1 rounded-md p-1.5 text-white/40 transition hover:bg-white/[0.06] hover:text-white"
             title="设置"
+            aria-label="设置" data-settings-trigger
           >
             ⚙
           </button>

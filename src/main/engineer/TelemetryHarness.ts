@@ -2,6 +2,7 @@ import type { TelemetryHistory } from './TelemetryHistory'
 import { readTrackLayout, TRACK_LAYOUT_SECTIONS } from './TrackLayoutReport'
 
 import { toolResultFits } from './toolLimits'
+import { compareStrategies } from './StrategyTools'
 
 const sections = ['all', 'player', 'rivals', 'weather', 'session', 'trackPositions', 'events']
 
@@ -17,7 +18,9 @@ export const TELEMETRY_TOOL_NAMES = [
   'get_lap_history',
   'read_telemetry_packet',
   'get_race_events',
-  'get_stint_history'
+  'get_stint_history',
+  'compare_strategies',
+  'strategy_plan'
 ] as const
 
 const telemetryToolNames = new Set<string>(TELEMETRY_TOOL_NAMES)
@@ -26,9 +29,9 @@ export function isTelemetryTool(name: string): boolean {
   return telemetryToolNames.has(name)
 }
 
-/** Read-only harness. Model-supplied names/arguments never reach filesystem, network or eval. */
+/** Bounded data harness; only strategy notes mutate memory. No filesystem, network or eval. */
 export function executeTelemetryTool(history: TelemetryHistory, name: string, input: string): string {
-  if (input.length > 2048) return 'Invalid telemetry arguments: too large'
+  if (Buffer.byteLength(input, 'utf8') > 2048) return 'Invalid telemetry arguments: too large'
   let args: unknown
   try {
     args = JSON.parse(input)
@@ -47,6 +50,14 @@ export function executeTelemetryTool(history: TelemetryHistory, name: string, in
 function runTool(history: TelemetryHistory, name: string, args: unknown): string {
     if (!args || typeof args !== 'object' || Array.isArray(args)) return 'Invalid telemetry arguments'
     const a = args as Record<string, unknown>
+    if (name === 'compare_strategies' || name === 'strategy_plan') {
+      const state = history.latestState()
+      if (!state) return 'No live telemetry state is retained yet. Start or resume a session, then retry.'
+      const now = Date.now()
+      const output = JSON.stringify({ dataOnly: true, queriedAt: now, result: name === 'compare_strategies'
+        ? compareStrategies(state, a, now) : history.strategyJournal.execute(state, a, now) })
+      return toolResultFits(output) ? output : 'Result exceeds context budget.'
+    }
     const historyOnly = name === 'get_race_events' || name === 'get_stint_history'
     const layoutOnly = name === 'get_track_layout'
     const allowed = name === 'read_telemetry_packet'
@@ -65,7 +76,8 @@ function runTool(history: TelemetryHistory, name: string, args: unknown): string
       if (!state) return 'No live telemetry state is retained yet. Start or resume a session, then retry.'
       const now = Date.now()
       const output = JSON.stringify({ dataOnly: true, queriedAt: now,
-        result: readTrackLayout(state, { section, exitAfterMinS: min as number | undefined, exitAfterMaxS: max as number | undefined }, now, history.recentPositionStates(now)) })
+        result: readTrackLayout(state, { section, exitAfterMinS: min as number | undefined, exitAfterMaxS: max as number | undefined }, now,
+          section === 'thermal' ? history.thermalStates(now) : history.recentPositionStates(now), history.circuitPace) })
       return toolResultFits(output) ? output : 'Result exceeds context budget; select positions, geometry or zones separately.'
     }
     if (name === 'read_telemetry_packet') return history.query(a)

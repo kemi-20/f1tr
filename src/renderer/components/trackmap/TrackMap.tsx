@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRaceStore } from '../../store'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { MapPin } from 'lucide-react'
+import { useRaceStore, usePositionStore, useConfigStore } from '../../store'
 import { getTrack } from '@shared/index'
 import { CALIBRATED_TRACK_MAPS, type CalibratedTrackMap, type TrackBounds, type TrackPoint } from './trackMapAssets'
 import { teamColorForCar } from '../rivals/teamMeta'
@@ -11,9 +12,22 @@ import { teamColorForCar } from '../rivals/teamMeta'
  */
 export function TrackMap(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
+  const pitwall = useConfigStore((s) => s.config?.ui.style === 'pitwall')
+  const reduceMotion = useConfigStore((s) => s.config?.ui.reduceMotion ?? false)
+  const [systemReduced, setSystemReduced] = useState(false)
+  const finishId = useId().replace(/:/g, '')
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = (): void => setSystemReduced(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
   const trackId = race?.session.trackId ?? -1
   const track = getTrack(trackId)
-  const positions = race?.trackPositions ?? []
+  const livePositions = usePositionStore(s => s.positions)
+  const positions = livePositions?.sessionUID === race?.session.sessionUID && livePositions?.trackId === trackId
+    ? livePositions.positions : race?.trackPositions ?? []
   const trackMap = CALIBRATED_TRACK_MAPS[trackId]
   const viewport = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 600, height: 360 })
@@ -31,15 +45,16 @@ export function TrackMap(): React.ReactElement {
   const marker = geometry?.marker ?? 1
 
   return (
-    <div className="glass relative flex h-full flex-col p-4">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="label">{track?.name ?? race?.session.trackName ?? 'Track'}</span>
-        <span className="text-[9px] text-white/30">{track?.country}</span>
+    <section className="glass trackmap-panel relative flex h-full flex-col p-4" aria-label="赛道位置">
+      <div className={pitwall ? 'pitwall-section-heading trackmap-heading' : 'mb-1 flex items-center justify-between'}>
+        {pitwall ? <h2>TRACK POSITION <span>{track?.name ?? race?.session.trackName ?? '--'}</span></h2> : <span className="label">{track?.name ?? race?.session.trackName ?? 'Track'}</span>}
+        <span className="trackmap-country text-[9px] text-white/30">{track?.country}</span>
       </div>
 
       <div ref={viewport} className="relative min-h-0 flex-1 overflow-hidden">
         {geometry ? (
           <svg viewBox={geometry.viewBox} className="absolute inset-0 block h-full w-full" preserveAspectRatio="xMidYMid meet">
+            <defs><pattern id={finishId} width={marker * 0.7} height={marker * 0.7} patternUnits="userSpaceOnUse"><rect width={marker * 0.7} height={marker * 0.7} fill="#fff" /><rect width={marker * 0.35} height={marker * 0.35} fill="#101113" /><rect x={marker * 0.35} y={marker * 0.35} width={marker * 0.35} height={marker * 0.35} fill="#101113" /></pattern></defs>
             <g>
               <polyline
                 points={geometry.fusedPoints}
@@ -71,6 +86,7 @@ export function TrackMap(): React.ReactElement {
               {geometry.sectorPoints.map((line, idx) => (
                 <polyline
                   key={idx}
+                  className="trackmap-sector"
                   points={line}
                   fill="none"
                   stroke={SECTOR_STROKES[idx]}
@@ -79,7 +95,8 @@ export function TrackMap(): React.ReactElement {
                   strokeLinecap="round"
                 />
               ))}
-              <line
+              {pitwall ? <rect x={geometry.start.x - marker * 2} y={geometry.start.y - marker * 0.65} width={marker * 4} height={marker * 1.3}
+                fill={`url(#${finishId})`} transform={`rotate(${geometry.startAngle} ${geometry.start.x} ${geometry.start.y})`} /> : <line
                 x1={geometry.start.x - marker * 1.5}
                 y1={geometry.start.y - marker * 1.5}
                 x2={geometry.start.x + marker * 1.5}
@@ -87,7 +104,7 @@ export function TrackMap(): React.ReactElement {
                 stroke="#FF6A00"
                 strokeWidth={marker * 0.45}
                 strokeLinecap="round"
-              />
+              />}
             </g>
 
             {[...positions].sort((a, b) => Number(a.isPlayer) - Number(b.isPlayer)).map((p) => {
@@ -97,21 +114,29 @@ export function TrackMap(): React.ReactElement {
               const rival = race?.rivals[p.carIndex]
               const colour = teamColorForCar(rival?.team, rival?.teamColor)
               return (
-                <g key={p.carIndex}>
+                <g key={`${race?.session.sessionUID}:${p.carIndex}`} style={{
+                  transform: `translate(${pt.x}px, ${pt.y}px)`,
+                  transition: livePositions?.flashbackActive || reduceMotion || systemReduced ? 'none' : 'transform 50ms linear'
+                }}>
+                  <title>{rival?.name || `Car ${p.carIndex + 1}`}{isP ? ' · YOUR CAR' : ''}{rival?.position ? ` · P${rival.position}` : ''}</title>
                   {isP && (
                     <>
-                      <circle cx={pt.x} cy={pt.y} r={marker * 3.5} fill="none" stroke="#FFE600" strokeWidth={marker * 0.38}>
-                        <animate attributeName="r" values={`${marker * 2.9};${marker * 4.3};${marker * 2.9}`} dur="1.4s" repeatCount="indefinite" />
-                        <animate attributeName="opacity" values="1;0.25;1" dur="1.4s" repeatCount="indefinite" />
+                      <circle r={marker * 3.5} fill="none" stroke="#FFE600" strokeWidth={marker * 0.38}>
+                        {!pitwall && !reduceMotion && !systemReduced && <>
+                          <animate attributeName="r" values={`${marker * 2.9};${marker * 4.3};${marker * 2.9}`} dur="1.4s" repeatCount="indefinite" />
+                          <animate attributeName="opacity" values="1;0.25;1" dur="1.4s" repeatCount="indefinite" />
+                        </>}
                       </circle>
-                      <circle cx={pt.x} cy={pt.y} r={marker * 2.6} fill="none" stroke="#FFE600" strokeWidth={marker * 0.42} />
+                      <circle r={marker * 2.6} fill="none" stroke="#FFE600" strokeWidth={marker * 0.42} />
                     </>
                   )}
-                  <circle cx={pt.x} cy={pt.y} r={isP ? marker * 2.05 : marker * 1.6} fill={colour} stroke="#071017" strokeWidth={marker * 0.55} />
+                  <circle r={isP ? marker * 2.05 : marker * 1.6} fill={colour} stroke="#071017" strokeWidth={marker * 0.55} />
                 </g>
               )
             })}
           </svg>
+        ) : pitwall ? (
+          <div className="trackmap-empty"><MapPin size={32} /><strong>{race ? '赛道地图不可用' : '等待赛道数据'}</strong><span>{race ? race.session.trackName : 'F1 25 / 26'}</span></div>
         ) : (
           <svg viewBox="0 0 100 100" className="absolute inset-0 block h-full w-full" preserveAspectRatio="xMidYMid meet">
             <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(45,212,191,0.15)" strokeWidth="7" />
@@ -129,11 +154,12 @@ export function TrackMap(): React.ReactElement {
             })}
           </svg>
         )}
-        <div className="absolute bottom-1 right-2 text-[8px] text-white/25">
-          {race?.weather.isRaining ? 'wet' : 'dry'} · {Math.round(race?.weather.trackTempC ?? 0)}°
+        <div className="trackmap-weather absolute bottom-1 right-2 text-[8px] text-white/25">
+          {race ? `${race.weather.isRaining ? 'WET' : 'DRY'} · ${Math.round(race.weather.trackTempC)}°` : '--'}
         </div>
       </div>
-    </div>
+      {pitwall && <footer className="trackmap-legend"><span><i className="legend-player" />YOUR CAR</span><span><i className="legend-team" />TEAM COLOUR</span><span className="legend-sector">S1 <b /> S2 <b /> S3 <b /></span><span>PIT LANE <i className="legend-pit" /></span></footer>}
+    </section>
   )
 }
 
@@ -151,6 +177,7 @@ interface TrackGeometry {
   pitPoints: string | null
   sectorPoints: string[]
   start: { x: number; y: number }
+  startAngle: number
 }
 
 const SECTOR_STROKES = [
@@ -184,7 +211,8 @@ function buildGeometry(trackMap: CalibratedTrackMap, size: { width: number; heig
     sectorPoints: [trackMap.sector1Line, trackMap.sector2Line, trackMap.sector3Line]
       .filter((line): line is TrackPoint[] => Boolean(line?.length))
       .map(line => pointsAttr(line.map(project))),
-    start: point(fused[0] ?? [0, 0])
+    start: point(fused[0] ?? [0, 0]),
+    startAngle: fused.length > 1 ? Math.atan2(fused[1][1] - fused[0][1], fused[1][0] - fused[0][0]) * 180 / Math.PI + 90 : 0
   }
 }
 

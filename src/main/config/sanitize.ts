@@ -86,6 +86,7 @@ export function sanitizeConfigPatch(patch: unknown): DeepPartial<AppConfig> {
   const ui = asObject(patch.ui)
   if (ui) {
     const next: DeepPartial<AppConfig['ui']> = {}
+    assign(next, 'style', pickEnum(ui.style, ['classic', 'pitwall'] as const))
     assign(next, 'theme', pickEnum(ui.theme, ['midnight', 'papaya', 'racing'] as const))
     assign(next, 'accent', pickHexColor(ui.accent))
     assign(next, 'glassmorphism', pickBool(ui.glassmorphism))

@@ -3,6 +3,7 @@ import { lapsToFlag, raceFuelMargin } from '@shared/util/raceDistance'
 import { StrategyObservations } from './StrategyObservations'
 import { isQualifying } from '@shared/util/lapPhase'
 import { sessionKind } from '@shared/util/sessionKind'
+import { relativePosition } from './SpatialAwareness'
 
 const corners = ['fl', 'fr', 'rl', 'rr'] as const
 
@@ -12,6 +13,7 @@ interface LapSample {
   fuelUsed: number | null
   wearAdded: number
   cornerWearAdded: Corners
+  trafficAffected: boolean
 }
 
 interface Observation {
@@ -36,6 +38,7 @@ export class RaceAnalysis {
   private boundary: Observation | null = null
   private laps: LapSample[] = []
   private cleanLap = false
+  private trafficAffected = false
   private gaps: { ts: number; id: number; gap: number; lap: number }[] = []
   private pitInstruction: { uid: string; lap: number; pitStops: number } | null = null
 
@@ -70,7 +73,8 @@ export class RaceAnalysis {
         p.onTrack && !p.currentLapInvalid && p.pitStatus === 0 && !s.isSafetyCar && !s.isVirtualSafetyCar &&
         !s.isRedFlag && !['yellow', 'red'].includes(s.trackFlag),
       weather: state.weather.weatherCode,
-      damage: Math.max(...Object.values(p.damage))
+      damage: Math.max(p.damage.frontLeftWing, p.damage.frontRightWing, p.damage.rearWing,
+        p.damage.floor, p.damage.sidepodL, p.damage.sidepodR)
     }
     const prev = this.previous
     if (prev && (prev.uid !== current.uid || current.frame < prev.frame || current.lap < prev.lap ||
@@ -79,6 +83,12 @@ export class RaceAnalysis {
       this.resetStint()
     }
     if (!this.previous) this.cleanLap = false // first observed lap may be partial
+    const trafficNow = Object.values(state.rivals).some(r => {
+      const position = relativePosition(state, r, now)
+      return position.forwardCircuitDistanceM != null && position.forwardCircuitDistanceM > 0 &&
+        position.forwardCircuitDistanceM < 150
+    })
+    this.trafficAffected ||= trafficNow
     this.cleanLap = this.cleanLap && current.clean
     if (this.previous && current.lap !== this.previous.lap) {
       const b = this.boundary
@@ -87,6 +97,7 @@ export class RaceAnalysis {
         Number.isFinite(time) && time > 20 && time < 600) {
         const used = b.fuel != null && current.fuel != null ? b.fuel - current.fuel : null
         this.laps.push({ lap: current.lap - 1, time,
+          trafficAffected: this.trafficAffected,
           fuelUsed: used != null && used > 0 && used < 10 ? used : null,
           wearAdded: Math.max(0, current.wear - b.wear),
           cornerWearAdded: {
@@ -101,6 +112,7 @@ export class RaceAnalysis {
       }
       this.boundary = current
       this.cleanLap = current.clean
+      this.trafficAffected = trafficNow
     }
     this.previous = current
     if (!current.clean) this.gaps = []
@@ -119,6 +131,7 @@ export class RaceAnalysis {
     const s = state.session
     const lines = ['ENGINEERING OBSERVATIONS (estimates, not commands):',
       `Telemetry age: ${state.lastPacketMs ? Math.max(0, now - state.lastPacketMs) + 'ms' : 'unknown'}; format ${state.packetFormat}; flag ${s.trackFlag}; pit status ${p.pitStatus}; penalties ${p.penaltiesS}s.`,
+      `Warnings: total=${p.totalWarnings ?? 'unknown'}, track limits=${p.cornerCuttingWarnings ?? 'unknown'} (counts, NOT seconds). Ordinary pit stops do not clear time penalties. Query get_track_layout section=thermal for repeated segment heat before location-specific tyre coaching.`,
       'Corner order in digest: RL/RR/FL/FR. Rival signed gap: positive=ahead, negative=behind.',
       `Brake C RL/RR/FL/FR: ${Object.values({ rl: p.tyres.brakeTempC.rl, rr: p.tyres.brakeTempC.rr, fl: p.tyres.brakeTempC.fl, fr: p.tyres.brakeTempC.fr }).map(Math.round).join('/')}; floor damage ${(p.damage.floor * 100).toFixed(0)}%.`]
     if (!state.lastPacketMs || now - state.lastPacketMs > 5000 || state.flashbackActive) {
@@ -165,6 +178,7 @@ export class RaceAnalysis {
       const old = samples.slice(0, -1)
       const baseline = old.reduce((sum, l) => sum + l.time, 0) / old.length
       lines.push(`Latest lap versus preceding mean: ${(samples[samples.length - 1].time - baseline).toFixed(3)}s (positive=slower); this alone does NOT prove tyre degradation.`)
+      lines.push(`Pace confounders: observed nearby-ahead traffic on ${samples.filter(l => l.trafficAffected).map(l => `L${l.lap}`).join(', ') || 'none of these sampled laps'}. Traffic presence is not proof of time lost; sparse/missing positions can miss traffic. Fuel load falls across the stint and is not corrected by a calibrated seconds/kg model. Weather/damage changes, invalid and neutralised laps reset comparable observations. Do not attribute raw pace change solely to wear.`)
       const wearRate = samples.reduce((sum, l) => sum + l.wearAdded, 0) / samples.length
       lines.push(`Observed maximum-corner wear rise: ${wearRate.toFixed(2)} percentage points/lap; linear trend only, not a puncture prediction or universal pit threshold.`)
       if (remaining != null && remaining > 0) {
@@ -215,6 +229,7 @@ export class RaceAnalysis {
     this.boundary = null
     this.laps = []
     this.cleanLap = false
+    this.trafficAffected = false
     this.gaps = []
   }
 }

@@ -1,11 +1,12 @@
 import type { RaceState } from '@shared/types/state'
 import { getTrackLayout, trackLengthDisagrees, validCircuitDistance, wrapDistance } from '@shared/util/trackLayout'
 import { sampleAge } from './SpatialAwareness'
+import type { CircuitPace } from './CircuitPace'
 
 export interface RejoinScenario { exitAfterMinS?: number; exitAfterMaxS?: number }
 
 /** Coarse scenario screening, never an exact rejoin or a pit-loss calibration. */
-export function pitRejoinTraffic(state: RaceState, scenario: RejoinScenario, now: number) {
+export function pitRejoinTraffic(state: RaceState, scenario: RejoinScenario, now: number, pace?: CircuitPace) {
   const layout = getTrackLayout(state.session.trackId)
   const length = state.session.trackLengthM
   const age = sampleAge(state.lastPacketMs, now)
@@ -18,7 +19,7 @@ export function pitRejoinTraffic(state: RaceState, scenario: RejoinScenario, now
   if (state.session.isSafetyCar || state.session.isVirtualSafetyCar || state.session.isRedFlag || state.session.trackFlag !== 'green') {
     return unavailable('Lap-average projection is invalid during neutralisation or flag transitions; inspect live queue and game rejoin estimate')
   }
-  if (min == null || max == null) return unavailable('Supply an evidence-based elapsed-time range from NOW until pit EXIT, including approach, pit travel, service and penalties. Net pit loss alone is NOT elapsed time. No default is assumed.')
+  if (min == null || max == null) return unavailable('Supply an evidence-based elapsed-time range from NOW until pit EXIT, including approach, pit travel and service. Accumulated EA F1 time penalties are NOT pit service and are not cleared by an ordinary stop. A separately confirmed stop-go obligation is distinct. Net pit loss alone is NOT elapsed time. No default is assumed.')
   if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min || max > 180) return unavailable('Invalid exit horizon: require 0 <= min <= max <= 180 seconds')
   const exit = layout.pitExitM / layout.lengthM * length
   const candidates: Array<Record<string, unknown>> = []
@@ -35,14 +36,17 @@ export function pitRejoinTraffic(state: RaceState, scenario: RejoinScenario, now
     }
     // A declared sensitivity band, not a confidence interval. Local corner speeds can differ much more.
     const start = wrapDistance(r.distanceFromStartM, length) - exit
-    const low = start + length / lap * 0.85 * min
-    const high = start + length / lap * 1.15 * max
+    const segmented = pace?.project(r.carIndex, r.distanceFromStartM!, length, min, max, now)
+    const low = start + (segmented?.low ?? length / lap * 0.85 * min)
+    const high = start + (segmented?.high ?? length / lap * 1.15 * max)
     const band = 500
     const nearExit = Math.ceil((low - band) / length) <= Math.floor((high + band) / length)
     const midpoint = wrapDistance((low + high) / 2 + length / 2, length) - length / 2
     candidates.push({ carIndex: r.carIndex, name: r.name, racePosition: r.position,
       lapDifference: r.lap - state.player.lap, lapPhase: r.lapPhase ?? 'unknown',
       lastLapTimeS: lap, lapDataAgeMs: lapAge, potentialExitTraffic: nearExit,
+      projectionSource: segmented?.model ?? 'previous-lap average with +/-15% sensitivity',
+      segmentEvidence: segmented ? { bins: segmented.bins, minimumSamplesPerBin: segmented.minimumSamplesPerBin } : null,
       midpointSignedDistanceFromExitM: Math.round(midpoint),
       unwrappedDistanceRangeFromExitM: [Math.floor(low), Math.ceil(high)],
       uncertaintySpansWholeLap: high - low >= length })
@@ -50,5 +54,5 @@ export function pitRejoinTraffic(state: RaceState, scenario: RejoinScenario, now
   return { available: true, confidence: 'coarse scenario only', pitExitM: exit,
     assumedExitAfterS: [min, max], assumedPaceSensitivity: [0.85, 1.15], proximityBandM: 500,
     candidates, excluded, clearExitConfirmed: false,
-    limitations: 'Uses previous-lap average speed, not a sector-speed profile; +/-15% is sensitivity only, not a bound. Positive midpoint means ahead of exit, negative behind. Includes lapped cars. Excluded cars remain unknown threats. Does not predict racing order, local corner speed, rival stops, cold-tyre out-lap loss or safe merge clearance. Compare multiple supported exit windows and live game rejoin estimate before choosing an undercut/overcut.' }
+    limitations: 'Uses observed segment speeds only with at least 3 samples in all 32 bins; otherwise previous-lap average. Sensitivity ranges are not confidence bounds. Positive midpoint means ahead of exit, negative behind. Includes lapped cars. Excluded cars remain unknown threats. Does not predict racing order, rival stops, cold-tyre out-lap loss or safe merge clearance. Recheck live conditions before a call.' }
 }

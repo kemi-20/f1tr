@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactElement, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import { X, Settings, Check, LoaderCircle } from 'lucide-react'
 import { useConfigStore } from '../store'
 import { api } from '../ipc/ipcClient'
 import {
@@ -28,47 +29,76 @@ const TABS: { id: TabId; label: string }[] = [
 export function SettingsModal(): ReactElement | null {
   const open = useConfigStore((s) => s.settingsOpen)
   const close = useConfigStore((s) => s.closeSettings)
+  const pitwall = useConfigStore((s) => s.config?.ui.style === 'pitwall')
   const [tab, setTab] = useState<TabId>('llm')
+  const dialog = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    dialog.current?.focus()
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') close()
+      if (event.key === 'Escape') { event.preventDefault(); close(); return }
+      if (event.key !== 'Tab' || !dialog.current) return
+      const elements = [...dialog.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]')]
+        .filter(el => el.tabIndex >= 0 && el.getClientRects().length > 0)
+      const first = elements[0]
+      const last = elements[elements.length - 1]
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) {
+        event.preventDefault(); last?.focus()
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) {
+        event.preventDefault(); first?.focus()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      const target = previous?.isConnected ? previous : document.querySelector<HTMLElement>('[data-settings-trigger]')
+      target?.focus()
+    }
   }, [close, open])
 
   if (!open) return null
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="settings-overlay fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={close}
     >
       <div
-        className="glass flex max-h-[86vh] w-[760px] max-w-[94vw] flex-col overflow-hidden"
+        ref={dialog} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabIndex={-1}
+        className="settings-dialog glass flex max-h-[86vh] w-[760px] max-w-[94vw] flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* header */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
-          <h2 className="num-display text-sm font-bold uppercase tracking-[0.2em] text-white/80">
-            Settings
+        <div className="settings-header flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+          <h2 id="settings-title" className="num-display text-sm font-bold uppercase text-white/80">
+            {pitwall && <Settings size={18} />} Settings
           </h2>
           <button
             onClick={close}
+            title="关闭设置" aria-label="关闭设置"
             className="rounded-md px-2 py-1 text-white/40 transition hover:bg-white/[0.06] hover:text-white"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
 
-        {/* tab strip */}
-        <div className="flex gap-1 border-b border-white/[0.06] px-3 pt-2">
+        <div className="settings-layout">
+        <div className="settings-nav flex gap-1 border-b border-white/[0.06] px-3 pt-2" role="tablist" aria-label="设置分类" aria-orientation={pitwall ? 'vertical' : 'horizontal'}>
           {TABS.map((t) => (
             <button
               key={t.id}
+              id={`settings-tab-${t.id}`} role="tab" aria-selected={tab === t.id} aria-controls={`settings-panel-${t.id}`} tabIndex={tab === t.id ? 0 : -1}
               onClick={() => setTab(t.id)}
+              onKeyDown={(event) => {
+                const delta = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 0
+                if (!delta && event.key !== 'Home' && event.key !== 'End') return
+                event.preventDefault()
+                const index = event.key === 'Home' ? 0 : event.key === 'End' ? TABS.length - 1 : (TABS.findIndex(item => item.id === t.id) + delta + TABS.length) % TABS.length
+                setTab(TABS[index].id)
+                document.getElementById(`settings-tab-${TABS[index].id}`)?.focus()
+              }}
               className={`relative rounded-t-md px-3 py-2 text-xs font-semibold transition ${
                 tab === t.id ? 'text-accent-carbon' : 'text-white/40 hover:text-white/70'
               }`}
@@ -82,7 +112,7 @@ export function SettingsModal(): ReactElement | null {
         </div>
 
         {/* body */}
-        <div className="overflow-y-auto p-5">
+        <div className="settings-content overflow-y-auto p-5" id={`settings-panel-${tab}`} role="tabpanel" aria-labelledby={`settings-tab-${tab}`} tabIndex={0}>
           {tab === 'llm' && <LlmTab />}
           {tab === 'tts' && <TtsTab />}
           {tab === 'voice' && <VoiceLanguageTab />}
@@ -90,8 +120,9 @@ export function SettingsModal(): ReactElement | null {
           {tab === 'audio' && <AudioThemeTab />}
           {tab === 'hotkey' && <HotkeyTab />}
         </div>
+        </div>
 
-        <div className="border-t border-white/[0.06] px-5 py-3 text-right">
+        <div className="settings-footer border-t border-white/[0.06] px-5 py-3 text-right">
           <span className="text-[10px] text-white/30">
             密钥只保存在主进程（.env 或 userData），不会回传到界面；此处修改的其余偏好会写入本地配置。
           </span>
@@ -114,17 +145,17 @@ export function TestButton({ kind }: { kind: 'llm' | 'tts' | 'udp' }): ReactElem
     }
   }
   return (
-    <div className="flex items-center gap-2">
+    <div className="settings-test flex items-center gap-2">
       <button
         onClick={run}
         disabled={state.loading}
         className="rounded-md border border-accent-carbon/40 px-3 py-1.5 text-xs font-semibold text-accent-carbon transition hover:bg-accent-carbon/10 disabled:opacity-40"
       >
-        {state.loading ? '测试中…' : '测试连接'}
+        {state.loading && <LoaderCircle size={14} className="animate-spin" />}{state.loading ? '测试中…' : '测试连接'}
       </button>
       {state.msg != null && (
-        <span className={`text-[11px] ${state.ok ? 'text-accent-carbon' : 'text-accent-racing'}`}>
-          {state.ok ? '✓ ' : '✗ '}
+        <span role="status" className={`settings-test-result text-[11px] ${state.ok ? 'text-accent-carbon' : 'text-accent-racing'}`}>
+          {state.ok ? <Check size={14} /> : <X size={14} />}
           {state.msg}
         </span>
       )}

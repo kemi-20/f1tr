@@ -1,4 +1,4 @@
-import { useRaceStore } from '../../store'
+import { useConfigStore, useRaceStore } from '../../store'
 import { compoundLabel, tyreWearColor } from '@shared/index'
 import type { RivalState, TyreCompound } from '@shared/types/state'
 import { formatBestLapDelta, isQualifyingOrPracticeSession, rankRivalsByBestLap } from '@shared/util/qualifyingRanking'
@@ -9,13 +9,15 @@ function Row({
   isPlayer,
   lapRank,
   lapDeltaS,
-  useLapRanking
+  useLapRanking,
+  showName
 }: {
   r: RivalState
   isPlayer: boolean
   lapRank: number | null
   lapDeltaS: number | null
   useLapRanking: boolean
+  showName?: boolean
 }): React.ReactElement {
   const mark = teamMetaFor(r.team) ?? { label: r.teamName || shortTeam(r.team), color: r.teamColor || '#E6EDF6' }
   const tyre = tyreCode(r.tyreCompound)
@@ -32,7 +34,7 @@ function Row({
       <div className="broadcast-team" style={{ color: teamColorForCar(r.team, r.teamColor) }} title={mark.label}>
         {mark.logo ? <img src={mark.logo} alt={mark.label} /> : <span>{shortTeam(mark.label)}</span>}
       </div>
-      <div className="broadcast-code" title={r.name || driverCode(r)}>{r.driverCode || driverCode(r)}</div>
+      <div className="broadcast-code" title={r.name || driverCode(r)}>{showName ? r.name || r.driverCode || driverCode(r) : r.driverCode || driverCode(r)}</div>
       <div className="broadcast-wear" style={{ color: tyreWear.color }} title={tyreWear.title}>{tyreWear.text}</div>
       <div className="broadcast-gap">{!useLapRanking && inPit ? 'PIT' : gap}</div>
       <div className={`broadcast-tyre tyre-${tyre.toLowerCase()}`}>{tyre}</div>
@@ -43,6 +45,7 @@ function Row({
 
 export function RivalsPanel(): React.ReactElement {
   const race = useRaceStore((s) => s.race)
+  const pitwall = useConfigStore((s) => s.config?.ui.style === 'pitwall')
   const rivals = race ? Object.values(race.rivals) : []
   const playerIdx = race?.player.carIndex ?? -1
   const maxRows = race?.packetFormat === 2026 ? 24 : 22
@@ -58,9 +61,14 @@ export function RivalsPanel(): React.ReactElement {
     ? rankRivalsByBestLap(positionedRivals, playerIdx, race.player.bestLapTimeS).slice(0, maxRows)
     : null
   const rows = lapRanked ?? sorted.map((r) => ({ rival: r, rank: r.position, deltaS: null }))
+  const playerRow = rows.find(({ rival }) => rival.carIndex === playerIdx)
 
   return (
     <aside className="broadcast-tower h-full">
+      {pitwall && <>
+        <header className="pitwall-section-heading"><h2>LIVE TIMING</h2><span>{useLapRanking ? 'BEST LAP Δ' : 'RACE GAP Δ'}</span></header>
+        <div className="timing-columns" aria-hidden="true"><span>POS</span><span /><span>DRIVER</span><span>WEAR</span><span>GAP</span><span>TYRE</span></div>
+      </>}
       <div className="broadcast-body">
         {rows.length === 0 && <div className="broadcast-empty">等待车手数据</div>}
         {rows.map(({ rival: r, rank, deltaS }) => (
@@ -71,9 +79,14 @@ export function RivalsPanel(): React.ReactElement {
             lapRank={rank}
             lapDeltaS={deltaS}
             useLapRanking={useLapRanking}
+            showName={pitwall}
           />
         ))}
       </div>
+      {pitwall && <footer className="timing-player">
+        <span className="label">YOUR CAR</span>
+        {playerRow ? <Row r={playerRow.rival} isPlayer lapRank={playerRow.rank} lapDeltaS={playerRow.deltaS} useLapRanking={useLapRanking} showName /> : <span className="timing-player-empty">等待玩家数据</span>}
+      </footer>}
     </aside>
   )
 }

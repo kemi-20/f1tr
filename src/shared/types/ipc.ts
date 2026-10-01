@@ -1,4 +1,13 @@
 import type { TriggerFiring } from './triggers'
+import type { TrackPosition } from './state'
+
+export interface PositionPayload {
+  ts: number
+  sessionUID: string
+  trackId: number
+  flashbackActive: boolean
+  positions: TrackPosition[]
+}
 
 export type EngineerStatus = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error'
 

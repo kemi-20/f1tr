@@ -1,4 +1,6 @@
 import { toolResultFits } from './toolLimits'
+import { CircuitPace } from './CircuitPace'
+import { StrategyJournal } from './StrategyTools'
 import type { RaceState, RecentEvent, TyreCompound } from '@shared/types/state'
 import { WeekendIdentity } from './WeekendIdentity'
 import type { WeekendIdentitySnapshot, WeekendIdentityTransition } from './WeekendIdentity'
@@ -65,13 +67,15 @@ const MAX_FIELD_DEPTH = 8
 const FIELD_SEGMENT_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
 const BLOCKED_FIELD_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor'])
 const EVENT_TYPES = new Set<RecentEvent['type']>([
-  'fastestLap', 'retirement', 'sessionEnded', 'penalty', 'raceWinner', 'safetyCar', 'vsc',
+  'fastestLap', 'retirement', 'sessionEnded', 'penalty', 'warning', 'raceWinner', 'safetyCar', 'vsc',
   'redFlag', 'yellowFlag', 'blueFlag', 'greenFlag', 'weatherChange', 'pitEntered', 'pitExited',
   'collision', 'damage', 'overtake', 'spin'
 ])
 
 /** Retains sampled telemetry and summaries for the active race weekend, in memory only. */
 export class TelemetryHistory {
+  readonly circuitPace = new CircuitPace()
+  readonly strategyJournal = new StrategyJournal()
   private samples: Sample[] = []
   private laps: StoredRecord[] = []
   private events: StoredRecord[] = []
@@ -132,6 +136,14 @@ export class TelemetryHistory {
     if (!latest) return []
     return this.samples.slice(-7).filter(sample => sample.sessionKey === latest.sessionKey &&
       sample.ts <= now && now - sample.ts <= 3000)
+      .flatMap(sample => { const state = tryParseState(sample.data); return state ? [state] : [] })
+  }
+
+  thermalStates(now = Date.now()): RaceState[] {
+    const latest = this.samples.at(-1)
+    if (!latest) return []
+    return this.samples.slice(-600).filter(sample => sample.sessionKey === latest.sessionKey &&
+      sample.ts <= now && now - sample.ts <= RECENT_WINDOW_MS)
       .flatMap(sample => { const state = tryParseState(sample.data); return state ? [state] : [] })
   }
 
@@ -304,6 +316,7 @@ export class TelemetryHistory {
     let transition = this.identity.observeState(state, now)
     if (!this.applyTransition(transition, now)) return
     if (!state.lastPacketMs || state.flashbackActive) {
+      this.circuitPace.reset()
       if (state.flashbackActive) this.noteRollback(state, now, transition.sessionKey)
       return
     }
@@ -349,6 +362,7 @@ export class TelemetryHistory {
       lap: safeInteger(state.player.lap, 0, 100_000) ?? 0
     }
     this.samples.push(sample)
+    this.circuitPace.observe(state, now)
     this.memoryBytes += sample.bytes
 
     if (previous && previous.lap > 0 && sample.lap > previous.lap &&
@@ -364,6 +378,8 @@ export class TelemetryHistory {
   }
 
   reset(): void {
+    this.strategyJournal.reset()
+    this.circuitPace.reset()
     this.identity.reset()
     this.clearRecords()
   }
@@ -372,6 +388,8 @@ export class TelemetryHistory {
     if (transition.duplicate) return false
     if (transition.newWeekend) this.clearRecords()
     if (transition.newSession) {
+      this.strategyJournal.reset()
+      this.circuitPace.reset()
       this.clearPackets()
       this.packetSession = transition.sessionUid
       this.frameHighWater = null
@@ -508,6 +526,8 @@ export class TelemetryHistory {
   }
 
   private noteRollback(state: RaceState, now: number, sessionKey: string): void {
+    this.circuitPace.reset()
+    this.strategyJournal.reset()
     const frame = safeInteger(state.session.overallFrameIdentifier, 0, 0xffffffff)
     this.rollback = { sessionKey, detectedAt: now,
       previousFrame: this.frameHighWater?.sessionKey === sessionKey ? this.frameHighWater.frame : frame ?? 0 }
@@ -597,6 +617,8 @@ export class TelemetryHistory {
   }
 
   private clearRecords(): void {
+    this.circuitPace.reset()
+    this.strategyJournal.reset()
     this.samples = []
     this.laps = []
     this.events = []
