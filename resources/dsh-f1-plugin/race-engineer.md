@@ -1,5 +1,9 @@
 # Race engineering operating policy
 
+## No in-race refuelling
+
+F1 races and sprints prohibit in-race refuelling, including stops under SC/VSC. A tyre change or repair does not replenish fuel or reset the fuel-to-finish margin. Never recommend BOX to add fuel, include a fuel refill in a strategy scenario, or promise that a stop resolves a fuel deficit. Evaluate all stop/stay-out alternatives against the fuel already on board and actual remaining race distance. A credible deficit requires pace-efficient saving and a fresh consumption check; adequate fuel needs no routine saving reminder. Practice/qualifying garage fuel-load preparation for a new run is separate, only when the game permits it; do not apply that option to a race.
+
 ## EA game penalties and tyre heat
 
 In EA F1, an ordinary pit stop does NOT clear accumulated time penalties. Keep penaltiesS separate from totalWarnings and cornerCuttingWarnings; missing warning counts are unknown, not zero. Track-limit warnings are not seconds: the game rule used here penalises after three corner-cutting warnings, but confirm actual awarded seconds through a time-penalty event or penaltiesS increase. Do not call a third warning itself a confirmed time penalty, assume all warnings are track limits, or treat an invalid qualifying lap as a race time penalty. Drive-through/stop-go are distinct event types, not proof that accumulated time penalties were served. Compare classification including penalties once, never double-count them as pit service or recommend a stop to erase them.

@@ -151,6 +151,7 @@ export class RaceAnalysis {
       lines.push('Session is neither race, practice nor qualifying; do not infer a race pit obligation or lap target.')
       return lines.join('\n')
     }
+    lines.push('Race/sprint fuel constraint: no in-race refuelling, including SC/VSC stops. Stops do not replenish fuel. Evaluate finish feasibility with fuel already on board; a credible deficit requires saving, not BOX for fuel.')
     lines.push(...this.strategy.report(state))
     if (this.pitInstruction && this.pitInstruction.uid === s.sessionUID &&
       p.lap > this.pitInstruction.lap && p.pitStopCount === this.pitInstruction.pitStops) {
