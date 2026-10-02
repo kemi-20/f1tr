@@ -32,7 +32,7 @@ export class MiMoAsrClient {
     return !!this.config.baseURL && !!this.config.apiKey
   }
 
-  async transcribe(base64Audio: string, format: string): Promise<string> {
+  async transcribe(base64Audio: string, format: string, signal?: AbortSignal): Promise<string> {
     if (!this.ready) throw new Error('MiMo ASR not configured (missing baseURL/apiKey)')
     const mime = AUDIO_MIME[format]
     // Reject malformed/oversized payloads before they reach the upstream endpoint.
@@ -68,10 +68,14 @@ export class MiMoAsrClient {
     // Hard deadline: a half-open upstream connection must not leave the radio stuck
     // in 'transcribing' forever.
     const abort = new AbortController()
+    const onAbort = (): void => abort.abort()
+    signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) abort.abort()
     const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)
     try {
       const res = await fetch(url, {
         method: 'POST',
+        redirect: 'error',
         headers: {
           'Content-Type': 'application/json',
           'api-key': this.config.apiKey
@@ -93,6 +97,7 @@ export class MiMoAsrClient {
       logger.info(`MiMo ASR: transcribed ${text.length} chars`)
       return text
     } catch (err) {
+      if (signal?.aborted) throw new DOMException('ASR cancelled', 'AbortError')
       if (abort.signal.aborted) {
         logger.error('MiMo ASR timed out')
         throw new Error(`MiMo ASR timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)
@@ -101,6 +106,7 @@ export class MiMoAsrClient {
       throw err
     } finally {
       clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
     }
   }
 }

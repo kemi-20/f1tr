@@ -148,6 +148,11 @@ app.whenReady().then(() => {
   setTelemetry(telemetry)
   engineer.setStateProvider(() => telemetry!.aggregator.getState())
   telemetry.onDecoded = (id, packet) => engineer!.telemetryHistory.recordPacket(id, packet)
+  telemetry.onFlashback = () => {
+    engineer!.cancel()
+    engineer!.analysis.reset()
+    engineer!.telemetryHistory.reset()
+  }
   telemetry.onObservation = (state) => {
     engineer!.observeRadioState(state)
     engineer!.analysis.observe(state)

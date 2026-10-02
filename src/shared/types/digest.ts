@@ -17,7 +17,7 @@ export interface Digest {
     airC: number
     trackC: number
     rainPct: number
-    wet: number
+    wet: number | null
     expected: string
   }
   player: {

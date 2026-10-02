@@ -169,6 +169,8 @@ export interface WeatherState {
   trackTempC: number
   rainPercentage: number
   wetness: number
+  /** False means the numeric fallback is not a track-water observation. */
+  wetnessKnown?: boolean
   predictedWetness: number
   weatherCode: number
   predictedCode: number

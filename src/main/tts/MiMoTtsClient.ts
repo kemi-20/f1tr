@@ -91,6 +91,7 @@ export class MiMoTtsClient {
     try {
       const res = await fetch(url, {
         method: 'POST',
+        redirect: 'error',
         headers: {
           'Content-Type': 'application/json',
           'api-key': this.config.apiKey

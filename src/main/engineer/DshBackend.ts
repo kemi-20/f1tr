@@ -43,14 +43,21 @@ export class DshBackend implements EngineerBackend {
   private radioTimes: number[] = []
   private closing = false
   private stderrLines = 0
+  private visionRequests = new Set<AbortController>()
 
   constructor(
     private readonly config: LlmConfig,
     private readonly history: TelemetryHistory,
-    private readonly vision: MiMoVisionClient | null,
+    private vision: MiMoVisionClient | null,
     private readonly speak: (text: string, firing: TriggerFiring) => void,
     private readonly persona: string
   ) {}
+
+  setVisionClient(client: MiMoVisionClient | null): void {
+    for (const controller of this.visionRequests) controller.abort()
+    this.visionRequests.clear()
+    this.vision = client
+  }
 
   async testConnection(): Promise<{ ok: boolean; message: string }> {
     try {
@@ -81,6 +88,7 @@ export class DshBackend implements EngineerBackend {
       }
       const response = await fetch(endpoint, {
         method: 'POST',
+        redirect: 'error',
         signal: controller.signal,
         headers: {
           'content-type': 'application/json',
@@ -374,11 +382,18 @@ export class DshBackend implements EngineerBackend {
         if (socket.destroyed || this.current !== active) throw new Error('Engineer turn cancelled')
         const controller = new AbortController()
         socket.once('close', () => controller.abort())
-        result = !png
-          ? 'F1 game window was not found; no screenshot was captured.'
-          : this.vision
-            ? await this.vision.describeImage(png, controller.signal)
-            : 'Screenshot captured, but no image-capable model is configured.'
+        this.visionRequests.add(controller)
+        active.webSearchControllers.add(controller)
+        try {
+          result = !png
+            ? 'A unique verified F1 game window was not found; no screenshot was captured.'
+            : this.vision
+              ? await this.vision.describeImage(png, controller.signal)
+              : 'Screenshot captured, but no image-capable model is configured.'
+        } finally {
+          this.visionRequests.delete(controller)
+          active.webSearchControllers.delete(controller)
+        }
       } else if (req.name === 'web_search') {
         if (Object.keys(args).some(key => key !== 'queries')) throw new Error('Invalid web search arguments')
         const controller = new AbortController()

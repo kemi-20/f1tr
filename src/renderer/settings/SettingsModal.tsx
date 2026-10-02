@@ -2,12 +2,7 @@ import { useEffect, useRef, useState, type ReactElement, type ReactNode } from '
 import { X, Settings, Check, LoaderCircle } from 'lucide-react'
 import { useConfigStore } from '../store'
 import { api } from '../ipc/ipcClient'
-import {
-  LANGUAGE_PROFILE,
-  type KeySource,
-  type LanguageMode,
-  type VoiceOption
-} from '@shared/index'
+import type { KeySource } from '@shared/index'
 import { LlmTab } from './LlmTab'
 import { TtsTab } from './TtsTab'
 import { VoiceLanguageTab } from './VoiceLanguageTab'
@@ -226,9 +221,4 @@ export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>): R
       }`}
     />
   )
-}
-
-/** Re-export the profile helpers so tabs don't each import from @shared. */
-export function voicesFor(mode: LanguageMode): VoiceOption[] {
-  return LANGUAGE_PROFILE[mode].voices
 }

@@ -13,6 +13,7 @@ import type { AppConfig } from '@shared/index'
 let pipeline: AudioPipeline | null = null
 let client: MiMoTtsClient | null = null
 let asrClient: MiMoAsrClient | null = null
+let connection: { baseURL: string; apiKey: string; model: string } | null = null
 
 export function setAudio(p: AudioPipeline | null): void {
   pipeline = p
@@ -39,6 +40,9 @@ export async function wireTts(cfg: AppConfig): Promise<void> {
   if (!pipeline) return
   const baseURL = normalizeURL(cfg.tts.baseURL)
   const apiKey = ConfigStore.ttsKey()
+  pipeline.setPreemptOnHigh(cfg.audio.preemptOnHigh)
+  pipeline.setMaxQueueDepth(cfg.advanced.maxQueueDepth)
+  if (connection?.baseURL === baseURL && connection.apiKey === apiKey && connection.model === cfg.tts.model && client) return
   if (!baseURL || !apiKey) {
     logger.info('TTS backend inactive (no baseURL/key via UI or .env)')
     // tear down BOTH clients — leaving the old ASR client behind would keep using a
@@ -47,14 +51,14 @@ export async function wireTts(cfg: AppConfig): Promise<void> {
     pipeline.setClient(null)
     client = null
     asrClient = null
+    connection = null
     return
   }
   // replacing a live client: abort anything in flight on the old one first
   client?.cancel()
   client = new MiMoTtsClient({ baseURL, apiKey, model: cfg.tts.model })
+  connection = { baseURL, apiKey, model: cfg.tts.model }
   pipeline.setClient(client)
   asrClient = new MiMoAsrClient({ baseURL, apiKey, model: 'mimo-v2.6-flash' })
-  pipeline.setPreemptOnHigh(cfg.audio.preemptOnHigh)
-  pipeline.setMaxQueueDepth(cfg.advanced.maxQueueDepth)
   logger.info(`TTS backend ready: ${baseURL} (TTS + ASR)`)
 }

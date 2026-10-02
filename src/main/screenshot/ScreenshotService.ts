@@ -1,5 +1,6 @@
 import { desktopCapturer } from 'electron'
 import { logger } from '../logging/Logger'
+import { isF1GameWindow } from './WindowIdentity'
 
 /**
  * ScreenshotService — captures only a recognized F1 game window.
@@ -14,14 +15,16 @@ export async function captureF1Screenshot(): Promise<string | null> {
       fetchWindowIcons: false
     })
 
-    // The game's title includes a registered-trademark symbol on Windows.
-    const f1Source = sources.find((s) =>
-      /\bF1\s*[®™]?\s*(?:25|26)\b|\bFormula\s*1\b/i.test(s.name)
-    )
-    const source = f1Source
+    const candidates = sources.filter((s) => /^F1\s*[®™]?\s*(?:25|26)\s*$/i.test(s.name.trim()))
+    const verified = []
+    for (const candidate of candidates) {
+      if (await isF1GameWindow(candidate.id)) verified.push(candidate)
+    }
+    // Ambiguous or unverifiable windows must never be sent to a vision endpoint.
+    const source = verified.length === 1 ? verified[0] : null
 
     if (!source) {
-      logger.warn('ScreenshotService: no capture source found')
+      logger.warn('ScreenshotService: no unique verified F1 game window found')
       return null
     }
 

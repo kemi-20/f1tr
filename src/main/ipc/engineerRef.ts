@@ -26,6 +26,11 @@ export function getLlm(): DshBackend | null {
   return llm
 }
 
+/** Refresh screenshot credentials without discarding the engineer conversation. */
+export function wireVision(cfg: AppConfig): void {
+  llm?.setVisionClient(buildVisionClient(cfg))
+}
+
 /** Build/rebuild the LLM client from current config + secrets; inject into the engineer.
  *  Called at boot and whenever config (model/baseURL/key/reasoning level/language) changes.
  *  Effective key = UI override if set, else .env. */

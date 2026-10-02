@@ -26,11 +26,14 @@ export class EngineerService {
   private language: LanguageMode = 'zh'
   private voice = '冰糖'
   private direction = ENGINEER_TTS_DIRECTIONS.zh
+  private styleDirection = ENGINEER_TTS_DIRECTIONS.zh
+  private customDirection: string | null = null
   private inFlight: Promise<void> | null = null
   private activePriority: TriggerFiring['priority'] | null = null
   private activeManual = false
   private interruptedByCritical = false
   private pending: { state: RaceState; firing: TriggerFiring } | null = null
+  private pendingManual: { state: RaceState; firing: TriggerFiring } | null = null
   private onSpeak: (text: string, firing: TriggerFiring, voice: string, direction: string) => void = () => {}
   private onInterrupt: () => void = () => {}
   private lastToolRadio = ''
@@ -70,12 +73,14 @@ export class EngineerService {
   }
 
   setEngineerStyle(style: string): void {
-    this.direction = getEngineerSkill(style).ttsDirection
+    this.styleDirection = getEngineerSkill(style).ttsDirection
+    this.direction = this.customDirection ?? this.styleDirection
   }
 
   setVoice(voice: string, direction: string): void {
     this.voice = voice
-    if (direction && !Object.values(ENGINEER_TTS_DIRECTIONS).includes(direction)) this.direction = direction
+    this.customDirection = direction && !Object.values(ENGINEER_TTS_DIRECTIONS).includes(direction) ? direction : null
+    this.direction = this.customDirection ?? this.styleDirection
   }
 
   /** Set the callback that speaks radio accepted through speak_radio. */
@@ -110,18 +115,22 @@ export class EngineerService {
     if (!this.inFlight) {
       void this.run(state, firing)
     } else {
-      if (firing.reasonCode === 'manual' || firing.priority === 'critical' ||
+      if (firing.reasonCode === 'manual') {
+        this.pendingManual = { state, firing }
+        // Manual prompts coalesce, but cannot interrupt or displace critical radio.
+        if (this.activePriority === 'critical' || this.pending?.firing.priority === 'critical') return
+        this.llm?.cancel?.()
+        this.onInterrupt()
+        return
+      }
+      if (this.pending && !this.priorityGte(firing.priority, this.pending.firing.priority)) return
+      this.pending = { state, firing }
+      if (firing.priority === 'critical' ||
           (firing.priority === 'high' && !this.activeManual && this.activePriority !== 'critical' && this.activePriority !== 'high')) {
-        this.interruptedByCritical = this.activeManual && firing.reasonCode !== 'manual' && firing.priority === 'critical'
+        this.interruptedByCritical = this.activeManual && firing.priority === 'critical'
         this.llm?.cancel?.()
         this.onInterrupt()
       }
-      // only replace pending if the new firing is higher-or-equal priority
-      if (this.pending && ((this.pending.firing.reasonCode === 'manual' && firing.reasonCode !== 'manual') ||
-          (firing.reasonCode !== 'manual' && !this.priorityGte(firing.priority, this.pending.firing.priority)))) {
-        return // existing pending is higher priority — keep it
-      }
-      this.pending = { state, firing }
     }
   }
 
@@ -141,9 +150,10 @@ export class EngineerService {
       this.inFlight = null
       this.activePriority = null
       this.activeManual = false
-      if (this.pending) {
-        const next = this.pending
-        this.pending = null
+      const next = this.pending?.firing.priority === 'critical' ? this.pending : this.pendingManual ?? this.pending
+      if (next) {
+        if (next === this.pending) this.pending = null
+        else this.pendingManual = null
         void this.run(next.state, next.firing)
       }
     }
@@ -152,6 +162,7 @@ export class EngineerService {
   /** Abort any in-flight work (Stop button / high-priority preempt). */
   cancel(): void {
     this.pending = null
+    this.pendingManual = null
     this.llm?.cancel?.()
     this.onInterrupt()
   }

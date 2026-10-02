@@ -32,6 +32,7 @@ export function emptyRaceState(format: PacketFormat = 2025): RaceState {
       trackTempC: 0,
       rainPercentage: 0,
       wetness: 0,
+      wetnessKnown: false,
       predictedWetness: 0,
       weatherCode: 0,
       predictedCode: 0,

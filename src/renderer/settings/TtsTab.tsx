@@ -1,5 +1,6 @@
 import { useConfigStore } from '../store'
 import { ApiKeyField, Field, TextInput, TestButton } from './SettingsModal'
+import { EndpointInput } from './EndpointInput'
 
 export function TtsTab(): React.ReactElement {
   const config = useConfigStore((s) => s.config)
@@ -11,10 +12,10 @@ export function TtsTab(): React.ReactElement {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
         <Field label="MiMo Base URL" hint="默认 https://api.xiaomimimo.com/v1，留空则用 .env 的 MIMO_API_BASE_URL">
-          <TextInput
+          <EndpointInput
             value={tts.baseURL}
             placeholder="https://api.xiaomimimo.com/v1"
-            onChange={(e) => void patch({ tts: { baseURL: e.target.value } })}
+            onSave={(baseURL) => patch({ tts: { baseURL } })}
           />
         </Field>
         <Field label="模型" hint="mimo-v2.5-tts（一般无需改）">

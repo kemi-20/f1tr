@@ -48,11 +48,12 @@ export class MiMoVisionClient {
     try {
       const res = await fetch(url, {
         method: 'POST',
+        redirect: 'error',
         headers: {
           'Content-Type': 'application/json',
           authorization: `Bearer ${this.config.apiKey}`
         },
-        signal,
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000),
         body: JSON.stringify(body)
       })
 

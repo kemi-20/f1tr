@@ -3,7 +3,7 @@ import { ConfigStore } from '../config/ConfigStore'
 import { sanitizeConfigPatch } from '../config/sanitize'
 import { logger } from '../logging/Logger'
 import { getTelemetry } from './telemetryRef'
-import { getEngineer, getLlm, wireLlm } from './engineerRef'
+import { getEngineer, getLlm, wireLlm, wireVision } from './engineerRef'
 import { registerHotkey } from '../hotkey/GlobalHotkeyManager'
 import { getAudio, getTtsClient, wireTts } from './ttsRef'
 import { getAsrClient } from './ttsRef'
@@ -16,6 +16,8 @@ import { getEngineerSkill } from '../engineer/EngineerSkillLibrary'
  * require() does not work reliably under electron-vite's ESM bundle and would throw at runtime.
  */
 export function registerIpc(): void {
+  let voiceRequest: AbortController | null = null
+  const cancelVoice = (): void => { voiceRequest?.abort(); voiceRequest = null }
   // The renderer never receives stored API keys — only where they come from.
   ipcMain.handle('config:get', () => ConfigStore.redacted())
 
@@ -24,6 +26,7 @@ export function registerIpc(): void {
     // is untrusted and may be null or contain invalid values.
     const safePatch = sanitizeConfigPatch(patch)
     const cfg = ConfigStore.patch(safePatch)
+    if (safePatch.tts || safePatch.language) cancelVoice()
     if (safePatch.language) {
       getEngineer()?.cancel()
       getAudio()?.cancelAll()
@@ -36,6 +39,7 @@ export function registerIpc(): void {
     for (const result of results) {
       if (result.status === 'rejected') logger.error('config:set service rewire failed:', result.reason)
     }
+    if (safePatch.tts) wireVision(cfg)
     if (safePatch.triggers) {
       getTelemetry()?.triggers.setConfig(cfg.triggers)
     }
@@ -128,6 +132,7 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle('engineer:cancel', async () => {
+    cancelVoice()
     getEngineer()?.cancel()
     getAudio()?.cancelAll()
     getTtsClient()?.cancel()
@@ -141,29 +146,25 @@ export function registerIpc(): void {
     if (typeof base64Audio !== 'string' || base64Audio.length > 13_981_016 || (format !== 'wav' && format !== 'mp3')) {
       return { ok: false, message: 'Unsupported audio payload.' }
     }
-    const state = svc.aggregator.getState()
     // DSH SDK accepts text and images; transcribe driver audio before admission.
     const asr = getAsrClient()
     if (!asr) return { ok: false, message: 'MiMo ASR not configured (check TTS base URL / API key).' }
+    cancelVoice()
+    const request = new AbortController()
+    voiceRequest = request
     try {
-      const text = await asr.transcribe(base64Audio, format)
-      eng.enqueue(state, manualFiring(text))
+      const text = await asr.transcribe(base64Audio, format, request.signal)
+      if (request.signal.aborted) return { ok: false, message: 'Voice request cancelled.' }
+      eng.enqueue(svc.aggregator.getState(), manualFiring(text))
       return { ok: true, text }
     } catch (err) {
+      if (request.signal.aborted) return { ok: false, message: 'Voice request cancelled.' }
       return { ok: false, message: `ASR error: ${(err as Error)?.message ?? err}` }
+    } finally {
+      if (voiceRequest === request) voiceRequest = null
     }
   })
 
-  ipcMain.handle('audio:mute', async (_e, muted: boolean) => {
-    // persist so it survives restart; renderer already drives the live gain
-    await ConfigStore.patch({ audio: { muted } })
-    logger.debug(`audio mute -> ${muted}`)
-  })
-  ipcMain.handle('audio:volume', async (_e, vol: number) => {
-    if (typeof vol === 'number' && Number.isFinite(vol)) {
-      await ConfigStore.patch({ audio: { volume: Math.max(0, Math.min(1, vol)) } })
-    }
-  })
   // Renderer ack: an utterance's audio actually drained (drives TTS preemption timing).
   ipcMain.handle('audio:finished', async (_e, utteranceId: string) => {
     if (typeof utteranceId === 'string' && utteranceId.length <= 64) {

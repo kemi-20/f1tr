@@ -249,10 +249,11 @@ function lineBounds(points: TrackPoint[]): TrackBounds {
 }
 
 function pointForPosition(
-  p: { lapDistancePct: number; worldX?: number; worldZ?: number },
+  p: { lapDistancePct: number; worldX?: number; worldZ?: number; motionUpdatedAt?: number },
   geometry: TrackGeometry
 ): { x: number; y: number } | null {
   if (
+    p.motionUpdatedAt != null && Date.now() - p.motionUpdatedAt >= 0 && Date.now() - p.motionUpdatedAt <= 2000 &&
     isFiniteNumber(p.worldX) &&
     isFiniteNumber(p.worldZ) &&
     withinExpandedBounds(p.worldX, p.worldZ, geometry.sourceBounds) &&

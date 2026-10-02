@@ -8,11 +8,20 @@ import { sanitizeConfigPatch } from './sanitize'
  * .env remains the default; UI overrides win when set.
  */
 class ConfigStoreImpl {
-  private store: Store<AppConfig> | null = null
+  private store: Store<AppConfig & { migrationVersion?: number }> | null = null
 
-  private ensure(): Store<AppConfig> {
+  private ensure(): Store<AppConfig & { migrationVersion?: number }> {
     if (!this.store) {
-      this.store = new Store<AppConfig>({ name: 'config', defaults: DEFAULT_CONFIG as unknown as AppConfig })
+      this.store = new Store<AppConfig & { migrationVersion?: number }>({ name: 'config', defaults: DEFAULT_CONFIG as unknown as AppConfig })
+      if ((this.store.get('migrationVersion') ?? 0) < 1) {
+        const stored = this.store.store
+        const config = mergeConfig(sanitizeConfigPatch(stored))
+        this.upgradeQuietEngineerDefaults(config, stored)
+        this.store.set('llm', config.llm)
+        this.store.set('triggers', config.triggers)
+        this.store.set('ui', config.ui)
+        this.store.set('migrationVersion', 1)
+      }
     }
     return this.store
   }
@@ -27,7 +36,6 @@ class ConfigStoreImpl {
     if (!merged.llm.baseURL) merged.llm.baseURL = secrets.aiBaseURL
     if (!merged.llm.model) merged.llm.model = secrets.aiModel
     if (!merged.tts.baseURL) merged.tts.baseURL = secrets.mimoBaseURL
-    this.upgradeQuietEngineerDefaults(merged, stored)
     // hasSecret: true if EITHER an override OR a .env key is present
     merged.llm.hasSecret = !!(merged.llm.apiKeyOverride || secrets.aiKey)
     merged.tts.hasSecret = !!(merged.tts.apiKeyOverride || secrets.mimoKey)

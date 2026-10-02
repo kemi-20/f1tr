@@ -1,6 +1,7 @@
 import { useConfigStore } from '../store'
 import { ApiKeyField, Field, TextInput, TestButton } from './SettingsModal'
 import type { ReasoningEffort } from '@shared/index'
+import { EndpointInput } from './EndpointInput'
 
 const THINKING_LEVELS: { id: ReasoningEffort; label: string; color: string }[] = [
   { id: 'none', label: 'NONE', color: '#8A94A6' },
@@ -19,10 +20,10 @@ export function LlmTab(): React.ReactElement {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
         <Field label="API Base URL" hint="OpenAI 兼容端点（从 .env 的 AI_API_BASE_URL 读取）">
-          <TextInput
+          <EndpointInput
             value={llm.baseURL}
             placeholder="https://api.deepseek.com/v1"
-            onChange={(e) => void patch({ llm: { baseURL: e.target.value } })}
+            onSave={(baseURL) => patch({ llm: { baseURL } })}
           />
         </Field>
         <Field label="模型" hint="如 deepseek-v4-flash / deepseek-v4-pro / gpt-4o-mini">

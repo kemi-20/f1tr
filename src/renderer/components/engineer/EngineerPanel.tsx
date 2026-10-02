@@ -116,7 +116,7 @@ export function EngineerPanel(): React.ReactElement {
         </button>
         <button
           onClick={toggleRec}
-          disabled={recState === 'transcribing'}
+          disabled={recState === 'transcribing' || recState === 'requesting'}
           className={`engineer-action-btn disabled:opacity-40 ${
             recState === 'recording'
               ? 'animate-pulse bg-accent-racing text-white hover:brightness-110'

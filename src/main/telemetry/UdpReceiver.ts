@@ -3,6 +3,7 @@ import { F1TelemetryClient, constants } from '@z0mt3c/f1-telemetry-client'
 import type { PacketHeader } from './HeaderTypes'
 import { logger } from '../logging/Logger'
 import type { PacketFormat } from '@shared/index'
+import { PacketOrder } from './PacketOrder'
 
 const { PACKETS, PACKET_ID_TO_PACKET } = constants
 
@@ -31,6 +32,7 @@ export class UdpReceiver {
   public currentFormat: PacketFormat | null = null
   onDecoded: (id: number, packet: AnyParsedPacket) => void = () => {}
   private formatOverride: PacketFormat | null = null
+  private order = new PacketOrder()
 
   constructor(
     private port = 20777,
@@ -66,6 +68,7 @@ export class UdpReceiver {
     const wasRunning = this.running
     if (wasRunning) this.stop()
     this.host = next
+    this.order.reset()
     this.packetsReceived = 0
     this.packetsDropped = 0
     this.lastPacketMs = 0
@@ -79,6 +82,7 @@ export class UdpReceiver {
     const wasRunning = this.running
     if (wasRunning) this.stop()
     this.port = next
+    this.order.reset()
     this.packetsReceived = 0
     this.packetsDropped = 0
     this.lastPacketMs = 0
@@ -109,6 +113,10 @@ export class UdpReceiver {
       const parsed = F1TelemetryClient.parseBufferMessage(msg, true)
       const data = parsed?.data as AnyParsedPacket | undefined
       if (!data?.m_header || parsed?.name !== name) {
+        this.packetsDropped++
+        return
+      }
+      if (!this.order.accept(data)) {
         this.packetsDropped++
         return
       }

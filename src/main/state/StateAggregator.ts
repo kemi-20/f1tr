@@ -9,6 +9,7 @@ import { nanoid } from 'nanoid'
 import { logger } from '../logging/Logger'
 import { LapPhaseTracker } from './LapPhaseTracker'
 import { sessionKind } from '@shared/util/sessionKind'
+import { PacketOrder } from '../telemetry/PacketOrder'
 
 const MAX_EVENTS = 12
 /** Same-frame event repeats are UDP duplicates; anything older than this is a new event. */
@@ -30,6 +31,7 @@ export class StateAggregator {
   private recentEventKeys = new Map<string, number>() // dedupe key -> seenAt ms
   private oncePerSessionKeys = new Set<string>()
   private lapPhases = new LapPhaseTracker()
+  private order = new PacketOrder()
 
   getState(): RaceState {
     return this.state
@@ -48,6 +50,7 @@ export class StateAggregator {
 
   /** Reset racing state when session changes (keeps nothing — memory is handled elsewhere). */
   reset(format: PacketFormat): void {
+    this.order.reset()
     this.state = emptyRaceState(format)
     this.lastSessionUID = ''
     this.recentEventKeys.clear()
@@ -62,6 +65,7 @@ export class StateAggregator {
   // ───────────────────────── reducers ─────────────────────────
 
   onSession(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     const h = p.m_header as PacketHeader
     const s = this.state.session
     const uid = h.m_sessionUID.toString()
@@ -144,25 +148,25 @@ export class StateAggregator {
     w.airTempC = p.m_airTemperature ?? w.airTempC
     w.trackTempC = p.m_trackTemperature ?? w.trackTempC
     w.weatherCode = p.m_weather ?? w.weatherCode
-    // m_trackWetness may not exist in all parser versions; derive from weather code as fallback
+    // Rain code describes precipitation, not a measured track-water percentage.
     const rawWetness = typeof p.m_trackWetness === 'number' ? p.m_trackWetness : null
-    if (rawWetness != null) {
+    w.wetnessKnown = rawWetness != null && Number.isFinite(rawWetness)
+    if (rawWetness != null && w.wetnessKnown) {
       w.wetness = clamp01(rawWetness / 100)
-    } else if (isRainWeatherCode(w.weatherCode)) {
-      w.wetness = Math.max(w.wetness, w.weatherCode >= 4 ? 0.7 : 0.3)
+    } else {
+      w.wetness = 0
     }
     const forecast = p.m_weatherForecastSamples?.[0]
     const forecastRainPct = forecast?.m_rainPercentage
     const wasRaining = w.isRaining
     const currentRainCode = isRainWeatherCode(w.weatherCode)
-    const wetTrack = w.wetness >= 0.08
     w.rainPercentage = currentRainCode
       ? Math.max(60, forecastRainPct ?? w.rainPercentage)
       : (forecastRainPct ?? w.rainPercentage)
     w.predictedCode = forecast?.m_weather ?? w.predictedCode
     w.predictedWetness = clamp01((forecast?.m_rainPercentage ?? w.predictedWetness * 100) / 100)
     w.rainOnset = false
-    const nowRaining = currentRainCode || wetTrack
+    const nowRaining = currentRainCode
     w.isRaining = nowRaining
     w.rainOnset = !wasRaining && nowRaining
     if (!wasRaining && nowRaining && !this.isDuplicate('rain', uid, h.m_overallFrameIdentifier)) {
@@ -176,6 +180,7 @@ export class StateAggregator {
     this.lastSessionUID = uid
   }
   onParticipants(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     const h = p.m_header as PacketHeader
     const list = (p.m_participants ?? []) as Array<Record<string, number | string>>
     for (let i = 0; i < list.length; i++) {
@@ -201,6 +206,7 @@ export class StateAggregator {
   }
 
   onLapData(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     const receivedAt = Date.now()
     const h = p.m_header as PacketHeader
     const arr = (p.m_lapData ?? []) as AnyParsedPacket[]
@@ -392,6 +398,7 @@ export class StateAggregator {
   }
 
   onCarTelemetry(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     const h = p.m_header as PacketHeader
     const idx = h.m_playerCarIndex
     const arr = (p.m_carTelemetryData ?? []) as AnyParsedPacket[]
@@ -428,6 +435,7 @@ export class StateAggregator {
   }
 
   onCarTelemetry2(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     if (p.m_header.m_packetFormat !== 2026) return
     const t = (p.m_carTelemetry2Data as AnyParsedPacket[] | undefined)?.[p.m_header.m_playerCarIndex]
     if (!t) return
@@ -442,6 +450,7 @@ export class StateAggregator {
   }
 
   onMotion(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     const h = p.m_header as PacketHeader
     const arr = (p.m_carMotionData ?? []) as AnyParsedPacket[]
     const byCar = new Map(this.state.trackPositions.map((tp) => [tp.carIndex, tp]))
@@ -479,6 +488,7 @@ export class StateAggregator {
   }
 
   onCarStatus(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     const h = p.m_header as PacketHeader
     const arr = (p.m_carStatusData ?? []) as AnyParsedPacket[]
     // update ALL cars' tyre compound (rivals + player)
@@ -519,6 +529,7 @@ export class StateAggregator {
   }
 
   onCarDamage(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     const h = p.m_header as PacketHeader
     const idx = h.m_playerCarIndex
     const arr = (p.m_carDamageData ?? []) as AnyParsedPacket[]
@@ -559,6 +570,7 @@ export class StateAggregator {
   }
 
   onCarSetup(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     const h = p.m_header as PacketHeader
     const idx = h.m_playerCarIndex
     const arr = (p.m_carSetups ?? []) as AnyParsedPacket[]
@@ -585,6 +597,7 @@ export class StateAggregator {
   }
 
   onEvent(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     const h = p.m_header as PacketHeader
     const code = String(p.m_eventStringCode ?? '')
     const d = (p.m_eventDetails ?? {}) as Record<string, number | undefined>
@@ -650,7 +663,11 @@ export class StateAggregator {
         if (vIdx === playerIdx) logger.debug('DRS disabled')
         break
       case 'FLBK':
-        // flashback — handled by TelemetryService.checkFlashback
+        // Explicit replay boundary; TelemetryService also suppresses triggers.
+        this.setFlashbackActive(true)
+        this.recentEventKeys.clear()
+        this.oncePerSessionKeys.clear()
+        this.state.recentEvents = []
         break
       case 'STLG':
         logger.info(`Starting lights: ${d.value ?? '?'}`)
@@ -698,6 +715,7 @@ export class StateAggregator {
   }
 
   onSessionHistory(p: AnyParsedPacket): void {
+    if (!this.order.accept(p)) return
     const carIdx = p.m_carIdx as number
     if (!Number.isInteger(carIdx) || carIdx < 0 || carIdx >= (this.state.packetFormat === 2026 ? 24 : 22)) return
     const r = this.ensureRival(carIdx)

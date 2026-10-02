@@ -23,14 +23,13 @@ export class TelemetryService {
   public triggers: TriggerEngine
   private triggerTimer: NodeJS.Timeout | null = null
   private pendingEvents: RecentEvent[] = []
-  private lastOverallFrame = 0
-  private lastSessionUID = ''
   private running = false
   private udpStale = false
   private onUdpStale?: () => void
   private onUdpResume?: () => void
   onObservation: (state: RaceState) => void = () => {}
   onDecoded: (id: number, packet: AnyParsedPacket) => void = () => {}
+  onFlashback: () => void = () => {}
   private readonly STALE_MS = 120_000 // 2 minutes
 
   constructor(
@@ -73,8 +72,6 @@ export class TelemetryService {
     this.receiver.on(P.participants, (p) => this.aggregator.onParticipants(p))
     this.receiver.on(P.lapData, (p) => {
       this.aggregator.onLapData(p)
-      // detect flashback (overallFrameIdentifier regression within same session)
-      this.checkFlashback(p)
     })
     this.receiver.on(P.carTelemetry, (p) => this.aggregator.onCarTelemetry(p))
     this.receiver.on(P.carTelemetry2, (p) => this.aggregator.onCarTelemetry2(p))
@@ -83,6 +80,14 @@ export class TelemetryService {
     this.receiver.on(P.carSetups, (p) => this.aggregator.onCarSetup(p))
     this.receiver.on(P.event, (p) => {
       this.aggregator.onEvent(p)
+      if (p.m_eventStringCode === 'FLBK') {
+        this.triggers.noteFlashback()
+        this.aggregator.setFlashbackActive(true)
+        this.pendingEvents = []
+        this.onFlashback()
+        // Notify consumers now so trends and strategy memory cannot survive a quick replay.
+        this.onObservation(this.aggregator.getState())
+      }
       this.drainEvents()
     })
     this.receiver.on(P.sessionHistory, (p) => this.aggregator.onSessionHistory(p))
@@ -138,17 +143,6 @@ export class TelemetryService {
     if (this.pendingEvents.length > 50) this.pendingEvents = this.pendingEvents.slice(-50)
   }
 
-  private checkFlashback(p: { m_header: { m_overallFrameIdentifier: number; m_sessionUID: bigint } }): void {
-    const uid = p.m_header.m_sessionUID.toString()
-    const frame = p.m_header.m_overallFrameIdentifier
-    if (this.lastSessionUID === uid && frame < this.lastOverallFrame - 5) {
-      this.triggers.noteFlashback()
-      this.aggregator.setFlashbackActive(true)
-    }
-    this.lastOverallFrame = frame
-    this.lastSessionUID = uid
-  }
-
   stop(): void {
     if (!this.running) return
     if (this.triggerTimer) clearInterval(this.triggerTimer)
@@ -174,8 +168,6 @@ export class TelemetryService {
   setPort(port: number): void {
     this.receiver.setPort(port)
     this.aggregator.reset(this.receiver.currentFormat ?? 2025)
-    this.lastOverallFrame = 0
-    this.lastSessionUID = ''
     this.pendingEvents = []
   }
 
@@ -183,8 +175,6 @@ export class TelemetryService {
   setHost(host: string): void {
     this.receiver.setHost(host)
     this.aggregator.reset(this.receiver.currentFormat ?? 2025)
-    this.lastOverallFrame = 0
-    this.lastSessionUID = ''
     this.pendingEvents = []
   }
 }

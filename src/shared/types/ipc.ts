@@ -81,8 +81,6 @@ export interface ApiSurface {
   ask: (text?: string) => Promise<void>
   cancel: () => Promise<void>
   transcribe: (base64Audio: string, format: string) => Promise<{ ok: boolean; text?: string; message?: string }>
-  setMute: (muted: boolean) => Promise<void>
-  setVolume: (vol: number) => Promise<void>
   audioFinished: (utteranceId: string) => Promise<void>
   on: (channel: string, cb: (payload: unknown) => void) => () => void
 }

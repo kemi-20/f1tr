@@ -38,7 +38,7 @@ export class DigestBuilder {
         airC: Math.round(w.airTempC),
         trackC: Math.round(w.trackTempC),
         rainPct: Math.round(w.rainPercentage),
-        wet: Math.round(w.wetness * 100),
+        wet: w.wetnessKnown === false ? null : Math.round(w.wetness * 100),
         expected: this.weatherExpected(w)
       },
       player: {
@@ -52,13 +52,7 @@ export class DigestBuilder {
         pits: p.pitStopCount,
         ers: fmtPct(p.ersPercent),
         drs: raceSession && (state.packetFormat === 2025 || !p.regulations2026)
-          ? drsBlockedByWeather
-            ? 'disabled by rain/wet track'
-            : p.drsActive
-              ? 'active'
-              : p.drsAllowed
-                ? 'available'
-                : 'no'
+          ? p.drsActive ? 'active' : p.drsAllowed ? 'available' : drsBlockedByWeather ? 'disabled by rain/wet track' : 'no'
           : '',
         aero: state.packetFormat === 2026 && p.regulations2026
           ? `active aero ${p.activeAeroMode ?? 'unknown'} mode${p.activeAeroAvailable ? ' available' : ''}${p.activeAeroActivationDistanceM ? ` in ${p.activeAeroActivationDistanceM}m` : ''}; overtake ${p.overtakeActive ? 'active' : p.overtakeAvailable ? 'available' : 'unavailable'}${p.overtakeActivationDistanceM ? ` in ${p.overtakeActivationDistanceM}m` : ''}`
@@ -76,9 +70,9 @@ export class DigestBuilder {
           blister: String(this.maxCorner(p.tyres.blisters))
         },
         dmg: {
-          wingL: this.fmtDamage(p.damage.frontLeftWing),
-          wingR: this.fmtDamage(p.damage.frontRightWing),
-          wingRear: this.fmtDamage(p.damage.rearWing)
+          wingL: p.damage.telemetryReceived ? this.fmtDamage(p.damage.frontLeftWing) : 'unknown',
+          wingR: p.damage.telemetryReceived ? this.fmtDamage(p.damage.frontRightWing) : 'unknown',
+          wingRear: p.damage.telemetryReceived ? this.fmtDamage(p.damage.rearWing) : 'unknown'
         }
       },
       rivals: playerRivals,
@@ -102,7 +96,7 @@ export class DigestBuilder {
         ` • SC: ${d.session.sc.toUpperCase()}`
     )
     lines.push(
-      `WEATHER: air ${d.weather.airC}C track ${d.weather.trackC}C rain ${d.weather.rainPct}% wet ${d.weather.wet}% expected: ${d.weather.expected}`
+      `WEATHER: air ${d.weather.airC}C track ${d.weather.trackC}C rain ${d.weather.rainPct}% wet ${d.weather.wet == null ? 'unknown' : `${d.weather.wet}%`} expected: ${d.weather.expected}`
     )
     const sectorLabel = d.player.position.sector >= 0 ? `S${d.player.position.sector + 1}` : '?'
     lines.push(
@@ -211,6 +205,7 @@ export class DigestBuilder {
 
   private weatherExpected(w: RaceState['weather']): string {
     if (w.weatherCode >= 3 || w.isRaining) return 'raining/wet'
+    if (w.wetnessKnown === false) return 'no current rain; track wetness unknown'
     if (w.wetness > 0.3) return 'drying wet track'
     if (w.wetness > 0.08) return 'damp track'
     if (w.rainPercentage > 25) return 'changeable'

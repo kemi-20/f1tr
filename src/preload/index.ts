@@ -10,8 +10,6 @@ const api: ApiSurface = {
   ask: (text) => ipcRenderer.invoke('engineer:request', text),
   cancel: () => ipcRenderer.invoke('engineer:cancel'),
   transcribe: (base64Audio, format) => ipcRenderer.invoke('engineer:voice', base64Audio, format),
-  setMute: (muted) => ipcRenderer.invoke('audio:mute', muted),
-  setVolume: (vol) => ipcRenderer.invoke('audio:volume', vol),
   audioFinished: (utteranceId) => ipcRenderer.invoke('audio:finished', utteranceId),
   on: (channel, cb) => {
     const handler = (_e: unknown, payload: unknown): void => cb(payload)

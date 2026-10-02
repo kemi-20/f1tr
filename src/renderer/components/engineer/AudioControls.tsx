@@ -3,10 +3,12 @@ import { Volume2, VolumeX, Square } from 'lucide-react'
 import { api } from '../../ipc/ipcClient'
 import { WebAudioEngine } from '../../audio/WebAudioEngine'
 import { useConfigStore, useEngineerStore } from '../../store'
+import { cancelVoiceRecording } from '../../hooks/useVoiceRecorder'
 
 /** Mute / volume / Stop controls. */
 export function AudioControls(): React.ReactElement {
   const cfg = useConfigStore((s) => s.config)
+  const patch = useConfigStore((s) => s.patch)
   const pitwall = cfg?.ui.style === 'pitwall'
   const status = useEngineerStore((s) => s.status)
   const [muted, setMuted] = useState(false)
@@ -35,16 +37,17 @@ export function AudioControls(): React.ReactElement {
     const m = !muted
     setMuted(m)
     WebAudioEngine.setMuted(m)
-    void api.setMute(m)
+    void patch({ audio: { muted: m } })
   }
 
   const changeVol = (v: number): void => {
     setVolume(v)
     WebAudioEngine.setVolume(v)
-    void api.setVolume(v)
+    void patch({ audio: { volume: v } })
   }
 
   const stop = (): void => {
+    cancelVoiceRecording()
     void api.cancel()
     WebAudioEngine.stopAll()
   }
