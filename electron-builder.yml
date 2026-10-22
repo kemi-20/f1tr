@@ -25,10 +25,18 @@ extraResources:
     to: dsh-runtime
     filter:
       - '**/*'
+      - '!node_modules/**'
       - '!node.exe'
       - '!**/*.map'
       - '!**/*.ts'
       - '!package-lock.json'
+      - '!**/.bin/**'
+  - from: resources/dsh-runtime/node_modules
+    to: dsh-runtime/node_modules
+    filter:
+      - '**/*'
+      - '!**/*.map'
+      - '!**/*.ts'
       - '!**/.bin/**'
 win:
   target:
